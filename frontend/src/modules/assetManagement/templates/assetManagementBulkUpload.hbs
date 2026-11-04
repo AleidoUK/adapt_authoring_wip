@@ -1,0 +1,47 @@
+<div class="asset-management-bulk-upload-inner form-container">
+  <fieldset class="fieldset-asset-bulk-upload">
+    <div class="legend"><legend>{{t 'app.assetbulkuploadtitle'}}</legend></div>
+
+    <div class="field" data-type="">
+      <label>{{t 'app.assetbulkuploadrequiredcolumns'}}</label>
+      <div class="field-editor">
+        <code>filename, title, description, tags</code>
+      </div>
+    </div>
+
+    <div class="field" data-type="">
+      <div class="field-editor">
+        <a class="asset-bulk-upload-template-link" href="api/asset/import/template" download="asset-import-template.csv">{{t 'app.dataimportdownloadtemplate'}}</a>
+      </div>
+    </div>
+
+    <div class="field" data-type="">
+      <label>{{t 'app.assetbulkuploadinstructions'}}</label>
+    </div>
+
+    <form class="asset-bulk-upload-form forms asset-bulk-upload-form" action="api/asset/import" method="post">
+      <div class="field" data-type="">
+        <label>
+          {{t 'app.assetbulkuploadfile'}} <span class="req">*</span>
+          <span class="field-error display-none" data-error="">{{t 'app.required'}}</span>
+        </label>
+        <div class="field-editor">
+          <input type="file" class="asset-bulk-upload-file" name="file" accept=".zip">
+          {{maxUploadSize}}
+        </div>
+      </div>
+    </form>
+
+    <div class="field" data-type="">
+      <div class="field-editor">
+        <div class="asset-bulk-upload-overall display-none">
+          <div class="progress-container">
+            <div class="progress-bar"><div class="progress-percent">0%</div></div>
+          </div>
+          <div class="asset-bulk-upload-overall-text"></div>
+        </div>
+        <ul class="asset-bulk-upload-progress-list"></ul>
+      </div>
+    </div>
+  </fieldset>
+</div>

@@ -632,7 +632,8 @@
       "inputType": "CodeEditor:less",
       "validators": [],
       "title": "Custom CSS/LESS code",
-      "help": "Add any custom CSS or valid LESS code here"
+      "help": "Add any custom CSS or valid LESS code here",
+      "fieldClass": "full-width"
     },
     "externalReferences": {
       "type" : "object"

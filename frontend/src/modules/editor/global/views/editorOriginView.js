@@ -45,8 +45,28 @@ define(function(require){
         return this.setViewToReady();
       }
       this.$('.form-container').append(this.form.el);
+      this.scrollToPendingFieldset();
       // Set the delays going to stop jumping pages
       _.delay(_.bind(this.setViewToReady, this, 400));
+    },
+
+    // supports links elsewhere in the app that want to jump straight to a fieldset here, e.g. 'editor/<id>/settings'
+    scrollToPendingFieldset: function() {
+      var key = sessionStorage.getItem('scaffoldScrollToKey');
+      if (!key) {
+        return;
+      }
+      sessionStorage.removeItem('scaffoldScrollToKey');
+
+      var $fieldset = this.$('fieldset[data-key="' + key + '"]');
+      if (!$fieldset.length) {
+        return;
+      }
+      _.delay(function() {
+        $fieldset[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        $fieldset.addClass('scaffold-highlight');
+        _.delay(function() { $fieldset.removeClass('scaffold-highlight'); }, 2000);
+      }, 400);
     },
 
     filterForm: function(filter) {

@@ -118,10 +118,27 @@ function ImportSource(req, done) {
   */
   function installPlugins(done) {
     async.each(plugindata.pluginIncludes, function(pluginData, donePluginIterator) {
-      // Ignore white & amber, nothing to install
-      if (pluginData.name in details.pluginVersions.white ||
-          pluginData.name in details.pluginVersions.amber) {
+      var installedManifest = path.join(
+        configuration.tempDir,
+        configuration.getConfig('masterTenantID'),
+        Constants.Folders.Framework,
+        Constants.Folders.Source,
+        pluginData.folder,
+        pluginData.name,
+        Constants.Filenames.Bower
+      );
+      var installedFilesExist = fs.existsSync(installedManifest);
+
+      // A matching registry entry is not enough if its framework files are missing.
+      if (pluginData.name in details.pluginVersions.white && installedFilesExist) {
         return donePluginIterator();
+      }
+
+      if (pluginData.name in details.pluginVersions.amber) {
+        if (installedFilesExist) return donePluginIterator();
+        return donePluginIterator(new Error(
+          `Installed newer plugin ${pluginData.name} is missing framework files; restore that version before importing this course.`
+        ));
       }
 
       // Red shouldn't make it this far - throw error
@@ -532,14 +549,16 @@ function ImportSource(req, done) {
     var assetData = {
       _courseId : contentData._courseId,
       _contentType: type,
-      _contentTypeParentId: contentData._parentId
+      _contentTypeParentId: contentData._parentId || contentData._id
     };
     // some courseassets values change depending on what content type they're for
     switch(type) {
       case 'course':
         assetData._courseId = assetData._contentTypeId = assetData._contentTypeParentId = contentData._id;
         break;
-      case 'article', 'block', 'config':
+      case 'article':
+      case 'block':
+      case 'config':
         assetData._contentTypeId = contentData._componentType;
         break;
       default:

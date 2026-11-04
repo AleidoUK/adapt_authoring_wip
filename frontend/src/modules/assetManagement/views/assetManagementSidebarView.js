@@ -8,6 +8,9 @@ define(function(require) {
 
         events: {
             'click .asset-management-sidebar-new': 'onAddNewAssetClicked',
+            'click .asset-management-sidebar-bulk-upload': 'onBulkUploadClicked',
+            'click .asset-management-sidebar-cleanup': 'onCleanupClicked',
+            'click .asset-management-sidebar-replace': 'onReplaceAssetClicked',
             'click .asset-management-sidebar-filter-button': 'onFilterButtonClicked',
             'click .sidebar-filter-clear': 'onClearSearchClicked',
             'keyup .asset-management-sidebar-filter-search': 'onSearchKeyup',
@@ -24,6 +27,22 @@ define(function(require) {
 
         onAddNewAssetClicked: function() {
             Origin.router.navigateTo('assetManagement/new');
+        },
+
+        onBulkUploadClicked: function() {
+            Origin.router.navigateTo('assetManagement/bulkupload');
+        },
+
+        onCleanupClicked: function() {
+            Origin.router.navigateTo('assetManagement/cleanup');
+        },
+
+        // onReplaceAssetClicked: function() {
+        //     Origin.router.navigateTo('assetManagement/replace');
+        // },
+
+        onTemporaryClicked: function() {
+            console.log("The temporary button has been selected!");
         },
 
         onFilterButtonClicked: function(event) {

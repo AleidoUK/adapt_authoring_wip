@@ -1,0 +1,93 @@
+@import 'sharedStyles';
+@import 'colours';
+
+// mirrors .form-container > form > div > fieldset (scaffold/less/forms.less) since our
+// fieldset isn't rendered inside an actual <form>/<div> wrapper
+.asset-management-bulk-upload-inner fieldset {
+  border: 1px solid #d6f2f9;
+  margin: 20px;
+  padding-bottom: 15px;
+  max-width: 800px;
+}
+
+.asset-bulk-upload-template-link {
+  display: inline-block;
+  font-size: 13px;
+}
+
+.asset-management-bulk-upload {
+  .asset-bulk-upload-overall {
+    margin-bottom: 15px;
+
+    .progress-percent {
+      display: none;
+    }
+  }
+
+  .asset-bulk-upload-overall-text {
+    margin-top: 5px;
+    font-size: 13px;
+  }
+
+  .asset-bulk-upload-progress-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .asset-bulk-upload-progress-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+
+    .asset-bulk-upload-progress-name {
+      width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .progress-container {
+      flex: 1;
+      margin: 0 10px;
+    }
+
+    .asset-bulk-upload-progress-status {
+      width: 160px;
+      font-size: 12px;
+    }
+  }
+
+  .progress-container {
+    position: relative;
+    visibility: visible;
+    width: 76px;
+    height: 10px;
+    background-color: @white;
+    border: 1px solid black;
+    overflow: hidden;
+    border-radius: 8px;
+    margin: 10px 0;
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background-color: @primary-color;
+      transition: width 0.3s ease;
+
+      &.done {
+        background-color: #3c763d;
+      }
+
+      &.error {
+        background-color: #a94442;
+      }
+
+      .progress-percent {
+        display: none;
+      }
+    }
+  }
+}
+

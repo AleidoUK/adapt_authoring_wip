@@ -79,7 +79,7 @@ function ImportSourceCheck(req, done) {
       },
       function(cb2) {
         const form = new IncomingForm();
-        form.maxFileSize = configuration.getConfig('maxFileUploadSize');
+        form.maxFileSize = configuration.getMaxFileUploadSize('zip');
         // parse the form
         form.parse(req, function (error, fields, files) {
           if(error) {

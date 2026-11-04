@@ -199,17 +199,17 @@ Component.prototype.update = function (search, delta, next)  {
                     return next(err);
                   }
 
-                  next(null);
+                  next(null, doc);
                 });
 
               } else {
                 // Nothing to do.
-                next(null);
+                next(null, doc);
               }
             });
           });
         } else {
-          next(null);
+          next(null, doc);
         }
       });
     } else {

@@ -1,0 +1,28 @@
+@import 'fonts';
+
+// mirrors .form-container > form > div > fieldset (scaffold/less/forms.less) since our
+// fieldsets aren't rendered inside an actual <form>/<div> wrapper
+.data-import-inner fieldset {
+  border: 1px solid #d6f2f9;
+  margin: 20px;
+  padding-bottom: 15px;
+  max-width: 800px;
+}
+
+.data-import-template-link, .data-import-settings-link {
+  display: inline-block;
+  font-size: 13px;
+}
+
+.data-import-feedback {
+  margin-top: 10px;
+  font-size: 13px;
+
+  &.success {
+    color: #3c763d;
+  }
+
+  &.error {
+    color: #a94442;
+  }
+}

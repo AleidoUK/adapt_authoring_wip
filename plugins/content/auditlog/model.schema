@@ -1,0 +1,106 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "$ref": "http://localhost/system/basicContent.schema",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["create", "update", "delete"],
+      "required": true,
+      "title": "Action Type",
+      "inputType": "Text"
+    },
+    "contentType": {
+      "type": "string",
+      "required": true,
+      "title": "Content Type",
+      "inputType": "Text"
+    },
+    "contentId": {
+      "type": "objectid",
+      "required": true,
+      "title": "Content ID"
+    },
+    "contentTitle": {
+      "type": "string",
+      "required": false,
+      "title": "Content Title",
+      "inputType": "Text"
+    },
+    "courseId": {
+      "type": "objectid",
+      "title": "Course ID"
+    },
+    "parentId": {
+      "type": "objectid",
+      "required": false,
+      "title": "Parent ID"
+    },
+    "userId": {
+      "type": "objectid",
+      "required": true,
+      "title": "User ID"
+    },
+    "userName": {
+      "type": "string",
+      "required": true,
+      "title": "User Name",
+      "inputType": "Text"
+    },
+    "userEmail": {
+      "type": "string",
+      "required": false,
+      "title": "User Email",
+      "inputType": "Text"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "required": true,
+      "title": "Timestamp"
+    },
+    "changes": {
+      "type": "array",
+      "title": "Changes",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field Name"
+          },
+          "oldValue": {
+            "title": "Old Value"
+          },
+          "newValue": {
+            "title": "New Value"
+          },
+          "changeType": {
+            "type": "string",
+            "enum": ["text", "image", "video", "audio", "file", "number", "boolean", "array", "object"],
+            "title": "Change Type"
+          }
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "title": "Data Snapshot"
+    },
+    "metadata": {
+      "type": "object",
+      "title": "Additional Metadata",
+      "properties": {
+        "ipAddress": {
+          "type": "string",
+          "title": "IP Address"
+        },
+        "userAgent": {
+          "type": "string",
+          "title": "User Agent"
+        }
+      }
+    }
+  }
+}

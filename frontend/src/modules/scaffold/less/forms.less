@@ -17,6 +17,11 @@ fieldset {
   }
 }
 
+fieldset.scaffold-highlight {
+  background-color: rgba(@aleido-extra-light-green, 0.8);
+  transition: background-color 0.3s ease;
+}
+
 form .error {
   top: inherit;
   left: inherit;
@@ -30,13 +35,18 @@ form .error {
     padding: 25px 0 10px 30px;
     font-size: 16px;
     font-weight: @font-weight-bold;
+    font-family: @font-title;
+    border-bottom: 1px solid @aleido-green;
+    background-color: @aleido-extra-light-green;
+    margin-bottom: 1rem;
   }
   .fieldset-object & {
     color: #3e4960;
-    text-decoration: underline;
+    text-decoration: none;
     legend {
       padding: 0;
       margin-bottom: 0;
+      padding-bottom: 0.5rem;
     }
   }
 }
@@ -48,13 +58,67 @@ form .error {
   }
 }
 
+div[name="_extensions"], div[name="_aleido"], div[name="_tileMenu"] {
+  .field-object {
+    background-color: rgba(@aleido-extra-light-green, 0.5);
+
+    .legend legend {
+      background-color: transparent;
+    }
+    .legend {
+      padding: 0;
+    }
+
+    fieldset {
+      padding-left: 20px;
+      margin-left: 0;
+      margin-top: 1rem;
+    }
+  }
+}
+
+.list-items, div[name="_style"], div[name="_mobilestyle"], div[name="_position"], div[name="_positionSelect"], 
+div[name="_itemDimensions"], div[name="_pin"], div[name="_icon"], div[name="_media"], div[name="_transcript"], 
+div[name="_itemButtons"], div[name="_options"], div[name="_activity"], div[name="_pdf"], div[name="_columns"] {
+  background-color: rgba(@aleido-extra-light-green, 0.5);
+  padding: 1rem;
+
+  fieldset {
+    background-color: transparent;
+  }
+}
+
+div[data-type="Asset:image"], div[data-type="Asset:video"] {
+  max-width: calc(50% - 1rem);
+  float: left;
+  margin: 0 0.5rem;
+  padding: 1rem 0 !important;
+}
+div[data-type=""], div[data-type="Text"], div[data-type="Number"], div[data-type="Select"] {
+  width: calc(100% - 40px);
+  clear: both;
+}
+
+label[title="_front"], label[title="_reverse"] {
+  font-weight: @font-weight-bold;
+}
+div[name="_pdf"] {
+  label[title="_header"], label[title="_styling"], label[title="_footer"] {
+    font-weight: @font-weight-bold;
+  }
+}
+
 .field-object .legend {
   cursor: pointer;
+  padding: 1rem;
 }
 
 .field {
   position: relative;
   padding: 10px 30px;
+  // border: 1px solid @aleido-light-green;
+  float: left;
+
   &-object {
     padding: 8px 10px;
     border: 1px solid #aaa;
@@ -67,14 +131,36 @@ form .error {
     [data-type="Boolean"]& {
       margin-left: 10px;
     }
+    // font-weight: @font-weight-bold;
+    // color: @aleido-logo-text-green;
+  }
+  // [data-editor] label {
+  //   color: @aleido-dark-green;
+  //   font-weight: @font-weight;
+  // }
+  &-styling, div[name="_graphic"], div[name="_bgSize"], div[name="_bgPosition"], div[name="_feedback"], div[name="_buttons"] {
+    background-color: rgba(@aleido-extra-light-green, 0.5);
+    .field {
+      padding: 1rem;
+    }
+    label {
+      font-weight: @font-weight-bold;
+    }
+    fieldset {
+      border: none;
+      background-color: transparent;
+      label {
+        font-weight: @font-weight;
+      }
+    }
   }
   i {
     width: 13px;
-    color: @tertiary-color;
+    color: @aleido-logo-text-green;
     text-align: center;
     transition: color 0.3s;
     &:hover {
-      color: darken(@tertiary-color, 5%);
+      color: darken(@aleido-dark-green, 5%);
     }
   }
   input[type="checkbox"],
@@ -94,7 +180,7 @@ form .error {
     padding: 5px;
     border-radius: 6px;
     margin: 10px 0;
-    background-color: @tertiary-color;
+    background-color: @aleido-dark-green;
     color: @white;
     opacity: 0;
     text-align: center;
@@ -166,4 +252,11 @@ form .error {
   .expanded {
     display: block;
   }
+}
+
+input[type='checkbox'], input[type='checkbox']:hover {
+  accent-color: @aleido-light-green;
+}
+select option:hover {
+  background-color: @aleido-dark-green!important;
 }

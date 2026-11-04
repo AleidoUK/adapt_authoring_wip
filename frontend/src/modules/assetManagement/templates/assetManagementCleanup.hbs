@@ -1,0 +1,22 @@
+<div class="asset-management-cleanup-inner form-container">
+  <fieldset class="fieldset-asset-cleanup">
+    <div class="legend"><legend>{{t 'app.assetcleanuptitle'}}</legend></div>
+
+    <div class="field" data-type="">
+      <label>{{t 'app.assetcleanupinstructions'}}</label>
+    </div>
+
+    <div class="asset-cleanup-loading">{{t 'app.loading'}}</div>
+
+    <div class="asset-cleanup-empty display-none">{{t 'app.assetcleanupnounused'}}</div>
+
+    <div class="asset-cleanup-header display-none">
+      <label class="asset-cleanup-select-all-label">
+        <input type="checkbox" class="asset-cleanup-select-all">
+        {{t 'app.assetcleanupselectall'}}
+      </label>
+    </div>
+
+    <ul class="asset-cleanup-list"></ul>
+  </fieldset>
+</div>

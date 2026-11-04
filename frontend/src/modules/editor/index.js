@@ -11,7 +11,9 @@ define([
   './course/index',
   './extensions/index',
   './menuSettings/index',
-  './themeEditor/index'
+  './themeEditor/index',
+  './auditLog/index',
+  './dataImport/index'
 ], function(require, Origin, EditorData) {
   // loads editor data
   Origin.on('origin:dataReady login:changed', EditorData.loadGlobalData);
@@ -35,6 +37,8 @@ define([
       case 'extensions':
       case 'menusettings':
       case 'selecttheme':
+      case 'auditlog':
+      case 'dataimport':
         type = route2;
         break;
       case 'page':

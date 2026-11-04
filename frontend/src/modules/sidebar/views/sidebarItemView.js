@@ -17,6 +17,8 @@ define(function(require) {
       'click button.editor-common-sidebar-extensions': 'manageExtensions',
       'click button.editor-common-sidebar-menusettings': 'editMenu',
       'click button.editor-common-sidebar-select-theme': 'selectTheme',
+      'click button.editor-common-sidebar-auditlog': 'viewAuditLog',
+      'click button.editor-common-sidebar-dataimport': 'viewDataImport',
       'click button.editor-common-sidebar-download': 'downloadProject',
       'click button.editor-common-sidebar-preview': 'previewProject',
       'click button.editor-common-sidebar-preview-force': 'forcePreviewProject',
@@ -125,6 +127,14 @@ define(function(require) {
 
     manageExtensions: function() {
       this.navigateToEditorPage('extensions');
+    },
+
+    viewAuditLog: function() {
+      this.navigateToEditorPage('auditlog');
+    },
+
+    viewDataImport: function() {
+      this.navigateToEditorPage('dataimport');
     },
 
     downloadProject: function() {

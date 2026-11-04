@@ -11,10 +11,18 @@ define(function(require){
 
     events: {
       'change .asset-file': 'onChangeFile',
+      'mouseover .asset-use-icon': 'onShowUseInfo',
+      'mouseout .asset-use-icon': 'onHideUseInfo'
     },
+
+    permanentDelete: false,
+    uses: 'none',
 
     preRender: function() {
         this.listenTo(Origin, 'assetManagement:newAsset', this.uploadAsset);
+
+        this.$('.asset-use-info').html("");
+        this.checkUsage();
     },
 
     postRender: function() {
@@ -35,6 +43,65 @@ define(function(require){
 
       // Default 'title' -- remove C:\fakepath if it is added
       $title.val(this.$('.asset-file')[0].value.replace("C:\\fakepath\\", ""));
+    },
+
+    checkUsage: function() {
+      var self = this;
+      this.permanentDelete = false;
+
+      // Don't check usage for new assets that don't have an ID yet
+      var assetId = this.model.get('_id');
+      if (!assetId) {
+        this.permanentDelete = true;
+        this.model.set('usage', 'none');
+        return;
+      }
+
+      $.ajax({
+        url: 'api/asset/uses/' + assetId,
+        type: 'GET',
+        success: function(data) {
+          // Backend now returns proper JSON
+          var parsed = typeof data === 'string' ? JSON.parse(data) : data;
+
+          if (parsed.components.length === 0) {
+            self.permanentDelete = true;
+            self.$('.asset-use-info').addClass('is-visible');
+            self.model.set('usage', 'none');
+          } else {
+            // Build usage display string
+            var usageStr = '';
+            var courseMap = {};
+            
+            // Create course lookup map
+            parsed.courses.forEach(function(course) {
+              courseMap[course.id] = course;
+              usageStr += '<br/><b>' + course.title + '</b><br/>';
+            });
+
+            // Group components by course
+            parsed.components.forEach(function(component) {
+              usageStr += '* ' + component.title + '<br/>';
+            });
+
+            self.uses = usageStr;
+            self.model.set('usage', usageStr);
+            self.$('.asset-use-icon').addClass('is-visible');
+            self.$('.asset-use-info').addClass('hover').html(usageStr);
+          }
+        },
+        error: function(xhr, status, error) {
+          console.error('Failed to check asset usage:', error);
+        }
+      });
+    },
+
+    onShowUseInfo: function() {
+      this.$('.asset-use-info').addClass('is-visible');
+    },
+
+    onHideUseInfo: function() {
+      this.$('.asset-use-info').removeClass('is-visible');
     },
 
     validateInput: function () {
@@ -94,7 +161,7 @@ define(function(require){
             }
           })
         }
-
+        
     },
 
     uploadFile: function() {

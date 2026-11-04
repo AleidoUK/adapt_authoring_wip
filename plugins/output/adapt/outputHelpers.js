@@ -93,7 +93,7 @@ function importPlugin(pluginDir, pluginType, pluginImported) {
       if (records.length === 0) {
         logger.log('info', 'Installing', pluginType, "'" + bowerJson.displayName + "'");
         bowerJson.isLocalPackage = true;
-        app.bowermanager.addPackage(contentPlugin.bowerConfig, { canonicalDir: pluginDir, pkgMeta: bowerJson }, { strict: true }, cb);
+        app.bowermanager.addPackage(contentPlugin.bowerConfig, { canonicalDir: pluginDir, pkgMeta: bowerJson }, { strict: true, repairMissingFiles: true }, cb);
       } else {
         var serverPlugin = records[0];
         var serverPluginVersion = semver.clean(serverPlugin.version);
@@ -103,6 +103,23 @@ function importPlugin(pluginDir, pluginType, pluginImported) {
         if(serverPluginVersion && bowerVersion && semver.gt(bowerVersion, serverPluginVersion)) {
           logger.log('info', 'Import contains newer version of ' + bowerJson.displayName + ' (' + bowerVersion + ') than server (' + serverPluginVersion + '), upgrading');
           app.bowermanager.addPackage(contentPlugin.bowerConfig, { canonicalDir: pluginDir, pkgMeta: bowerJson }, { strict: true }, cb);
+        } else if(serverPluginVersion && bowerVersion && semver.eq(bowerVersion, serverPluginVersion)) {
+          var tenantId = app.usermanager.getCurrentUser().tenant._id.toString();
+          var installedManifest = path.join(
+            configuration.tempDir,
+            tenantId,
+            Constants.Folders.Framework,
+            Constants.Folders.Source,
+            contentPlugin.bowerConfig.srcLocation,
+            bowerJson.name,
+            Constants.Filenames.Bower
+          );
+
+          fs.pathExists(installedManifest, function(error, exists) {
+            if (error) return cb(error);
+            if (exists) return cb();
+            app.bowermanager.addPackage(contentPlugin.bowerConfig, { canonicalDir: pluginDir, pkgMeta: bowerJson }, { strict: true, repairMissingFiles: true }, cb);
+          });
         } else {
           cb();
         }

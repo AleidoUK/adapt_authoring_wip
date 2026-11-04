@@ -4,6 +4,12 @@ define(function(require) {
   var AssetCollection = require('./collections/assetCollection');
   var AssetManagementNewAssetView = require('./views/assetManagementNewAssetView');
   var AssetManagementNewAssetSidebarView = require('./views/assetManagementNewAssetSidebarView');
+  var AssetManagementBulkUploadView = require('./views/assetManagementBulkUploadView');
+  var AssetManagementBulkUploadSidebarView = require('./views/assetManagementBulkUploadSidebarView');
+  var AssetManagementCleanupView = require('./views/assetManagementCleanupView');
+  var AssetManagementCleanupSidebarView = require('./views/assetManagementCleanupSidebarView');
+  var AssetManagementReplaceAssetView = require('./views/AssetManagementReplaceAssetView');
+  var AssetManagementReplaceAssetSidebarView = require('./views/AssetManagementReplaceAssetSidebarView');
   var AssetManagementSidebarView = require('./views/assetManagementSidebarView');
   var AssetManagementView = require('./views/assetManagementView');
   var AssetModel = require('./models/assetModel');
@@ -29,6 +35,9 @@ define(function(require) {
     };
     if(!location) return loadAssetsView();
     if(location === 'new') return loadNewAssetView();
+    if(location === 'bulkupload') return loadBulkUploadView();
+    if(location === 'cleanup') return loadCleanupView();
+    if(subLocation === 'replace') loadReplaceAssetView(location);
     if(subLocation === 'edit') loadEditAssetView(location);
   });
 
@@ -54,6 +63,33 @@ define(function(require) {
     Origin.trigger('location:title:update', { title: Origin.l10n.t('app.newasset')});
     Origin.sidebar.addView(new AssetManagementNewAssetSidebarView().$el);
     Origin.contentPane.setView(AssetManagementNewAssetView, { model: new AssetModel });
+  }
+
+  function loadBulkUploadView() {
+    Origin.trigger('location:title:update', { title: Origin.l10n.t('app.assetbulkuploadtitle')});
+    Origin.sidebar.addView(new AssetManagementBulkUploadSidebarView().$el);
+    Origin.contentPane.setView(AssetManagementBulkUploadView);
+  }
+
+  function loadCleanupView() {
+    Origin.trigger('location:title:update', { title: Origin.l10n.t('app.assetcleanuptitle')});
+    Origin.sidebar.addView(new AssetManagementCleanupSidebarView().$el);
+    Origin.contentPane.setView(AssetManagementCleanupView);
+  }
+
+  function loadReplaceAssetView(assetId) {
+    // Fetch existing asset model
+    (new AssetModel({ _id: assetId })).fetch({
+      success: function(model) {
+        Origin.trigger('location:title:update', { title: Origin.l10n.t('app.replaceasset')});
+        Origin.sidebar.addView(new AssetManagementReplaceAssetSidebarView().$el);
+        Origin.contentPane.setView(AssetManagementReplaceAssetView, { model: model });
+      },
+      error: function() {
+        console.log('Error fetching asset for replacement - try refreshing your page');
+        Origin.router.navigateTo('assetManagement');
+      }
+    });
   }
 
   function loadEditAssetView(location) {

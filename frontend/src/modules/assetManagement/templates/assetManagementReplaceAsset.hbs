@@ -1,0 +1,53 @@
+<div class="asset-management-replace-asset-inner inner">
+    <!-- Begin upload form -->
+    <form class="asset-form forms asset-form" action="api/asset/replace" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="_id" value="{{ _id }}" />
+        
+        <div class="asset-management-current-file">
+            <h3>{{t 'app.currentfile'}}</h3>
+            <div class="current-file-info">
+                <p><strong>{{t 'app.filename'}}:</strong> {{ filename }}</p>
+                <p><strong>{{t 'app.filetype'}}:</strong> {{ mimeType }}</p>
+                <p><strong>{{t 'app.filesize'}}:</strong> {{ size }}</p>
+            </div>
+            <p class="asset-replace-usage-warning" style="display:none; color:#c00; font-weight:bold;"></p>
+        </div>
+
+        <div class="form-group">
+            <label for="file">
+                {{t 'app.assetreplacefile'}} <span class="req">*</span>
+                <span class="error"></span>
+            </label>
+            <input type="file" class="asset-replace-file" name="file">
+            {{maxUploadSize}}
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-percent">0%</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="title">
+                {{t 'app.assettitle'}} <span class="req">*</span>
+                <span class="error"></span>
+            </label>
+            <input type="text" class="asset-title required" name="title" placeholder="{{t 'app.assettitle'}}" value="{{ title }}" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label for="description">
+                {{t 'app.assetdescription'}}
+                <span class="error"></span>
+            </label>
+            <textarea class="asset-description" name="description" placeholder="{{t 'app.assetdescription'}}">{{ description }}</textarea>
+        </div>
+
+        <div class="form-group tags">
+            <label for="tags">{{t 'app.tags'}}</label>
+            <input type="text" autocomplete="off" class="width-30" id="tags_control" name="tags_control" value="{{pickCSV tags "title"}}" />
+        </div>
+        <input type="hidden" name="tags" id="tags" />
+    </form>
+    <!-- end upload form -->
+</div>

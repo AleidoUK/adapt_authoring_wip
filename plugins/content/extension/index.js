@@ -7,6 +7,7 @@ var _ = require('underscore');
 var async = require('async');
 var bower = require('bower');
 var fs = require('fs');
+var formidable = require('formidable');
 var path = require('path');
 var util = require('util');
 
@@ -473,6 +474,192 @@ function disableExtensions(courseId, extensions, cb) {
 }
 
 /**
+ * Field mappings for extensions that support CSV item import. Keyed by the short
+ * extension name used in config._enabledExtensions (see extensiontype.extension).
+ */
+var csvImportConfig = {
+  glossary: {
+    extensionAttr: '_glossary',
+    itemsAttr: '_glossaryItems',
+    columns: ['term', 'description'],
+    requiredFields: ['term', 'description'],
+    sampleRow: ['Example term', 'Example description explaining the term'],
+    mapRow: function (row) {
+      return { term: row.term, description: row.description };
+    }
+  },
+  resources: {
+    extensionAttr: '_resources',
+    itemsAttr: '_resourcesItems',
+    columns: ['title', '_type', 'description', '_link', 'filename', '_isGlobal', '_forceDownload', '_id'],
+    requiredFields: ['_type'],
+    sampleRow: ['Example resource', 'document', 'Example description', 'https://example.com/file.pdf', 'file.pdf', 'true', 'false', 'example-resource-1'],
+    mapRow: function (row) {
+      var item = {
+        _type: row._type,
+        title: row.title || '',
+        description: row.description || '',
+        _link: row._link || '',
+        filename: row.filename || '',
+        _isGlobal: /^(true|1|yes)$/i.test(row._isGlobal || ''),
+        _forceDownload: /^(true|1|yes)$/i.test(row._forceDownload || '')
+      };
+      if (row._id) {
+        item._id = row._id;
+      }
+      return item;
+    }
+  }
+};
+
+function csvEscape(value) {
+  var str = (value === null || typeof value === 'undefined') ? '' : String(value);
+  return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+}
+
+function csvRow(values) {
+  return values.map(csvEscape).join(',');
+}
+
+/**
+ * Handles GET /api/extension/:extension/import/template - serves a blank CSV
+ * (headers + an example row) matching the columns expected by importExtensionItems.
+ */
+function downloadCsvTemplate(req, res) {
+  var extensionKey = req.params.extension;
+  var importConfig = csvImportConfig[extensionKey];
+
+  if (!importConfig) {
+    return res.status(400).json({ success: false, message: 'CSV import is not supported for extension: ' + extensionKey });
+  }
+
+  var lines = [csvRow(importConfig.columns)];
+  if (importConfig.sampleRow) {
+    lines.push(csvRow(importConfig.sampleRow));
+  }
+
+  res.set({
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': 'attachment; filename="' + extensionKey + '-import-template.csv"'
+  });
+  res.status(200).send(lines.join('\r\n') + '\r\n');
+}
+
+/**
+ * Handles POST /api/extension/:extension/import/:courseid - parses an uploaded CSV
+ * and appends/replaces the glossary or resources items on the course.
+ */
+function importExtensionItems(req, res) {
+  var extensionKey = req.params.extension;
+  var courseId = req.params.courseid;
+  var importConfig = csvImportConfig[extensionKey];
+
+  if (!importConfig) {
+    return res.status(400).json({ success: false, message: 'CSV import is not supported for extension: ' + extensionKey });
+  }
+
+  var form = new formidable.IncomingForm();
+  form.parse(req, function (error, fields, files) {
+    if (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+
+    var mode = fields.mode === 'replace' ? 'replace' : 'append';
+    var file = files.file;
+    if (!file) {
+      return res.status(400).json({ success: false, message: 'No CSV file was uploaded' });
+    }
+
+    fs.readFile(file.path, 'utf8', function (readError, content) {
+      fs.unlink(file.path, function () {}); // best-effort cleanup of the temp upload
+
+      if (readError) {
+        return res.status(500).json({ success: false, message: 'Failed to read uploaded file' });
+      }
+
+      var rows;
+      try {
+        rows = helpers.parseCsv(content);
+      } catch (parseError) {
+        return res.status(400).json({ success: false, message: 'Failed to parse CSV: ' + parseError.message });
+      }
+
+      var items = [];
+      var rowErrors = [];
+      rows.forEach(function (row, index) {
+        var missing = importConfig.requiredFields.filter(function (field) {
+          return !row[field] || !String(row[field]).trim();
+        });
+        if (missing.length) {
+          // +2: 1 to move from 0-based index, 1 more to account for the header row
+          rowErrors.push({ row: index + 2, message: 'Missing required field(s): ' + missing.join(', ') });
+          return;
+        }
+        items.push(importConfig.mapRow(row));
+      });
+
+      if (!items.length) {
+        return res.status(400).json({ success: false, message: 'No valid rows found in CSV', errors: rowErrors });
+      }
+
+      var app = origin();
+
+      app.contentmanager.getContentPlugin('config', function (err, configPlugin) {
+        if (err) {
+          return res.status(500).json({ success: false, message: err.message });
+        }
+
+        configPlugin.retrieve({ _courseId: courseId }, {}, function (err, configs) {
+          if (err) {
+            return res.status(500).json({ success: false, message: err.message });
+          }
+          var config = configs && configs[0];
+          if (!config || !config._enabledExtensions || !config._enabledExtensions[extensionKey]) {
+            return res.status(400).json({ success: false, message: 'The ' + extensionKey + ' extension is not enabled on this course' });
+          }
+
+          app.contentmanager.getContentPlugin('course', function (err, coursePlugin) {
+            if (err) {
+              return res.status(500).json({ success: false, message: err.message });
+            }
+
+            coursePlugin.retrieve({ _id: courseId }, {}, function (err, courses) {
+              if (err) {
+                return res.status(500).json({ success: false, message: err.message });
+              }
+              if (!courses || !courses.length) {
+                return res.status(404).json({ success: false, message: 'Course not found' });
+              }
+
+              var course = courses[0].toJSON ? courses[0].toJSON() : courses[0];
+              var extensions = course._extensions || {};
+              var extensionData = extensions[importConfig.extensionAttr] || {};
+              var existingItems = extensionData[importConfig.itemsAttr] || [];
+
+              extensionData[importConfig.itemsAttr] = mode === 'replace' ? items : existingItems.concat(items);
+              extensions[importConfig.extensionAttr] = extensionData;
+
+              coursePlugin.update({ _id: courseId }, { _extensions: extensions }, function (err) {
+                if (err) {
+                  return res.status(500).json({ success: false, message: err.message });
+                }
+                res.status(200).json({
+                  success: true,
+                  imported: items.length,
+                  skipped: rowErrors.length,
+                  total: extensionData[importConfig.itemsAttr].length,
+                  errors: rowErrors
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+}
+
+/**
  * Returns an array of course objects that use the Extension with the passed id
  * @param callback
  * @param id
@@ -551,6 +738,13 @@ function initialize () {
         res.status(200).json({ success: true });
       });
     });
+
+    // imports glossary/resources items from an uploaded CSV
+    // expects a multipart form with a 'file' field and optional 'mode' field ('append'|'replace')
+    rest.post('/extension/:extension/import/:courseid', importExtensionItems);
+
+    // serves a blank CSV template matching the columns expected by the import route above
+    rest.get('/extension/:extension/import/template', downloadCsvTemplate);
   });
   // HACK surface this properly somewhere
   app.contentmanager.toggleExtensions = toggleExtensions;

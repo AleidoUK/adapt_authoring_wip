@@ -303,7 +303,7 @@ define(function(require){
     maxUploadSize: function(options) {
       return new Handlebars.SafeString([
         '<span class="max-fileupload-size">',
-        Origin.l10n.t('app.maxfileuploadsize', {size: Origin.constants.humanMaxFileUploadSize}),
+        Origin.l10n.t('app.maxfileuploadsizes'),
         '</span>'].join(''))
     },
 

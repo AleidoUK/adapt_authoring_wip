@@ -1,0 +1,97 @@
+@import 'sharedStyles';
+@import 'colours';
+
+// mirrors .form-container > form > div > fieldset (scaffold/less/forms.less) since our
+// fieldset isn't rendered inside an actual <form>/<div> wrapper
+.asset-management-cleanup-inner fieldset {
+  border: 1px solid #d6f2f9;
+  margin: 20px;
+  padding-bottom: 15px;
+  max-width: 800px;
+}
+
+.asset-management-cleanup {
+  .asset-cleanup-loading,
+  .asset-cleanup-empty {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+
+  .asset-cleanup-header {
+    padding: 0 20px 10px;
+    border-bottom: 1px solid #d6f2f9;
+  }
+
+  .asset-cleanup-select-all-label {
+    font-size: 13px;
+    cursor: pointer;
+
+    input {
+      margin-right: 6px;
+    }
+  }
+
+  .asset-cleanup-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .asset-cleanup-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    border-bottom: 1px solid #eef8fb;
+
+    .asset-cleanup-item-select {
+      margin-right: 12px;
+      cursor: pointer;
+    }
+
+    .asset-cleanup-item-thumb {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      margin-right: 12px;
+      background-size: cover;
+      background-position: center;
+      background-color: @white;
+      border: 1px solid #d6f2f9;
+      border-radius: 4px;
+
+      &.asset-cleanup-item-thumb-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: @primary-color;
+      }
+    }
+
+    .asset-cleanup-item-details {
+      overflow: hidden;
+    }
+
+    .asset-cleanup-item-title {
+      font-size: 13px;
+      font-weight: bold;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .asset-cleanup-item-filename,
+    .asset-cleanup-item-usage {
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+.asset-management-cleanup-sidebar-delete-count {
+  display: block;
+  font-size: 12px;
+  margin: 5px 25px;
+}

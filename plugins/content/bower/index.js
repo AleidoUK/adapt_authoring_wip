@@ -840,7 +840,29 @@ function addPackage (plugin, packageInfo, options, cb) {
           if (results && 0 !== results.length) {
             // don't add duplicate
             if (options.strict) {
-              return addCb(new PluginPackageError(app.polyglot.t('app.versionexists')));
+              if (!options.repairMissingFiles) {
+                return addCb(new PluginPackageError(app.polyglot.t('app.versionexists')));
+              }
+
+              var currentUser = usermanager.getCurrentUser();
+              var tenantId = options.tenantId || currentUser.tenant._id.toString();
+              var installedBowerPath = path.join(
+                configuration.tempDir,
+                tenantId,
+                'adapt_framework',
+                'src',
+                plugin.srcLocation,
+                package.name,
+                'bower.json'
+              );
+
+              return fs.pathExists(installedBowerPath, function (pathError, exists) {
+                if (pathError) return addCb(pathError);
+                if (exists) {
+                  return addCb(new PluginPackageError(app.polyglot.t('app.versionexists')));
+                }
+                addCb(null, results[0]);
+              });
             }
             return addCb(null);
           }
@@ -1173,7 +1195,7 @@ function handleUploadedPlugin (req, res, next) {
                 if (error) {
                   return next(error);
                 }
-                addPackage(contentPlugin.bowerConfig, packageInfo, { strict: true }, function (error, results) {
+                addPackage(contentPlugin.bowerConfig, packageInfo, { strict: true, repairMissingFiles: true }, function (error, results) {
                   if (error) {
                     return next(error);
                   }
