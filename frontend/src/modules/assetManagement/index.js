@@ -15,7 +15,20 @@ define(function(require) {
   var AssetModel = require('./models/assetModel');
   var TagsCollection = require('core/collections/tagsCollection');
 
+  // Full asset-library access, per docs/LIGHT_COURSE_EDITOR.md: a Light Editor manages assets
+  // only through their own light-course-scoped asset bank (frontend/src/modules/lightCourseEditor/
+  // views/lightCourseBankAssetFieldView.js, embedded in the component editor, not this module) -
+  // they should never see the full cross-course Asset Management area. See
+  // frontend/src/modules/projects/index.js's dashboardPermissions for the matching Dashboard gate.
+  var assetManagementPermissions = ['{{tenantid}}/content/*:read'];
+
   Origin.on('origin:dataReady login:changed', function() {
+    Origin.permissions.addRoute('assetManagement', assetManagementPermissions);
+
+    if (!Origin.permissions.hasPermissions(assetManagementPermissions)) {
+      return; // Light-Editor-only user - no Asset Management nav item or route
+    }
+
     Origin.globalMenu.addItem({
       "location": "global",
       "text": Origin.l10n.t('app.assetmanagement'),

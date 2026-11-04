@@ -1,0 +1,53 @@
+<div class="light-course-template-editor-inner">
+  <div class="light-course-template-editor-toolbar">
+    <a href="#" class="light-course-template-editor-back-to-list">&laquo; {{t 'app.lightcoursetemplatesbacktolist'}}</a>
+    <h1>{{#if name}}{{name}}{{else}}{{t 'app.lightcoursetemplatenew'}}{{/if}}</h1>
+    <div class="light-course-template-editor-toolbar-actions">
+      <button class="btn primary light-course-template-editor-save">{{t 'app.lightcoursetemplatesave'}}</button>
+    </div>
+  </div>
+
+  <section class="light-course-template-editor-section">
+    <div class="field-row">
+      <label>{{t 'app.lightcoursetemplatename'}}</label>
+      <input type="text" class="light-course-template-editor-name" value="{{name}}">
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursetemplatedescription'}}</label>
+      <textarea class="light-course-template-editor-description">{{description}}</textarea>
+    </div>
+  </section>
+
+  <section class="light-course-template-editor-section light-course-template-editor-plugins">
+    <h2>{{t 'app.lightcoursepluginselections'}}</h2>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursemenu'}}</label>
+      <select class="light-course-template-editor-menu-select"></select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursetheme'}}</label>
+      <select class="light-course-template-editor-theme-select"></select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcourseextensions'}}</label>
+      <div class="light-course-template-editor-extensions-list"></div>
+    </div>
+  </section>
+
+  <div class="light-course-template-editor-tree-container"></div>
+
+  <section class="light-course-template-editor-section light-course-template-editor-glossary">
+    <h2>{{t 'app.lightcourseglossary'}}</h2>
+    <div class="light-course-template-editor-glossary-container"></div>
+  </section>
+
+  <section class="light-course-template-editor-section light-course-template-editor-resources">
+    <h2>{{t 'app.lightcourseresources'}}</h2>
+    <div class="light-course-template-editor-resources-container"></div>
+  </section>
+
+  <section class="light-course-template-editor-section light-course-template-editor-help">
+    <h2>{{t 'app.lightcoursehelp'}}</h2>
+    <div class="light-course-template-editor-help-container"></div>
+  </section>
+</div>

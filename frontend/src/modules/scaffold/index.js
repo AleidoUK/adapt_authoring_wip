@@ -271,6 +271,24 @@ define([
     return currentForm;
   };
 
+  /**
+   * Converts a raw JSON-schema fragment (e.g. from Origin.schemas.get(type), or any other
+   * source) into the schema shape Backbone.Form itself expects (crucially, `type` resolved to a
+   * Backbone.Form.editors key like "Text"/"Asset:image"/"List", not the raw JSON-schema
+   * "string"/"array"/"object"). Exposed publicly so callers who can't use Schemas()/buildForm()'s
+   * own schema lookup (e.g. the Light Course Editor, which doesn't have the full-course editor's
+   * Origin.editor.data context Schemas() requires) can still reuse this mapping logic directly
+   * against a schema fragment they've resolved/filtered themselves.
+   *
+   * @param {object} schema - a raw JSON-schema `properties` map
+   * @param {object} [options] - passed through to buildSchema/generateFieldObject (only
+   *   options.isTheme is actually read)
+   * @return {object} a schema map ready to pass as `options.schema` to `new Backbone.Form(...)`
+   */
+  Scaffold.buildSchema = function(schema, options) {
+    return buildSchema(schema, options || {}, null);
+  };
+
   Scaffold.addCustomField = function(fieldName, view, overwrite) {
     if (Backbone.Form.editors[fieldName] && !overwrite) {
       console.log('Sorry, the custom field you’re trying to add already exists');

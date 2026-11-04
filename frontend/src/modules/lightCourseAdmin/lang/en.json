@@ -1,0 +1,37 @@
+{
+  "app": {
+    "lightcoursetemplates": "Light Course Templates",
+    "lightcoursetemplatesbacktolist": "Back to templates",
+    "lightcoursetemplatenew": "New template",
+    "lightcoursetemplatename": "Name",
+    "lightcoursetemplatedescription": "Description",
+    "lightcoursetemplatecreate": "Create template",
+    "lightcoursetemplatesave": "Save template",
+    "lightcoursetemplatepromote": "Promote from version",
+    "lightcoursetemplatenamerequired": "Please enter a name",
+    "lightcoursetemplatesaved": "Template saved",
+    "lightcoursetemplatenonetodisplay": "No templates to display",
+    "lightcoursetemplateconfirmdelete": "Are you sure you want to delete \"{{name}}\"? This cannot be undone.",
+    "errorgettinglightcoursetemplate": "Error getting that template - try refreshing your page",
+    "lightcoursepromotecourse": "Light course",
+    "lightcoursepromoteversion": "Version",
+    "lightcoursepromoteversionrequired": "Please select a version to promote",
+    "lightcoursenoneselected": "None selected",
+
+    "lightcourseconfig": "Light Course Settings",
+    "errorgettinglightcourseconfig": "Error getting the light course configuration - try refreshing your page",
+    "lightcourseconfigsave": "Save settings",
+    "lightcourseconfigsaved": "Settings saved",
+    "lightcourseconfigplugindefaults": "Default plugin selections",
+    "lightcourseconfigplugindefaultshelp": "These are pre-selected whenever a light editor creates a new blank course (not one started from a template).",
+    "lightcourseconfigplaceholders": "Graphic & audio placeholders",
+    "lightcourseconfigplaceholdershelp": "Named default assets (e.g. a hero image) that can be referenced when building out templates and defaults. Give each one a short, memorable name.",
+    "lightcourseconfigaddplaceholder": "Add placeholder",
+    "lightcourseplaceholdername": "Placeholder name",
+    "lightcourseconfigrequireddefaults": "Required field defaults",
+    "lightcourseconfigrequireddefaultshelp": "Default values for installed components/extensions' required text and asset fields. Configured here, but not yet automatically applied when content is added in the editor.",
+    "lightcoursenorequireddefaults": "No installed components or extensions currently have any required text/asset fields.",
+    "lightcourseconfigicondefaults": "Default icons",
+    "lightcourseconfigicondefaultshelp": "Pre-selected for a new blank course's Menu/Reflection/Help buttons - still fully editable afterwards in the course's own header section."
+  }
+}

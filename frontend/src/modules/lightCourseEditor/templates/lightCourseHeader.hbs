@@ -1,0 +1,99 @@
+<div class="light-course-header-inner">
+
+  <section class="light-course-header-section light-course-header-version-history">
+    <h2>{{t 'app.lightcourseversionhistory'}}</h2>
+    <div class="tb-heading col-row tb-row">
+      <div class="col-15">{{t 'app.lightcourseversion'}}</div>
+      <div class="col-15">{{t 'app.lightcoursedate'}}</div>
+      <div class="col-15">{{t 'app.lightcourseauthor'}}</div>
+      <div class="col-15">{{t 'app.lightcoursescreens'}}</div>
+      <div class="col-15">{{t 'app.lightcoursewords'}}</div>
+      <div class="col-20">{{t 'app.lightcoursenotes'}}</div>
+      <div class="col-15">{{t 'app.lightcourseestduration'}}</div>
+    </div>
+    <div class="light-course-header-version-history-rows"></div>
+  </section>
+
+  <section class="light-course-header-section">
+    <h2>{{t 'app.lightcoursereviewinginstructions'}}</h2>
+    <textarea data-bind="reviewingInstructions" class="light-course-header-reviewing-instructions">{{headerData.reviewingInstructions}}</textarea>
+  </section>
+
+  <section class="light-course-header-section light-course-header-developer-info">
+    <h2>{{t 'app.lightcoursedeveloperinfo'}}</h2>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursenavigationlinearity'}}</label>
+      <select data-bind="developerInfo.navigationLinearity">
+        <option value="linear"{{selected headerData.developerInfo.navigationLinearity "linear"}}>{{t 'app.lightcourselinear'}}</option>
+        <option value="nonlinear"{{selected headerData.developerInfo.navigationLinearity "nonlinear"}}>{{t 'app.lightcoursenonlinear'}}</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcourselayout'}}</label>
+      <select data-bind="developerInfo.layout">
+        <option value="standard"{{selected headerData.developerInfo.layout "standard"}}>{{t 'app.lightcoursestandard'}}</option>
+        <option value="full"{{selected headerData.developerInfo.layout "full"}}>{{t 'app.lightcoursefull'}}</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursetracking'}}</label>
+      <select data-bind="developerInfo.tracking">
+        <option value="completion"{{selected headerData.developerInfo.tracking "completion"}}>{{t 'app.lightcoursecompletion'}}</option>
+        <option value="assessment"{{selected headerData.developerInfo.tracking "assessment"}}>{{t 'app.lightcourseassessment'}}</option>
+        <option value="both"{{selected headerData.developerInfo.tracking "both"}}>{{t 'app.lightcoursetrackingboth'}}</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>
+        <input type="checkbox" data-bind="developerInfo.reflectionNeeded"{{#if headerData.developerInfo.reflectionNeeded}} checked{{/if}}>
+        {{t 'app.lightcoursereflectionneeded'}}
+      </label>
+    </div>
+  </section>
+
+  <section class="light-course-header-section light-course-header-terminology">
+    <h2>{{t 'app.lightcourseterminology'}}</h2>
+    <div class="field-row">
+      <label>{{t 'app.lightcourseterminologysection'}}</label>
+      <select data-bind="terminology.section">
+        <option value="Section"{{selected headerData.terminology.section "Section"}}>{{t 'app.lightcoursesection'}}</option>
+        <option value="Topic"{{selected headerData.terminology.section "Topic"}}>{{t 'app.lightcoursetopic'}}</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcourseterminologycourse'}}</label>
+      <select data-bind="terminology.course">
+        <option value="Course"{{selected headerData.terminology.course "Course"}}>{{t 'app.lightcoursecourse'}}</option>
+        <option value="Module"{{selected headerData.terminology.course "Module"}}>{{t 'app.lightcoursemodule'}}</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcourseterminologyassessment'}}</label>
+      <select data-bind="terminology.assessment">
+        <option value="Assessment"{{selected headerData.terminology.assessment "Assessment"}}>{{t 'app.lightcourseassessmentterm'}}</option>
+        <option value="Quiz"{{selected headerData.terminology.assessment "Quiz"}}>{{t 'app.lightcoursequiz'}}</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="light-course-header-section light-course-header-buttons">
+    <h2>{{t 'app.lightcoursebuttons'}}</h2>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursemenubutton'}}</label>
+      <div class="light-course-header-icon-menuButton"></div>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursereflectionbutton'}}</label>
+      <div class="light-course-header-icon-reflection"></div>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursehelpbutton'}}</label>
+      <div class="light-course-header-icon-help"></div>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursedrawericon'}}</label>
+      <input type="text" data-bind="iconChoices.drawer" value="{{headerData.iconChoices.drawer}}">
+    </div>
+  </section>
+
+</div>

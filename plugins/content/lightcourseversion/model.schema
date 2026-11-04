@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "$ref": "http://localhost/system/tenantObject.schema",
+  "properties": {
+    "_lightCourseId": {
+      "type": "objectid",
+      "required": true
+    },
+    "versionNumber": {
+      "type": "string",
+      "required": true
+    },
+    "contentSnapshot": {
+      "type": "object",
+      "required": true,
+      "default": {}
+    },
+    "headerSnapshot": {
+      "type": "object",
+      "default": {}
+    },
+    "schemaFormatVersion": {
+      "type": "number",
+      "required": true,
+      "default": 1
+    },
+    "_convertedCourseId": {
+      "type": "objectid",
+      "required": false
+    }
+  }
+}

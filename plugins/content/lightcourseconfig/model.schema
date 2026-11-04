@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "$ref": "http://localhost/system/tenantObject.schema",
+  "properties": {
+    "defaultPluginSelections": {
+      "type": "object",
+      "default": {}
+    },
+    "graphicPlaceholders": {
+      "type": "object",
+      "default": {}
+    },
+    "requiredDefaults": {
+      "type": "object",
+      "default": {}
+    },
+    "iconDefaults": {
+      "type": "object",
+      "default": {}
+    }
+  }
+}

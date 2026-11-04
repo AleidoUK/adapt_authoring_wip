@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "$ref": "http://localhost/system/tenantObject.schema",
+  "properties": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "string",
+      "default": ""
+    },
+    "contentSnapshot": {
+      "type": "object",
+      "required": true,
+      "default": {}
+    }
+  }
+}

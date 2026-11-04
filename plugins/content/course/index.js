@@ -19,6 +19,7 @@ var contentmanager = require('../../../lib/contentmanager'),
     logger = require('../../../lib/logger'),
     database = require('../../../lib/database'),
     helpers = require('../../../lib/helpers'),
+    wordcount = require('../../../lib/lightcoursewordcount'),
     usermanager = require('../../../lib/usermanager');
 
 
@@ -105,6 +106,73 @@ function initialize () {
         res.statusCode = 200;
         return res.json({success: true, newCourseId: newCourse._id});
       });
+    });
+
+    /**
+     * GET /api/content/course/:id/wordcount - full-course equivalent of the light course
+     * word-count endpoints, per docs/LIGHT_COURSE_PHASE5_WORDCOUNTS_EXPORTS.md: reuses
+     * lib/lightcoursewordcount.js's shared service and this plugin's own hasPermission, so full
+     * course editors get this without any light-role grant and without widening light-role
+     * access (the Light Editor role has no permission on `/api/content/component/*` or
+     * `/api/content/course/*`, so this endpoint simply isn't reachable for that role at all).
+     *
+     * Scoped to per-component/"screen" counts only for this pass - course-level translatable
+     * content from extensions patching the real course schema (glossary/resources etc.) would
+     * need the same enabled-extension-aware schema resolution the frontend's Schemas()/
+     * Scaffold.buildForm() wrapper does (confirmed in Phase 3/4 as a non-trivial,
+     * Origin.editor.data-dependent piece of logic) - left for a future pass if real usage shows
+     * full-course editors need that level of detail too.
+     */
+    rest.get('/content/course/:id/wordcount', function (req, res, next) {
+      var user = usermanager.getCurrentUser();
+      database.getDatabase(function (error, db) {
+        if (error) {
+          res.statusCode = 500;
+          return res.json({ success: false, message: error.message });
+        }
+        db.retrieve('course', { _id: req.params.id }, { jsonOnly: true }, function (err, courseResults) {
+          if (err) {
+            res.statusCode = 500;
+            return res.json({ success: false, message: err.message });
+          }
+          if (!courseResults || !courseResults.length) {
+            res.statusCode = 404;
+            return res.json({ success: false, message: 'Course not found' });
+          }
+          var course = courseResults[0];
+
+          new CourseContent().hasPermission('retrieve', user._id, user.tenant._id, course, function (permError, isAllowed) {
+            if (permError) {
+              res.statusCode = 500;
+              return res.json({ success: false, message: permError.message });
+            }
+            if (!isAllowed) {
+              res.statusCode = 403;
+              return res.json({ success: false, message: 'You are not permitted to do that' });
+            }
+
+            db.retrieve('component', { _courseId: req.params.id }, { jsonOnly: true }, function (err, components) {
+              if (err) {
+                res.statusCode = 500;
+                return res.json({ success: false, message: err.message });
+              }
+              var syntheticContentTree = {
+                children: (components || []).map(function (component) {
+                  return Object.assign({ type: 'component' }, component);
+                })
+              };
+              wordcount.computeWordCount({ contentTree: syntheticContentTree }, db, function (err, result) {
+                if (err) {
+                  res.statusCode = 500;
+                  return res.json({ success: false, message: err.message });
+                }
+                res.statusCode = 200;
+                return res.json(result);
+              });
+            });
+          });
+        });
+      }, user.tenant._id);
     });
   });
 

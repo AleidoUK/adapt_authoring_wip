@@ -643,6 +643,14 @@ function importExtensionItems(req, res) {
                 if (err) {
                   return res.status(500).json({ success: false, message: err.message });
                 }
+
+                // course.update() only triggers a rebuild for themeSettings/customStyle changes,
+                // so imported glossary/resource items need an explicit rebuild to show in preview
+                var user = usermanager.getCurrentUser();
+                if (user && user.tenant && user.tenant._id) {
+                  app.emit('rebuildCourse', user.tenant._id, courseId);
+                }
+
                 res.status(200).json({
                   success: true,
                   imported: items.length,

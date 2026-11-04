@@ -307,9 +307,25 @@ module.exports = function(grunt) {
       const basename = path.basename(backendPath);
       const frontendGlob = path.join(options.src.frontend, basename);
       let data = { ...fs.readJSONSync(backendPath) };
-      // load all matching frontend lang files
+      // load all matching frontend lang files - every frontend module lang file is shaped
+      // { "app": { ...keys } }, so a plain top-level spread (as below) would make each
+      // subsequently-processed module's "app" object silently replace, rather than merge with,
+      // every previously-processed module's "app" object (confirmed: with 2+ frontend modules
+      // present, only the alphabetically-last one's keys ever survived into temp/lang/en.json,
+      // the file routes/lang/index.js actually serves to the client - every other module's
+      // translations were silently dropped and rendered as raw untranslated keys). Deep-merging
+      // the "app" object specifically (the one key this convention actually uses, confirmed
+      // across every existing frontend module lang file) fixes that without changing behaviour
+      // for any top-level key that isn't "app".
       grunt.file.expand({}, frontendGlob).forEach(frontendPath => {
-        data = { ...data, ...fs.readJSONSync(frontendPath) };
+        const frontendData = fs.readJSONSync(frontendPath);
+        Object.keys(frontendData).forEach(key => {
+          if (key === 'app' && data.app && typeof data.app === 'object' && typeof frontendData.app === 'object') {
+            data.app = { ...data.app, ...frontendData.app };
+          } else {
+            data[key] = frontendData[key];
+          }
+        });
       });
       fs.ensureDirSync(dest);
       fs.writeJSONSync(path.join(dest, basename), data, { spaces: 2 });

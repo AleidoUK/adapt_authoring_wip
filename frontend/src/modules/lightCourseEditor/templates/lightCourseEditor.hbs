@@ -1,0 +1,60 @@
+<div class="light-course-editor-inner">
+  <div class="light-course-editor-conflict-banner display-none">
+    <p>{{t 'app.lightcourseconflictmessage'}}</p>
+    <button class="btn alert light-course-editor-conflict-reload">{{t 'app.lightcoursereload'}}</button>
+  </div>
+
+  {{#if conversionStatus}}
+  {{#ifValueEquals conversionStatus "converted"}}
+  <div class="light-course-editor-locked-banner">
+    {{t 'app.lightcourselockedmessage'}}
+  </div>
+  {{/ifValueEquals}}
+  {{/if}}
+
+  <div class="light-course-editor-toolbar">
+    <a href="#" class="light-course-editor-back-to-list">&laquo; {{t 'app.lightcoursebacktolist'}}</a>
+    <h1>{{title}}</h1>
+    <div class="light-course-editor-toolbar-actions">
+      <button class="btn secondary light-course-editor-auditlog">{{t 'app.editorauditlog'}}</button>
+      <button class="btn primary light-course-editor-save-draft">{{t 'app.lightcoursesavedraft'}}</button>
+      <button class="btn secondary light-course-editor-create-minor-version"></button>
+      <button class="btn secondary light-course-editor-create-major-version"></button>
+    </div>
+  </div>
+
+  <div class="light-course-editor-header-container"></div>
+
+  <section class="light-course-editor-section light-course-editor-plugins">
+    <h2>{{t 'app.lightcoursepluginselections'}}</h2>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursemenu'}}</label>
+      <select class="light-course-editor-menu-select"></select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursetheme'}}</label>
+      <select class="light-course-editor-theme-select"></select>
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcourseextensions'}}</label>
+      <div class="light-course-editor-extensions-list"></div>
+    </div>
+  </section>
+
+  <div class="light-course-editor-tree-container"></div>
+
+  <section class="light-course-editor-section light-course-editor-glossary">
+    <h2>{{t 'app.lightcourseglossary'}}</h2>
+    <div class="light-course-editor-glossary-container"></div>
+  </section>
+
+  <section class="light-course-editor-section light-course-editor-resources">
+    <h2>{{t 'app.lightcourseresources'}}</h2>
+    <div class="light-course-editor-resources-container"></div>
+  </section>
+
+  <section class="light-course-editor-section light-course-editor-help">
+    <h2>{{t 'app.lightcoursehelp'}}</h2>
+    <div class="light-course-editor-help-container"></div>
+  </section>
+</div>

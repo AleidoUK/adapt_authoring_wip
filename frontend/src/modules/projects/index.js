@@ -7,6 +7,14 @@ define(function(require) {
   var SharedProjectCollection = require('./collections/sharedProjectCollection');
   var TagsCollection = require('core/collections/tagsCollection');
 
+  // Full-course dashboard access, per docs/LIGHT_COURSE_EDITOR.md: a Light Editor only has
+  // '{{tenantid}}/content/lightcourse/*:*'-style permissions (lib/role/LightEditor.json), never
+  // this broader '{{tenantid}}/content/*:read' a Course Creator/Super Admin has (Super Admin
+  // passes any check via Origin.permissions.hasPermissions' separate '*'-prefix wildcard rule) -
+  // used to hide the Dashboard nav item/route/home-route for Light-Editor-only users, who should
+  // only ever see the Light Course Editor (frontend/src/modules/lightCourseEditor/index.js).
+  var dashboardPermissions = ['{{tenantid}}/content/*:read'];
+
   Origin.on('router:dashboard', function(location, subLocation, action) {
     Origin.trigger('editor:resetData');
     Origin.options.addItems([
@@ -78,6 +86,12 @@ define(function(require) {
   });
 
   Origin.on('origin:dataReady login:changed', function() {
+    Origin.permissions.addRoute('dashboard', dashboardPermissions);
+
+    if (!Origin.permissions.hasPermissions(dashboardPermissions)) {
+      return; // Light-Editor-only user - no Dashboard nav item, route, or home route
+    }
+
     Origin.router.setHomeRoute('dashboard');
     Origin.globalMenu.addItem({
       "location": "global",

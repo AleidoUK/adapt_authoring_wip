@@ -1,0 +1,19 @@
+{
+  "name": "Light Editor",
+  "version": "0.0.1",
+  "statement": [
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourse/*", "action": ["create", "read", "update", "delete"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourseversion/*", "action": ["create", "read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourseexport/*", "action": ["create", "read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcoursebankasset/*", "action": ["create", "read", "delete"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcoursetemplate/*", "action": ["read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourseconfig/*", "action": ["read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/asset/*", "action": ["create", "read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/componenttype/*", "action": ["read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/extensiontype/*", "action": ["read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/menutype/*", "action": ["read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/themetype/*", "action": ["read"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/user/me", "action": ["read", "update"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/asset/*", "action": ["delete"], "effect": "deny" }
+  ]
+}

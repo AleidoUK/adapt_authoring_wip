@@ -1,0 +1,9 @@
+<div class="light-course-config-asset-picker-inner">
+  {{#if hasValue}}
+  <span class="light-course-config-asset-picker-selected">{{t 'app.lightcourseassetselected'}}</span>
+  <button class="btn secondary-hollow light-course-config-asset-clear">{{t 'app.lightcourseclear'}}</button>
+  {{else}}
+  <button class="btn secondary-hollow light-course-config-asset-browse">{{t 'app.lightcoursechoosefrombank'}}</button>
+  {{/if}}
+  <div class="light-course-config-asset-list"></div>
+</div>

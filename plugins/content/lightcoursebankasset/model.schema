@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "$ref": "http://localhost/system/tenantObject.schema",
+  "properties": {
+    "_lightCourseId": {
+      "type": "objectid",
+      "required": true
+    },
+    "_assetId": {
+      "type": "objectid",
+      "required": true
+    },
+    "_fieldName": {
+      "type": "string",
+      "required": false
+    },
+    "_nodeId": {
+      "type": "string",
+      "required": false
+    }
+  }
+}

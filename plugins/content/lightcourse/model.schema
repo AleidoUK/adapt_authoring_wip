@@ -1,0 +1,119 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "$ref": "http://localhost/system/tenantObject.schema",
+  "properties": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "default": "New Light Course"
+    },
+    "revision": {
+      "type": "number",
+      "required": true,
+      "default": 0,
+      "editorOnly": true
+    },
+    "versionMajor": {
+      "type": "number",
+      "required": false,
+      "editorOnly": true
+    },
+    "versionMinor": {
+      "type": "number",
+      "required": false,
+      "editorOnly": true
+    },
+    "currentVersionNumber": {
+      "type": "string",
+      "required": false,
+      "editorOnly": true
+    },
+    "contentTree": {
+      "type": "object",
+      "default": {}
+    },
+    "pluginSelections": {
+      "type": "object",
+      "default": {},
+      "properties": {
+        "menu": { "type": "string" },
+        "theme": { "type": "string" },
+        "extensions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "glossaryItems": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "required": true },
+          "term": { "type": "string", "default": "" },
+          "description": { "type": "string", "default": "" }
+        }
+      }
+    },
+    "resourceItems": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "required": true },
+          "_type": { "type": "string", "default": "document" },
+          "title": { "type": "string", "default": "" },
+          "description": { "type": "string", "default": "" },
+          "_assetId": { "type": "objectid", "required": false },
+          "_link": { "type": "string", "default": "" }
+        }
+      }
+    },
+    "headerData": {
+      "type": "object",
+      "default": {}
+    },
+    "helpContent": {
+      "type": "object",
+      "default": {},
+      "properties": {
+        "popup": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string", "default": "" },
+            "body": { "type": "string", "default": "" },
+            "instruction": { "type": "string", "default": "" }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "_id": { "type": "string", "required": true },
+              "_icon": { "type": "string", "default": "" },
+              "title": { "type": "string", "default": "" },
+              "body": { "type": "string", "default": "" },
+              "_graphicAssetId": { "type": "objectid", "required": false }
+            }
+          }
+        }
+      }
+    },
+    "conversionStatus": {
+      "type": "string",
+      "required": true,
+      "default": "none",
+      "editorOnly": true
+    },
+    "_convertedCourseId": {
+      "type": "objectid",
+      "required": false,
+      "editorOnly": true
+    }
+  }
+}

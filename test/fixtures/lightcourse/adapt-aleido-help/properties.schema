@@ -1,0 +1,225 @@
+{
+  "type":"object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "required": false,
+  "globals": {
+    "_navOrder": {
+      "type": "number",
+      "required": true,
+      "title": "Navigation bar order",
+      "help": "Determines the order in which the button is displayed in the navigation bar. Negative numbers (e.g. -100) are left-aligned. Positive numbers (e.g. 100) are right-aligned.",
+      "default": 0,
+      "inputType": "Text",
+      "validators": []
+    },
+    "_navTooltip": {
+      "type": "object",
+      "title": "Help navigation tooltip",
+      "properties": {
+        "_isEnabled": {
+          "type": "boolean",
+          "default": true,
+          "title": "Enable tooltip for navigation button",
+          "inputType": "Checkbox",
+          "validators": []
+        },
+        "text": {
+          "type": "string",
+          "title": "",
+          "default": "Open course help.",
+          "help": "The tooltip text to display on hover over this item",
+          "inputType": "Text",
+          "validators": [],
+          "translatable": true
+        }
+      }
+    },
+    "_showLabel": {
+      "type": "boolean",
+      "required": true,
+      "default": true,
+      "title": "Enable navigation bar button label",
+      "inputType": "Checkbox",
+      "validators": [],
+      "help": "Controls whether a label is shown on the navigation bar button."
+    },
+    "navLabel": {
+      "type": "string",
+      "required": true,
+      "default": "Help",
+      "title": "Navigation bar button label",
+      "inputType": "Text",
+      "validators": [],
+      "translatable": true
+    }
+  },
+  "properties":{
+    "pluginLocations": {
+      "type":"object",
+      "required": true,
+      "properties":{
+        "course": {
+          "type":"object",
+          "properties":{
+            "_help": {
+              "type":"object",
+              "required": false,
+              "legend": "Help",
+              "properties":{
+                "_isEnabled": {
+                  "type":"boolean",
+                  "required": false,
+                  "default": false,
+                  "title": "Is Enabled",
+                  "inputType": "Checkbox",
+                  "validators": [],
+                  "help": "Controls whether the Help extension is enabled or disabled"
+                },
+                "_navItem": {
+                  "type": "object",
+                  "required": true,
+                  "legend": "Navigation Button",
+                  "properties": {
+                    "_icon": {
+                      "type": "string",
+                      "required": true,
+                      "default": "question",
+                      "title": "Icon",
+                      "inputType": {"type": "Select", "options": ["question", "info"]},
+                      "validators": []
+                    },
+                    "ariaLabel": {
+                      "type": "string",
+                      "required": false,
+                      "default": "Open course help.",
+                      "title": "Alternative text",
+                      "inputType": "Text",
+                      "validators": [],
+                      "help": "The alternative text for the button",
+                      "translatable": true
+                    }
+                  }
+                },
+                "_popup": {
+                  "type": "object",
+                  "required": true,
+                  "legend": "Popup",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "required": false,
+                      "default": "",
+                      "title": "Title",
+                      "inputType": "Text",
+                      "validators": [],
+                      "translatable": true
+                    },
+                    "body": {
+                      "type": "string",
+                      "required": false,
+                      "default": "",
+                      "title": "Body",
+                      "inputType": "TextArea",
+                      "validators": [],
+                      "translatable": true
+                    },
+                    "instruction": {
+                      "type": "string",
+                      "required": false,
+                      "default": "",
+                      "title": "Instruction",
+                      "inputType": "Text",
+                      "validators": [],
+                      "translatable": true
+                    }
+                  }
+                },
+                "_items": {
+                  "type": "array",
+                  "required": true,
+                  "title": "Items",
+                  "items": {
+                    "type": "object",
+                    "required": true,
+                    "properties": {
+                      "_classes": {
+                        "type": "string",
+                        "required": false,
+                        "default": "",
+                        "title": "Classes",
+                        "inputType": "Text",
+                        "validators": [],
+                        "help": "Enter css classes for the button"
+                      },
+                      "title": {
+                        "type": "string",
+                        "required": false,
+                        "default": "",
+                        "title": "Title",
+                        "inputType": "Text",
+                        "validators": [],
+                        "translatable": true
+                      },
+                      "body": {
+                        "type": "string",
+                        "required": false,
+                        "default": "",
+                        "title": "Body",
+                        "inputType": "TextArea",
+                        "validators": [],
+                        "translatable": true
+                      },
+                      "_isPageLevelProgress": {
+                        "type": "boolean",
+                        "required": false,
+                        "default": false,
+                        "title": "Item is Page Level Progress?",
+                        "inputType": "Checkbox",
+                        "validators": [],
+                        "help": "If enabled the Page Level Progress shown in the navigation bar will be used as the item graphic"
+                      },
+                      "_icon": {
+                        "type": "string",
+                        "required": false,
+                        "default": "",
+                        "title": "Icon",
+                        "inputType": {"type": "Select", "options": ["book", "home", "folder", "language-2", "list", "sound", "text-document-inverted"]},
+                        "validators": [],
+                        "help": "Enter the class name for the icon which is defined in the theme"
+                      },
+                      "_graphic": {
+                        "type": "object",
+                        "required": false,
+                        "title": "Graphic",
+                        "properties": {
+                          "alt": {
+                            "type": "string",
+                            "required": false,
+                            "default": "",
+                            "inputType": "Text",
+                            "validators": [],
+                            "help": "A description of the image; required when it has meaning that must be conveyed to the learner. For 'decorative' images, leave this blank.",
+                            "translatable": true
+                          },
+                          "src": {
+                            "type": "string",
+                            "required": false,
+                            "default": "",
+                            "inputType": "Asset:image",
+                            "validators": [],
+                            "help": "Optional image to represent the item"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

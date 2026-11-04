@@ -1,0 +1,101 @@
+// LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
+define(function(require) {
+  var Origin = require('core/origin');
+  var OriginView = require('core/views/originView');
+  var SchemaFilter = require('../schemaFilter');
+  var LightCourseAssetContext = require('../lightCourseAssetContext');
+
+  /**
+   * Renders the generic component field editor described in Phase 3/4's "Generic component-field
+   * rendering" sections: reuses Backbone.Form (and every custom editor already registered on
+   * Backbone.Form.editors by modules/scaffold/index.js - Asset, List, etc.) directly, rather than
+   * going through Scaffold.buildForm()/Schemas(), which assume the full-course editor's
+   * Origin.editor.data context exists (see schemaFilter.js's header comment for why). The actual
+   * JSON-schema-type -> Backbone.Form-editor-name mapping (e.g. "string" -> "Text", "array" ->
+   * "List") is still done via the real `Origin.scaffold.buildSchema()` (exported from
+   * modules/scaffold/index.js specifically for this reuse) rather than reimplemented here.
+   *
+   * this.model is a plain Backbone.Model wrapping one contentTree component node's own data
+   * (_component, title, body, uniqueId, items, graphicsNotes, developerNotes, ...) - not the
+   * lightcourse model itself. Changes are read back out via getFormData() when the tree view saves.
+   *
+   * Missing/upgraded plugin handling (Phase 4): if the component type isn't currently installed,
+   * fall back to the schema snapshot stored on the node itself at the time it was added
+   * (`_componentSchemaSnapshot`, per the main plan's "keep a snapshot of the field descriptors"
+   * requirement) and render the form read-only, rather than failing to render at all.
+   */
+  var LightCourseComponentFormView = OriginView.extend({
+    className: 'light-course-component-form',
+
+    preRender: function(options) {
+      this.includeAudio = !!options.includeAudio;
+      LightCourseAssetContext.set(options.lightCourseId);
+    },
+
+    postRender: function() {
+      var component = this.model.get('_component');
+      var rawSchema = Origin.schemas.get(component);
+      var isMissingPlugin = !rawSchema;
+
+      if (isMissingPlugin) {
+        rawSchema = this.model.get('_componentSchemaSnapshot');
+      } else {
+        // keep the snapshot fresh while the plugin is still installed, so it's available the
+        // next time this node is opened after the plugin is removed
+        this.model.set('_componentSchemaSnapshot', rawSchema, { silent: true });
+      }
+
+      if (!rawSchema) {
+        this.$('.light-course-component-form-inner').html('<p class="light-course-component-form-missing">' +
+          Origin.l10n.t('app.lightcoursecomponentschemamissing') + '</p>');
+        return this.setViewToReady();
+      }
+
+      if (isMissingPlugin) {
+        this.$el.prepend('<p class="light-course-component-form-missing">' +
+          Origin.l10n.t('app.lightcoursecomponentschemamissingreadonly') + '</p>');
+      }
+
+      var filteredSchema = SchemaFilter.filterComponentSchema(rawSchema, { includeAudio: this.includeAudio });
+
+      // Light-editor-only fields, per the main plan - never part of the real component schema,
+      // merged in here at the form-building level only (Phase 3's "Generic component-field
+      // rendering" deliverable 2).
+      filteredSchema.graphicsNotes = { type: 'TextArea', title: Origin.l10n.t('app.lightcoursegraphicsnotes') };
+      filteredSchema.developerNotes = { type: 'TextArea', title: Origin.l10n.t('app.lightcoursedevelopernotes') };
+
+      var schema = Origin.scaffold.buildSchema(filteredSchema);
+
+      this.model.schema = schema;
+      this.form = new Backbone.Form({ model: this.model, schema: schema }).render();
+      this.$('.light-course-component-form-inner').append(this.form.el);
+
+      if (isMissingPlugin) {
+        this.form.$('input, textarea, select, button').prop('disabled', true);
+      }
+
+      this.setViewToReady();
+    },
+
+    /**
+     * @return {object} the current form values, merged back onto the component node's data -
+     * includes `_component`/`_componentSchemaSnapshot` explicitly since neither is a rendered
+     * form field and so wouldn't otherwise survive the round-trip through this.form.getValue().
+     */
+    getFormData: function() {
+      var bookkeeping = this.model.pick('_component', '_componentSchemaSnapshot');
+      return Object.assign({}, bookkeeping, this.form ? this.form.getValue() : this.model.toJSON());
+    },
+
+    remove: function() {
+      if (this.form) {
+        this.form.remove();
+      }
+      OriginView.prototype.remove.apply(this, arguments);
+    }
+  }, {
+    template: 'lightCourseComponentForm'
+  });
+
+  return LightCourseComponentFormView;
+});

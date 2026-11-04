@@ -20,6 +20,12 @@ define(function(require) {
     
     initialize: function(options) {
       this.courseId = this.model ? this.model.get('courseId') : (options && options.courseId);
+      // Light Course Editor reuse: content-type/content-id scoped logs (light courses have no
+      // _courseId to key off, since they're a single flat document, not a course/contentobject/
+      // article/block/component tree) - falls back to the courseId-based endpoint above when
+      // neither is supplied, so the full-course editor's existing usage is unaffected.
+      this.contentType = this.model ? this.model.get('contentType') : (options && options.contentType);
+      this.contentId = this.model ? this.model.get('contentId') : (options && options.contentId);
       this.logs = [];
       this.filteredLogs = [];
       this.currentPage = 0;
@@ -45,9 +51,12 @@ define(function(require) {
     
     loadLogs: function() {
       var self = this;
-      
+      var url = this.contentType
+        ? ('api/auditlog/content/' + this.contentType + '/' + this.contentId + '?limit=500')
+        : ('api/auditlog/course/' + this.courseId + '?limit=500');
+
       $.ajax({
-        url: 'api/auditlog/course/' + this.courseId + '?limit=500',
+        url: url,
         type: 'GET',
         success: function(data) {
           // belt-and-braces: ensure newest-first regardless of what order the server returned

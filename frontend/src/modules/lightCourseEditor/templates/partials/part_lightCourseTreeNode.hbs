@@ -1,0 +1,36 @@
+{{!-- Recursive node partial for the light course content tree (Phase 3).
+      Context is a single node: { _id, type, children, _component, title }.
+      type is one of page/article/block/component. --}}
+<li class="light-course-tree-node light-course-tree-node-{{type}}" data-node-id="{{_id}}" data-node-type="{{type}}">
+  <div class="light-course-tree-node-row">
+    {{#ifValueEquals type "page"}}
+      <span class="light-course-tree-node-label">{{t 'app.lightcoursepage'}}</span>
+    {{else}}{{#ifValueEquals type "article"}}
+      <span class="light-course-tree-node-label">{{t 'app.lightcoursearticle'}}</span>
+    {{else}}{{#ifValueEquals type "block"}}
+      <span class="light-course-tree-node-label">{{t 'app.lightcourseblock'}}</span>
+    {{else}}
+      <span class="light-course-tree-node-label">{{t 'app.lightcoursecomponent'}}: {{_component}}{{#if title}} - {{title}}{{/if}}</span>
+    {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
+
+    <span class="light-course-tree-node-actions">
+      <button class="btn-icon light-course-tree-move-up" title="{{t 'app.lightcoursemoveup'}}"><i class="fa fa-arrow-up"></i></button>
+      <button class="btn-icon light-course-tree-move-down" title="{{t 'app.lightcoursemovedown'}}"><i class="fa fa-arrow-down"></i></button>
+      {{#ifValueEquals type "component"}}
+        <button class="btn-icon light-course-tree-edit" title="{{t 'app.edit'}}"><i class="fa fa-pencil"></i></button>
+      {{else}}
+        <button class="btn-icon light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i></button>
+      {{/ifValueEquals}}
+      <button class="btn-icon light-course-tree-remove" title="{{t 'app.remove'}}"><i class="fa fa-trash-o"></i></button>
+    </span>
+  </div>
+
+  {{#ifValueEquals type "component"}}
+  {{else}}
+    <ul class="light-course-tree-node-children light-course-tree-node-children-{{type}}">
+      {{#each children}}
+        {{> part_lightCourseTreeNode}}
+      {{/each}}
+    </ul>
+  {{/ifValueEquals}}
+</li>

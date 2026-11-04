@@ -1,0 +1,40 @@
+{
+  "_globals": {
+    "_extensions": {
+      "_help": {
+        "_navOrder": 0,
+        "_navTooltip": {
+          "_isEnabled": true,
+          "text": "Open course help."
+        },
+        "_showLabel": true,
+        "navLabel": "Help"
+      }
+    }
+  },
+  "_help": {
+    "_isEnabled": true,
+    "_navItem": {
+      "_icon": "question",
+      "ariaLabel": "Open course help."
+    },
+    "_popup": {
+      "title": "",
+      "body": "",
+      "instruction": ""
+    },
+    "_items": [
+      {
+        "_classes": "",
+        "title": "",
+        "body": "",
+        "_isPageLevelProgress": false,
+        "_icon": "",
+        "_graphic": {
+          "src": "",
+          "alt": ""
+        }
+      }
+    ]
+  }
+}

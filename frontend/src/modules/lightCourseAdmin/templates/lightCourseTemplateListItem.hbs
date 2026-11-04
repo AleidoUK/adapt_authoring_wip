@@ -1,0 +1,19 @@
+<div class="col-row">
+  <div class="col-35">
+    <div class="tb-col-inner">
+      <span class="light-course-template-list-item-name no-wrap">{{{name}}}</span>
+    </div>
+  </div>
+  <div class="col-35">
+    <div class="tb-col-inner no-wrap">{{description}}</div>
+  </div>
+  <div class="col-10">
+    <div class="tb-col-inner no-wrap">{{momentFormat updatedAt "Do MMMM YYYY"}}</div>
+  </div>
+  <div class="col-20 light-course-template-list-item-actions">
+    <div class="tb-col-inner">
+      <button class="btn secondary-hollow light-course-template-list-item-edit">{{t 'app.edit'}}</button>
+      <button class="btn alert light-course-template-list-item-delete">{{t 'app.delete'}}</button>
+    </div>
+  </div>
+</div>
