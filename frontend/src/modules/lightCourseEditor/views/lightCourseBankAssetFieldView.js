@@ -1,7 +1,15 @@
 // LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
-define(function(require) {
-  var Origin = require('core/origin');
-  var LightCourseAssetContext = require('../lightCourseAssetContext');
+// 'backbone-forms' is listed as an explicit array dependency (not just required inline) so
+// RequireJS guarantees it's fully loaded - attaching the global Backbone.Form this file extends
+// below - before this factory runs. Needed since nothing used to actually require() this whole
+// file at all (its own registration side effect never ran - see lightCourseEditor/index.js's own
+// comment on that); now that both lightCourseEditor/index.js and lightCourseAdmin/index.js
+// require it directly (both load earlier than modules/scaffold/index.js, which is what used to
+// load backbone-forms first, by coincidence, via whatever other path happened to pull this file
+// in), `Backbone.Form` was sometimes still undefined here on a cold page load, throwing
+// "Cannot read properties of undefined (reading 'editors')" and aborting the whole module chain -
+// confirmed live.
+define(['core/origin', '../lightCourseAssetContext', 'backbone-forms'], function(Origin, LightCourseAssetContext) {
 
   /**
    * A light-course-scoped Asset editor, registered under "LightCourseAsset:<type>" (not the

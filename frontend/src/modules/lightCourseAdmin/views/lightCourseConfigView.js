@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var IconGlyphs = require('../../lightCourseEditor/iconGlyphs');
 
   // Same per-control option-fetch approach as lightCourseEditor/views/lightCourseHeaderView.js's
   // own ICON_CONTROLS/getIn - duplicated here rather than shared (see
@@ -42,7 +43,8 @@ define(function(require) {
       'click .light-course-config-save': 'onSaveClicked',
       'change .light-course-config-menu-select': 'onPluginSelectionChanged',
       'change .light-course-config-theme-select': 'onPluginSelectionChanged',
-      'change .light-course-config-extension-checkbox': 'onPluginSelectionChanged'
+      'change .light-course-config-extension-checkbox': 'onPluginSelectionChanged',
+      'change .light-course-config-icon-select': 'onIconSelectChanged'
     },
 
     postRender: function() {
@@ -131,8 +133,36 @@ define(function(require) {
         }).forEach(function(option) {
           $select.append($('<option></option>').attr('value', option).text(option).prop('selected', iconDefaults[control.key] === option));
         });
-        $container.append($select);
+        var $preview = $('<span class="light-course-config-icon-preview"></span>');
+        $container.append($select).append($preview);
+        self.updateIconPreview($preview, iconDefaults[control.key]);
       });
+    },
+
+    /**
+     * Shows the actual glyph (from the vanilla framework's own built-in icon font, same source
+     * as lightCourseIconPickerView.js's "browse icons" modal) next to a Menu/Reflection/Help
+     * select, updating live as the selection changes - per direct user request. The select's own
+     * option values are plain names (e.g. "home") with no "icon-" prefix (confirmed against the
+     * real installed extensions' own schema, e.g. adapt-aleido-menuButton's `_icon` field), but
+     * the framework's actual CSS class always is that name prefixed with "icon-".
+     */
+    updateIconPreview: function($preview, value) {
+      $preview.attr('class', 'light-course-config-icon-preview');
+      if (!value) {
+        return;
+      }
+      IconGlyphs.ensureReady(function(iconData) {
+        if (!iconData) {
+          return;
+        }
+        $preview.addClass(IconGlyphs.GLYPH_CLASS).addClass('icon-' + value);
+      });
+    },
+
+    onIconSelectChanged: function(event) {
+      var $select = $(event.currentTarget);
+      this.updateIconPreview($select.next('.light-course-config-icon-preview'), $select.val());
     },
 
     assembleIconDefaults: function() {

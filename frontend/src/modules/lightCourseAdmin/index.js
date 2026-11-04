@@ -38,17 +38,17 @@ define(function(require) {
 
     Origin.globalMenu.addItem({
       location: 'global',
-      text: Origin.l10n.t('app.lightcoursetemplates'),
-      icon: 'fa-clone',
-      callbackEvent: 'lightCourseTemplates:open',
+      text: Origin.l10n.t('app.lightcourseconfig'),
+      icon: 'fa-sliders',
+      callbackEvent: 'lightCourseConfig:open',
       sortOrder: 4
     });
 
     Origin.globalMenu.addItem({
       location: 'global',
-      text: Origin.l10n.t('app.lightcourseconfig'),
-      icon: 'fa-sliders',
-      callbackEvent: 'lightCourseConfig:open',
+      text: Origin.l10n.t('app.lightcoursetemplates'),
+      icon: 'fa-clone',
+      callbackEvent: 'lightCourseTemplates:open',
       sortOrder: 5
     });
 

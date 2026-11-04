@@ -9,6 +9,11 @@
       "required": true,
       "default": "New Light Course"
     },
+    "body": {
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
     "revision": {
       "type": "number",
       "required": true,

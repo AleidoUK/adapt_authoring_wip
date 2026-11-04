@@ -16,12 +16,14 @@ var contentmanager = require('../../../lib/contentmanager'),
     origin = require('../../../'),
     async = require('async'),
     crypto = require('crypto'),
+    fs = require('fs'),
     util = require('util'),
     lightcourseValidation = require('../../../lib/lightcourse/validation'),
     idRegeneration = require('../../../lib/lightcourse/idRegeneration'),
     permissionAction = require('../../../lib/lightcourse/permissionAction'),
     wordcount = require('../../../lib/lightcoursewordcount'),
-    versionDiff = require('../../../lib/lightcourse/versionDiff');
+    versionDiff = require('../../../lib/lightcourse/versionDiff'),
+    iconClasses = require('../../../lib/lightcourse/iconClasses');
 
 function LightCourseContent () {
 }
@@ -37,6 +39,13 @@ util.inherits(LightCourseContent, ContentPlugin);
 // icon dropdown bug). A course created *from a template* keeps the template's own extension
 // selection untouched - these defaults only fill in a blank course.
 var DEFAULT_NEW_COURSE_EXTENSIONS = ['uniqueId', 'footer', 'styling', 'trickle', 'spoor', 'hero'];
+
+// Same "sensible out-of-the-box fallback, only used when the tenant hasn't configured its own
+// defaultPluginSelections.menu/theme" approach as DEFAULT_NEW_COURSE_EXTENSIONS above - confirmed
+// these match real installed menutype.menu / themetype.theme values on this instance (Tile Menu /
+// Aleido), per explicit product request.
+var DEFAULT_NEW_COURSE_MENU = 'tileMenu';
+var DEFAULT_NEW_COURSE_THEME = 'aleido';
 
 /**
  * Mints a stable, non-Mongo-ObjectId string identifier - used for content-tree nodes and
@@ -180,11 +189,18 @@ LightCourseContent.prototype.create = function (data, next) {
         var config = (configResults && configResults[0]) || {};
         var defaultSelections = config.defaultPluginSelections || {};
         data.pluginSelections = data.pluginSelections || {};
-        if (data.pluginSelections.menu === undefined && defaultSelections.menu !== undefined) {
-          data.pluginSelections.menu = defaultSelections.menu;
+        if (data.pluginSelections.menu === undefined) {
+          // admin-configured menu takes priority; DEFAULT_NEW_COURSE_MENU is only a sensible
+          // out-of-the-box fallback for a tenant that hasn't configured one yet.
+          data.pluginSelections.menu = (defaultSelections.menu !== undefined)
+            ? defaultSelections.menu
+            : DEFAULT_NEW_COURSE_MENU;
         }
-        if (data.pluginSelections.theme === undefined && defaultSelections.theme !== undefined) {
-          data.pluginSelections.theme = defaultSelections.theme;
+        if (data.pluginSelections.theme === undefined) {
+          // same fallback approach as menu above.
+          data.pluginSelections.theme = (defaultSelections.theme !== undefined)
+            ? defaultSelections.theme
+            : DEFAULT_NEW_COURSE_THEME;
         }
         if (data.pluginSelections.extensions === undefined) {
           // admin-configured extensions take priority; DEFAULT_NEW_COURSE_EXTENSIONS is only a
@@ -318,12 +334,6 @@ LightCourseContent.prototype.update = function (search, delta, next) {
 
           var merged = Object.assign({}, existing, delta);
 
-          // Auto-append a Version History row on every successful draft save, per the main plan
-          // ("A new row is added automatically whenever an exported document is re-imported, or
-          // an editor can add one manually") - extended on direct user request to also cover
-          // every Save Draft, replacing the old manual "Add row" button (still available
-          // server-side via headerData.versionHistory being a plain array the client can push
-          // onto, but the frontend no longer exposes a button for it).
           wordcount.computeWordCount(merged, db, function (wcError, wordCountResult) {
             if (wcError) {
               return next(wcError);
@@ -335,16 +345,39 @@ LightCourseContent.prototype.update = function (search, delta, next) {
             setDelta.updatedAt = new Date();
             setDelta.updatedBy = user._id;
 
+            // Refreshes the CURRENT "open" version-history row in place on every ordinary save
+            // (autosave or otherwise) - recomputing its words/screens/date/author, but
+            // deliberately preserving whatever notes/est. duration are already on it (or whatever
+            // the client's own delta is deliberately setting them to, e.g. via the "edit current
+            // row" action - both read from the exact same `headerData.versionHistory` array, so
+            // a client-submitted notes/duration edit on the last row survives this untouched).
+            // Only publishVersion() (Create Version) ever appends a *new* row - per the main
+            // plan's "A new row is added automatically whenever an exported document is
+            // re-imported, or an editor can add one manually" direction, extended on direct user
+            // request so that a published version always starts a fresh open row, while ordinary
+            // in-progress edits (now autosaved on every change rather than only on a manual "Save
+            // Draft" click) no longer flood the table with a near-duplicate row per edit.
             var headerData = Object.assign({}, delta.headerData || existing.headerData || {});
-            headerData.versionHistory = (headerData.versionHistory || []).concat([{
-              version: existing.currentVersionNumber || '-',
-              date: new Date().toISOString().slice(0, 10),
-              author: user.email || '',
-              notes: '',
-              screens: wordCountResult.screens,
-              words: wordCountResult.total,
-              duration: ''
-            }]);
+            var versionHistory = (headerData.versionHistory || []).slice();
+            var openRow = versionHistory.length ? Object.assign({}, versionHistory[versionHistory.length - 1]) : null;
+            if (openRow) {
+              openRow.date = new Date().toISOString().slice(0, 10);
+              openRow.author = user.email || '';
+              openRow.screens = wordCountResult.screens;
+              openRow.words = wordCountResult.total;
+              versionHistory[versionHistory.length - 1] = openRow;
+            } else {
+              versionHistory.push({
+                version: existing.currentVersionNumber || '-',
+                date: new Date().toISOString().slice(0, 10),
+                author: user.email || '',
+                notes: '',
+                screens: wordCountResult.screens,
+                words: wordCountResult.total,
+                duration: ''
+              });
+            }
+            headerData.versionHistory = versionHistory;
             setDelta.headerData = headerData;
 
             var Model = db.getModel('lightcourse');
@@ -371,12 +404,17 @@ LightCourseContent.prototype.update = function (search, delta, next) {
 };
 
 /**
- * Computes the next version number following the main plan's rule: first version is "1.0";
- * minor increments the second number; major increments the first and resets the second to 0.
+ * Computes the next version number. A first-ever *major* publish is "1.0"; a first-ever
+ * *minor* publish (before any major has ever been published) is "0.1" instead - confirmed on
+ * direct user request, fixing the "Create Version" toolbar's two buttons otherwise always
+ * showing the identical "1.0" label pre-first-publish, since both bumps used to collapse to the
+ * same result. Checked via `currentVersionNumber` (a string, only ever set at publish time)
+ * rather than `!draft.versionMajor`, since a 0.x-only course now has a real `versionMajor` of 0 -
+ * which is falsy, and would otherwise be wrongly treated as "never published" forever.
  */
 function nextVersionNumber(draft, bump) {
-  if (!draft.versionMajor) { // no version published yet
-    return { versionMajor: 1, versionMinor: 0 };
+  if (!draft.currentVersionNumber) { // no version published yet
+    return bump === 'major' ? { versionMajor: 1, versionMinor: 0 } : { versionMajor: 0, versionMinor: 1 };
   }
   if (bump === 'major') {
     return { versionMajor: draft.versionMajor + 1, versionMinor: 0 };
@@ -437,58 +475,83 @@ function publishVersion(req, res) {
         var versionInfo = nextVersionNumber(draft, bump);
         var currentVersionNumber = versionInfo.versionMajor + '.' + versionInfo.versionMinor;
 
-        var Model = db.getModel('lightcourse');
-        Model.findOneAndUpdate(
-          { _id: id, revision: clientRevision },
-          {
-            $set: {
-              versionMajor: versionInfo.versionMajor,
-              versionMinor: versionInfo.versionMinor,
-              currentVersionNumber: currentVersionNumber,
-              updatedAt: new Date(),
-              updatedBy: user._id
-            },
-            $inc: { revision: 1 }
-          },
-          { new: true },
-          function (err, updatedDraft) {
-            if (err) {
-              res.statusCode = 500;
-              return res.json({ success: false, message: err.message });
-            }
-            if (!updatedDraft) {
-              res.statusCode = 409;
-              return res.json({ success: false, message: 'This light course has changed since it was last loaded - please reload and try again' });
-            }
+        // Create Version always starts a fresh "open" version-history row (blank notes/est.
+        // duration, stamped with the version number just published) - the one and only place
+        // that ever appends a new row (see the matching comment on LightCourseContent.prototype.
+        // update's own versionHistory handling, which only ever refreshes the existing open row
+        // in place, now that ordinary saves are autosaved on every change rather than only via a
+        // manual "Save Draft" click).
+        wordcount.computeWordCount(draft, db, function (wcError, wordCountResult) {
+          if (wcError) {
+            res.statusCode = 500;
+            return res.json({ success: false, message: wcError.message });
+          }
 
-            // Routed through app.contentmanager.create() (not a raw db.create()) so the generic
-            // wildcard audit-log hook (plugins/content/auditlog/index.js) fires for this too -
-            // confirmed its base ContentPlugin#create has no other side effects beyond what
-            // db.create() already did (schema validation, createdAt/_type defaults).
-            origin().contentmanager.create('lightcourseversion', {
-              _tenantId: user.tenant._id,
-              _lightCourseId: id,
-              versionNumber: currentVersionNumber,
-              contentSnapshot: {
-                contentTree: updatedDraft.contentTree,
-                pluginSelections: updatedDraft.pluginSelections,
-                glossaryItems: updatedDraft.glossaryItems,
-                resourceItems: updatedDraft.resourceItems,
-                helpContent: updatedDraft.helpContent
+          var headerData = Object.assign({}, draft.headerData || {});
+          headerData.versionHistory = (headerData.versionHistory || []).concat([{
+            version: currentVersionNumber,
+            date: new Date().toISOString().slice(0, 10),
+            author: user.email || '',
+            notes: '',
+            screens: wordCountResult.screens,
+            words: wordCountResult.total,
+            duration: ''
+          }]);
+
+          var Model = db.getModel('lightcourse');
+          Model.findOneAndUpdate(
+            { _id: id, revision: clientRevision },
+            {
+              $set: {
+                versionMajor: versionInfo.versionMajor,
+                versionMinor: versionInfo.versionMinor,
+                currentVersionNumber: currentVersionNumber,
+                headerData: headerData,
+                updatedAt: new Date(),
+                updatedBy: user._id
               },
-              headerSnapshot: updatedDraft.headerData,
-              schemaFormatVersion: 1,
-              createdBy: user._id
-            }, function (err, version) {
+              $inc: { revision: 1 }
+            },
+            { new: true },
+            function (err, updatedDraft) {
               if (err) {
                 res.statusCode = 500;
                 return res.json({ success: false, message: err.message });
               }
-              res.statusCode = 200;
-              return res.json(version);
-            });
-          }
-        );
+              if (!updatedDraft) {
+                res.statusCode = 409;
+                return res.json({ success: false, message: 'This light course has changed since it was last loaded - please reload and try again' });
+              }
+
+              // Routed through app.contentmanager.create() (not a raw db.create()) so the generic
+              // wildcard audit-log hook (plugins/content/auditlog/index.js) fires for this too -
+              // confirmed its base ContentPlugin#create has no other side effects beyond what
+              // db.create() already did (schema validation, createdAt/_type defaults).
+              origin().contentmanager.create('lightcourseversion', {
+                _tenantId: user.tenant._id,
+                _lightCourseId: id,
+                versionNumber: currentVersionNumber,
+                contentSnapshot: {
+                  contentTree: updatedDraft.contentTree,
+                  pluginSelections: updatedDraft.pluginSelections,
+                  glossaryItems: updatedDraft.glossaryItems,
+                  resourceItems: updatedDraft.resourceItems,
+                  helpContent: updatedDraft.helpContent
+                },
+                headerSnapshot: updatedDraft.headerData,
+                schemaFormatVersion: 1,
+                createdBy: user._id
+              }, function (err, version) {
+                if (err) {
+                  res.statusCode = 500;
+                  return res.json({ success: false, message: err.message });
+                }
+                res.statusCode = 200;
+                return res.json(version);
+              });
+            }
+          );
+        });
       });
     });
   }, user.tenant._id);
@@ -639,6 +702,87 @@ function getWordCount(req, res) {
   }, user.tenant._id);
 }
 
+/**
+ * GET /api/content/lightcourse/icons/classes - the Side Drawer icon field's "browse icons" picker
+ * (frontend/src/modules/lightCourseEditor/views/lightCourseIconPickerView.js): every class name
+ * (plus its font codepoint, so the picker can render the real glyph) parsed from the installed
+ * framework's own vanilla icon font definitions - see lib/lightcourse/iconClasses.js. Not tied to
+ * any specific lightcourse record, so permission is checked against the general
+ * `/api/content/lightcourse/*` resource (same as fromVersion-style actions elsewhere) rather than
+ * a particular content item.
+ */
+function getIconClasses(req, res) {
+  var user = usermanager.getCurrentUser();
+  new LightCourseContent().hasPermission('read', user._id, user.tenant._id, {}, function (permError, isAllowed) {
+    if (permError) {
+      res.statusCode = 500;
+      return res.json({ success: false, message: permError.message });
+    }
+    if (!isAllowed) {
+      res.statusCode = 403;
+      return res.json({ success: false, message: 'You are not permitted to do that' });
+    }
+    iconClasses.getVanillaIconClasses(function (error, icons) {
+      if (error) {
+        res.statusCode = 500;
+        return res.json({ success: false, message: 'Could not read the installed framework\'s icon font definitions - is the framework installed? (' + error.message + ')' });
+      }
+      res.statusCode = 200;
+      return res.json({
+        icons: icons,
+        fontUrls: {
+          woff2: '/api/content/lightcourse/iconfont/' + iconClasses.FONT_FILES.woff2,
+          woff: '/api/content/lightcourse/iconfont/' + iconClasses.FONT_FILES.woff
+        }
+      });
+    });
+  });
+}
+
+var ICON_FONT_CONTENT_TYPES = { woff2: 'font/woff2', woff: 'font/woff' };
+
+/**
+ * GET /api/content/lightcourse/iconfont/:filename - serves the installed framework's own vanilla
+ * icon font binaries, so the icon picker above can actually render each glyph rather than just
+ * listing class names. :filename is matched against lib/lightcourse/iconClasses.js's own
+ * FONT_FILES list (not used as a raw path) so this can never serve anything else from disk.
+ */
+function getIconFont(req, res) {
+  var filename = req.params.filename;
+  var key = Object.keys(iconClasses.FONT_FILES).filter(function (candidateKey) {
+    return iconClasses.FONT_FILES[candidateKey] === filename;
+  })[0];
+  if (!key) {
+    res.statusCode = 404;
+    return res.json({ success: false, message: 'Not found' });
+  }
+
+  var user = usermanager.getCurrentUser();
+  new LightCourseContent().hasPermission('read', user._id, user.tenant._id, {}, function (permError, isAllowed) {
+    if (permError) {
+      res.statusCode = 500;
+      return res.json({ success: false, message: permError.message });
+    }
+    if (!isAllowed) {
+      res.statusCode = 403;
+      return res.json({ success: false, message: 'You are not permitted to do that' });
+    }
+    var filePath = iconClasses.getFontFilePath(key);
+    fs.stat(filePath, function (statError, stat) {
+      if (statError) {
+        res.statusCode = 404;
+        return res.json({ success: false, message: 'Icon font file not found - is the framework installed?' });
+      }
+      res.writeHead(200, {
+        'Content-Type': ICON_FONT_CONTENT_TYPES[key],
+        'Content-Length': stat.size,
+        'Cache-Control': 'public, max-age=86400'
+      });
+      fs.createReadStream(filePath).pipe(res);
+    });
+  });
+}
+
 function initialize() {
   origin().once('serverStarted', function () {
     rest.post('/content/lightcourse/:id/versions', publishVersion);
@@ -648,6 +792,13 @@ function initialize() {
     rest.get('/content/lightcourse/:id/versions/compare', compareVersions);
     rest.get('/content/lightcourse/:id/versions/:versionId', getVersion);
     rest.get('/content/lightcourse/:id/wordcount', getWordCount);
+    // NOTE: must be at least 2 path segments after "lightcourse" (not just "/content/
+    // lightcourse/iconclasses") - lib/contentmanager.js registers the generic
+    // `GET /content/:type/:id` route at content-manager init time, well before this plugin's own
+    // serverStarted-triggered routes below, so any 1-segment path here would always be matched by
+    // that route first (treating the segment as an _id and failing to cast it) and never reached.
+    rest.get('/content/lightcourse/icons/classes', getIconClasses);
+    rest.get('/content/lightcourse/iconfont/:filename', getIconFont);
   });
 }
 

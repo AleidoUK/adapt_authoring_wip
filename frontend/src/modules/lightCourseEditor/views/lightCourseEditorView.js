@@ -41,7 +41,9 @@ define(function(require) {
       'click .light-course-editor-conflict-reload': 'onConflictReloadClicked',
       'change .light-course-editor-menu-select': 'onPluginSelectionChanged',
       'change .light-course-editor-theme-select': 'onPluginSelectionChanged',
-      'change .light-course-editor-extension-checkbox': 'onPluginSelectionChanged'
+      'change .light-course-editor-extension-checkbox': 'onPluginSelectionChanged',
+      'blur .light-course-editor-menu-title': 'onMenuFieldChanged',
+      'blur .light-course-editor-menu-body': 'onMenuFieldChanged'
     },
 
     onBackToListClicked: function(event) {
@@ -202,10 +204,22 @@ define(function(require) {
     },
 
     /**
-     * Matches the backend's nextVersionNumber()'s own "0.1 vs 1.0" pre-first-publish split (see
-     * plugins/content/lightcourse/index.js) - checked via `currentVersionNumber` for the same
-     * reason: `versionMajor` can legitimately be 0 (falsy) once a 0.x-only course exists.
+     * The course's own "Menu Title"/"Menu Body" fields - these map directly to the real Adapt
+     * course schema's `title`/`body` (the heading/intro text shown on the course's actual menu
+     * screen, confirmed against plugins/content/course/model.schema), not anything Light-Course-
+     * specific. `title` already existed as a model attribute (used as the course's name
+     * everywhere else in the app - dashboard list, this editor's own heading, etc.) but was
+     * never editable from within the editor itself before now; `body` is a new field.
      */
+    onMenuFieldChanged: function(event) {
+      var $target = $(event.currentTarget);
+      var field = $target.hasClass('light-course-editor-menu-title') ? 'title' : 'body';
+      this.model.set(field, $target.val(), { silent: true });
+      if (field === 'title') {
+        this.$('.light-course-editor-toolbar h1').text($target.val());
+      }
+      this.autosave();
+    },
     updateVersionButtonLabels: function() {
       var hasPublished = !!this.model.get('currentVersionNumber');
       var major = this.model.get('versionMajor') || 0;
@@ -233,6 +247,7 @@ define(function(require) {
     assembleSaveData: function() {
       return {
         title: this.model.get('title'),
+        body: this.model.get('body'),
         revision: this.model.get('revision'),
         contentTree: this.treeView.getContentTree(),
         pluginSelections: this.model.get('pluginSelections'),

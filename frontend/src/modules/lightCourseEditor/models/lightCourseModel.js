@@ -8,6 +8,7 @@ define(function(require) {
 
     defaults: {
       title: '',
+      body: '',
       revision: 0,
       contentTree: {},
       pluginSelections: {},

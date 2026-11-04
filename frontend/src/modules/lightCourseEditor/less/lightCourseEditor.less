@@ -5,7 +5,7 @@
 
   .light-course-list-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end; //space-between;
     align-items: center;
     margin-bottom: 20px;
   }
@@ -38,10 +38,69 @@
   }
 }
 
+.light-course-template-editor {
+  padding: 18px 20px;
+  border: 1px solid #aaa;
+
+  .light-course-template-editor-section {
+    margin-bottom: 25px;
+    h1 {
+      font-weight: bold;
+      border-bottom: 1px solid @aleido-green;
+    }
+
+    h2 {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    p {
+      color: black;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+
+    label {
+      border-bottom: 1px solid @aleido-green;
+    }
+
+    select {
+      border: 1px solid @aleido-green;
+    }
+
+    .field-row {
+      background-color: white;
+      padding: 1rem;
+
+      label {
+        margin-bottom: 15px;
+        font-size: 110%;
+      }
+    }
+  }
+}
+
+.light-course-template-editor-extension-row {
+    margin-bottom: 5px;
+    display: flex;
+
+    label {
+      padding-left: 0.5rem;
+      margin-bottom: 0 !important;
+      border: none!important;
+    }
+  }
+
+.light-course-template-editor-extensions-list {
+  columns: 3;
+  width: 50rem;
+}
+
+
 .light-course-editor {
   .light-course-editor-toolbar {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end; //space-between;
     align-items: center;
     margin-bottom: 20px;
   }
@@ -85,6 +144,7 @@
 .light-course-header {
   .light-course-header-section {
     margin-bottom: 25px;
+
   }
 
   .light-course-header-version-row {
@@ -135,9 +195,18 @@
     padding: 8px;
     margin-bottom: 8px;
     background-color: @aleido-component-bg;
+    margin-left: 0px;
 
     &.light-course-tree-node-component {
       border-color: @aleido-component-border;
+    }
+
+    .light-course-tree-node-label {
+      font-weight: bold;
+    }
+
+    .secondary-hollow i {
+      color: #61C6A2;
     }
   }
 
@@ -200,7 +269,7 @@
 
     .light-course-tree-component-editor-header {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end; //space-between;
       align-items: center;
     }
   }

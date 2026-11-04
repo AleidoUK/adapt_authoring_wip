@@ -1,3 +1,15 @@
+.app-inner {
+  a {
+    font-weight: bold;
+    color: @aleido-green;
+    padding: 0.75rem;
+    border: 1px solid @aleido-green;
+    border-radius: 3px;
+    text-decoration: none;
+    margin-right: 0.5rem;
+  }
+}
+
 .light-course-template-list,
 .light-course-config {
   padding: 20px;
@@ -13,10 +25,57 @@
   }
 }
 
+.light-course-config {
+  // Menu/Reflection/Help icon default pickers - the select plus its live glyph preview
+  // (lightCourseConfigView.js's updateIconPreview()) sit side by side, preview on the right, per
+  // direct user request.
+  .light-course-config-icon-menuButton,
+  .light-course-config-icon-reflection,
+  .light-course-config-icon-help {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .light-course-config-icon-preview {
+    font-size: 24px;
+    line-height: 1;
+    min-width: 24px;
+    text-align: center;
+  }
+}
+
+.light-course-template-list, .light-course-component-default-list, .light-course-list {
+  .tb-heading, 
+  .light-course-list-empty, .light-course-list-items, 
+  .light-course-template-list-empty, .light-course-template-list-items,
+  .light-course-component-default-list-empty, .light-course-component-default-list-items {
+    background-color: white;
+  }
+  .tb-heading, .light-course-template-list-empty, .light-course-component-default-list-empty, .light-course-list-empty {
+    padding: 1rem; 
+  }
+  .light-course-template-list-items, .light-course-component-default-list-items, .light-course-list-items {
+    .tb-row {      
+      padding: 1rem; 
+    }
+  }
+}
+
+.light-course-component-default-list {
+  padding: 20px;
+  .light-course-component-default-list-header-actions {
+    display: flex;
+    justify-content: flex-end; //space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+}
+
 .light-course-template-list {
   .light-course-template-list-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end; //space-between;
     align-items: center;
     margin-bottom: 20px;
   }
@@ -48,12 +107,23 @@
   }
 }
 
+.light-course-component-default-editor {
+  padding: 20px;
+
+  .light-course-component-default-editor-toolbar {
+    display: flex;
+    justify-content: flex-end; //space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+}
+
 .light-course-template-editor {
   padding: 20px;
 
   .light-course-template-editor-toolbar {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end; //space-between;
     align-items: center;
     margin-bottom: 20px;
   }
@@ -75,7 +145,7 @@
 .light-course-config {
   .light-course-config-toolbar {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end; //space-between;
     align-items: center;
     margin-bottom: 20px;
   }
@@ -83,18 +153,59 @@
   .light-course-config-section {
     margin-bottom: 25px;
 
+    background-color: @aleido-extra-light-green;
+    padding: 18px 20px;
+    border: 1px solid #aaa;
+
+    h1 {
+      font-weight: bold;
+      border-bottom: 1px solid @aleido-green;
+    }
+
     h2 {
+      font-weight: bold;
       margin-bottom: 5px;
     }
 
     p {
-      color: #777;
+      color: black;
+      margin-top: 15px;
       margin-bottom: 15px;
+    }
+
+    label {
+      border-bottom: 1px solid @aleido-green;
+    }
+
+    select {
+      border: 1px solid @aleido-green;
+    }
+
+    .field-row {
+      background-color: white;
+      padding: 1rem;
+
+      label {
+        margin-bottom: 15px;
+        font-size: 110%;
+      }
     }
   }
 
   .light-course-config-extension-row {
     margin-bottom: 5px;
+    display: flex;
+
+    label {
+      padding-left: 0.5rem;
+      margin-bottom: 0 !important;
+      border: none;
+    }
+  }
+
+  .light-course-config-extensions-list {
+    columns: 3;
+    width: 50rem;
   }
 
   .light-course-config-placeholder-row {

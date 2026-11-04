@@ -1,13 +1,15 @@
 <div class="light-course-template-editor-inner">
   <div class="light-course-template-editor-toolbar">
-    <a href="#" class="light-course-template-editor-back-to-list">&laquo; {{t 'app.lightcoursetemplatesbacktolist'}}</a>
-    <h1>{{#if name}}{{name}}{{else}}{{t 'app.lightcoursetemplatenew'}}{{/if}}</h1>
+    <a href="#" class="light-course-template-editor-back-to-list action-secondary">&laquo; {{t 'app.lightcoursetemplatesbacktolist'}}</a>
+    {{!-- <h1>{{#if name}}{{name}}{{else}}{{t 'app.lightcoursetemplatenew'}}{{/if}}</h1> --}}
     <div class="light-course-template-editor-toolbar-actions">
       <button class="btn primary light-course-template-editor-save">{{t 'app.lightcoursetemplatesave'}}</button>
     </div>
   </div>
 
   <section class="light-course-template-editor-section">
+    {{!-- <h1>{{#if name}}{{name}}{{else}}{{t 'app.lightcoursetemplatenew'}}{{/if}}</h1>
+    <p>&nbsp;</p> --}}
     <div class="field-row">
       <label>{{t 'app.lightcoursetemplatename'}}</label>
       <input type="text" class="light-course-template-editor-name" value="{{name}}">
@@ -18,8 +20,22 @@
     </div>
   </section>
 
+  <section class="light-course-template-editor-section light-course-template-editor-menu-section">
+    <h1>{{t 'app.lightcoursemenusection'}}</h1>
+    <p>{{t 'app.lightcoursemenusectionhelp'}}</p>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursemenutitle'}}</label>
+      <input type="text" class="light-course-template-editor-menu-title" value="{{title}}">
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursemenubody'}}</label>
+      <textarea class="light-course-template-editor-menu-body">{{body}}</textarea>
+    </div>
+  </section>
+
   <section class="light-course-template-editor-section light-course-template-editor-plugins">
-    <h2>{{t 'app.lightcoursepluginselections'}}</h2>
+    <h1>{{t 'app.lightcoursepluginselections'}}</h1>
+    <p>&nbsp;</p>
     <div class="field-row">
       <label>{{t 'app.lightcoursemenu'}}</label>
       <select class="light-course-template-editor-menu-select"></select>

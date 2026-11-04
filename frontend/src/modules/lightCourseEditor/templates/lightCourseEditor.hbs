@@ -13,8 +13,8 @@
   {{/if}}
 
   <div class="light-course-editor-toolbar">
-    <a href="#" class="light-course-editor-back-to-list">&laquo; {{t 'app.lightcoursebacktolist'}}</a>
-    <h1>{{title}}</h1>
+    <a href="#" class="light-course-editor-back-to-list action-secondary">&laquo; {{t 'app.lightcoursebacktolist'}}</a>
+    {{!-- <h1>{{title}}</h1> --}}
     <div class="light-course-editor-toolbar-actions">
       <button class="btn secondary light-course-editor-auditlog">{{t 'app.editorauditlog'}}</button>
       <button class="btn primary light-course-editor-edit-current-entry">{{t 'app.lightcourseeditcurrententry'}}</button>
@@ -24,6 +24,19 @@
   </div>
 
   <div class="light-course-editor-header-container"></div>
+
+  <section class="light-course-editor-section light-course-editor-menu-section">
+    <h2>{{t 'app.lightcoursemenusection'}}</h2>
+    <p>{{t 'app.lightcoursemenusectionhelp'}}</p>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursemenutitle'}}</label>
+      <input type="text" class="light-course-editor-menu-title" value="{{title}}">
+    </div>
+    <div class="field-row">
+      <label>{{t 'app.lightcoursemenubody'}}</label>
+      <textarea class="light-course-editor-menu-body">{{body}}</textarea>
+    </div>
+  </section>
 
   <section class="light-course-editor-section light-course-editor-plugins">
     <h2>{{t 'app.lightcoursepluginselections'}}</h2>

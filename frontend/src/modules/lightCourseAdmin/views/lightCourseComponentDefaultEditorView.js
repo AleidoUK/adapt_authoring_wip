@@ -32,7 +32,9 @@ define(function(require) {
     fetchComponentTypes: function() {
       var self = this;
       $.get('api/componenttype').done(function(componentTypes) {
-        self.componentTypes = componentTypes;
+        self.componentTypes = (componentTypes || []).slice().sort(function(a, b) {
+          return (a.displayName || a.component).localeCompare(b.displayName || b.component);
+        });
         self.renderComponentTypeSelect();
         self.renderComponentForm();
       });

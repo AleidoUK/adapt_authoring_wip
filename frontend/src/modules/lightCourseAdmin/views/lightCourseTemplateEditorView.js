@@ -161,6 +161,8 @@ define(function(require) {
       return {
         name: this.$('.light-course-template-editor-name').val().trim(),
         description: this.$('.light-course-template-editor-description').val(),
+        title: this.$('.light-course-template-editor-menu-title').val(),
+        body: this.$('.light-course-template-editor-menu-body').val(),
         contentTree: this.treeView.getContentTree(),
         pluginSelections: this.model.get('pluginSelections'),
         glossaryItems: this.glossaryView ? this.glossaryView.getItems() : this.model.get('glossaryItems'),

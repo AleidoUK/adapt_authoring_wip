@@ -1,18 +1,18 @@
 <div class="col-row">
-  <div class="col-35">
+  <div class="col-30">
     <div class="tb-col-inner">
       <span class="light-course-list-item-title no-wrap">{{{title}}}</span>
     </div>
   </div>
-  <div class="col-15">
+  <div class="col-20">
     <div class="tb-col-inner no-wrap">{{momentFormat updatedAt "Do MMMM YYYY"}}</div>
   </div>
-  <div class="col-15">
+  <div class="col-20">
     <div class="tb-col-inner no-wrap">
       {{#if currentVersionNumber}}{{currentVersionNumber}}{{else}}{{t 'app.lightcoursedraftonly'}}{{/if}}
     </div>
   </div>
-  <div class="col-15">
+  <div class="col-10">
     <div class="tb-col-inner no-wrap">
       {{#ifValueEquals conversionStatus "converted"}}
         {{t 'app.lightcoursestateconverted'}}

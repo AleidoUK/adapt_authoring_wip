@@ -18,6 +18,8 @@ define(function(require) {
     defaults: {
       name: '',
       description: '',
+      title: '',
+      body: '',
       contentTree: {},
       pluginSelections: {},
       glossaryItems: [],
@@ -31,6 +33,8 @@ define(function(require) {
       }
       var snapshot = response.contentSnapshot || {};
       var flattened = Object.assign({}, response, {
+        title: snapshot.title || '',
+        body: snapshot.body || '',
         contentTree: snapshot.contentTree || {},
         pluginSelections: snapshot.pluginSelections || {},
         glossaryItems: snapshot.glossaryItems || [],
@@ -46,7 +50,17 @@ define(function(require) {
       return {
         name: attrs.name,
         description: attrs.description,
+        // also exposed flat (not just nested below) - this view's own template renders
+        // `value="{{title}}"` etc directly against `model.toJSON()` (standard Backbone/
+        // OriginView render convention), same as it already does for name/description; without
+        // this, the fields always looked blank on open despite being saved correctly, confirmed
+        // live (the backend happily ignores these two harmless top-level duplicates - its
+        // model.schema only declares name/description/contentSnapshot).
+        title: attrs.title,
+        body: attrs.body,
         contentSnapshot: {
+          title: attrs.title,
+          body: attrs.body,
           contentTree: attrs.contentTree,
           pluginSelections: attrs.pluginSelections,
           glossaryItems: attrs.glossaryItems,
