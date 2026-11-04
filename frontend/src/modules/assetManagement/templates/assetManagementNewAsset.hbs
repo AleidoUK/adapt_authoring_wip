@@ -10,6 +10,10 @@
             <div class="asset-management-new-asset-file">
                 {{t 'app.fileuploaded'}}
             </div>
+            <div class="asset-uses">{{t 'app.assetuses'}}: 
+                <div class="asset-use-icon"><i class="fa fa-info-circle"></i></div>
+                <div class="asset-use-info">{{{usage}}}</div>
+            </div>
             {{else}}
             <input type="file" class="asset-file" name="file">
             {{maxUploadSize}}

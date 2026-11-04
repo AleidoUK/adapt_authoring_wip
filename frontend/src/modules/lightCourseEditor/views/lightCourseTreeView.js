@@ -3,6 +3,7 @@ define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
   var LightCourseComponentFormView = require('./lightCourseComponentFormView');
+  var WordCount = require('../wordCount');
 
   var HIERARCHY = { page: 'article', article: 'block', block: 'component' };
   var MAX_COMPONENTS_PER_BLOCK = 2;
@@ -61,8 +62,45 @@ define(function(require) {
     },
 
     renderTree: function() {
-      var html = Handlebars.templates['lightCourseTreeRootNodes']({ children: this.tree.children });
+      var extensions = (this.model.get('pluginSelections') && this.model.get('pluginSelections').extensions) || [];
+      var html = Handlebars.templates['lightCourseTreeRootNodes']({
+        children: this.tree.children,
+        // Shown next to a component's title in its tree label (part_lightCourseTreeNode.hbs, via
+        // @root) only when the course actually has the Unique ID extension selected - per direct
+        // user request, matching the same isExtensionSelected() gate every other extension-
+        // dependent bit of UI already uses elsewhere in this editor.
+        uniqueIdEnabled: extensions.indexOf('uniqueId') !== -1,
+        // Per-node computed display data (component type display name, body HTML, live word
+        // count) - looked up via `{{lookup @root.nodeMeta _id}}` in part_lightCourseTreeNode.hbs.
+        // Computed here rather than inline in the template since it needs this.componentTypes
+        // and WordCount's schema-driven walk, neither of which Handlebars can reach directly.
+        nodeMeta: this.buildNodeMeta(this.tree.children)
+      });
       this.$('.light-course-tree-root').html(html);
+    },
+
+    /**
+     * Flat map of nodeId -> { componentTypeDisplayName, wordCount } for every component node in
+     * the tree, built fresh on every render so it always reflects the live in-memory tree
+     * (including a component whose form was just edited but not yet saved).
+     */
+    buildNodeMeta: function(nodes, out) {
+      out = out || {};
+      (nodes || []).forEach(function(node) {
+        if (!node) {
+          return;
+        }
+        if (node.type === 'component') {
+          var componentType = _.findWhere(this.componentTypes || [], { component: node._component });
+          out[node._id] = {
+            componentTypeDisplayName: (componentType && componentType.displayName) || node._component || '',
+            wordCount: WordCount.countComponentWords(node)
+          };
+          return;
+        }
+        this.buildNodeMeta(node.children, out);
+      }, this);
+      return out;
     },
 
     /**
@@ -98,6 +136,7 @@ define(function(require) {
       event && event.preventDefault();
       this.tree.children.push(emptyNodeData('page'));
       this.renderTree();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     onAddChildClicked: function(event) {
@@ -113,6 +152,7 @@ define(function(require) {
       }
       found.node.children.push(emptyNodeData(childType));
       this.renderTree();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     onRemoveClicked: function(event) {
@@ -133,6 +173,7 @@ define(function(require) {
           if (found) {
             found.siblings.splice(found.index, 1);
             self.renderTree();
+            Origin.trigger('lightCourseEditor:autosave');
           }
         }
       });
@@ -160,6 +201,7 @@ define(function(require) {
       found.siblings.splice(found.index, 1);
       found.siblings.splice(newIndex, 0, found.node);
       this.renderTree();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     onEditClicked: function(event) {
@@ -181,6 +223,10 @@ define(function(require) {
 
       this.renderComponentPicker(found.node);
       this.renderComponentForm(found.node);
+      // not a first-time type choice - this node (new or already-placed) already has whatever
+      // _component it has as the editor opens, so the preset dropdown only ever starts blank
+      // here; see the type-select change handler below for the actual "brand new node" case.
+      this.renderPresetPicker(found.node, false);
     },
 
     renderComponentPicker: function(node) {
@@ -197,10 +243,80 @@ define(function(require) {
         $select.append(option);
       });
       $select.on('change', _.bind(function() {
+        // "brand new" only ever means "this node has never had a _component before" - once a
+        // type's been chosen once, later changing the type again (on the same node, in this or
+        // a future editing session) no longer auto-applies a default preset, per the product
+        // requirement that re-applying a preset is always an explicit, deliberate action.
+        var isFirstTimeChoice = !node._component;
         node._component = $select.val();
         this.renderComponentForm(node);
+        this.renderPresetPicker(node, isFirstTimeChoice);
+        Origin.trigger('lightCourseEditor:autosave');
       }, this));
       $picker.append($label).append($select);
+    },
+
+    /**
+     * Component Defaults preset picker (see plugins/content/lightcomponentdefault/) - fetches
+     * every preset for the node's current componentType and renders a small adjacent dropdown.
+     * Selecting a preset (including the server-flagged default, auto-selected only the very
+     * first time a type is chosen for a brand new node) immediately applies its stored values
+     * onto the node and re-renders the component form - a deliberate, explicit, overwrite-
+     * current-values action every time, not something that re-runs silently on every keystroke.
+     */
+    renderPresetPicker: function(node, applyDefaultIfAvailable) {
+      var $presetPicker = this.$('.light-course-tree-component-editor-preset-picker');
+      $presetPicker.empty();
+      var componentType = node._component;
+      if (!componentType) {
+        return;
+      }
+      var self = this;
+      $.get('api/content/lightcomponentdefault', { componentType: componentType }).done(function(presets) {
+        // the node may have moved on to a different componentType (or the editor closed)
+        // by the time this resolves - only render against the node's still-current type.
+        if (node._component === componentType) {
+          self.renderPresetSelect(node, presets || [], applyDefaultIfAvailable);
+        }
+      });
+    },
+
+    renderPresetSelect: function(node, presets, applyDefaultIfAvailable) {
+      var $presetPicker = this.$('.light-course-tree-component-editor-preset-picker');
+      $presetPicker.empty();
+      if (!presets.length) {
+        return;
+      }
+      var $label = $('<label>').text(Origin.l10n.t('app.lightcoursecomponentpreset'));
+      var $select = $('<select class="light-course-tree-component-preset-select"></select>');
+      $select.append($('<option></option>').attr('value', '').text(Origin.l10n.t('app.lightcoursecomponentpresetnone')));
+      var defaultPreset = null;
+      presets.slice().sort(function(a, b) {
+        return (a.name || '').localeCompare(b.name || '');
+      }).forEach(function(preset) {
+        $select.append($('<option></option>').attr('value', preset._id).text(preset.name));
+        if (preset.isDefault) {
+          defaultPreset = preset;
+        }
+      });
+      $select.on('change', _.bind(function() {
+        var preset = _.findWhere(presets, { _id: $select.val() });
+        if (preset) {
+          this.applyPresetValues(node, preset);
+        }
+      }, this));
+      $presetPicker.append($label).append($select);
+
+      if (applyDefaultIfAvailable && defaultPreset) {
+        $select.val(defaultPreset._id);
+        this.applyPresetValues(node, defaultPreset);
+      }
+    },
+
+    applyPresetValues: function(node, preset) {
+      Object.assign(node, preset.values || {});
+      this.renderComponentForm(node);
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     renderComponentForm: function(node) {
@@ -217,9 +333,27 @@ define(function(require) {
       this.componentFormView = new LightCourseComponentFormView({
         model: formModel,
         lightCourseId: this.model.get('_id'),
-        includeAudio: (this.model.get('pluginSelections') && this.model.get('pluginSelections').extensions || []).indexOf('audio') !== -1
+        includeAudio: (this.model.get('pluginSelections') && this.model.get('pluginSelections').extensions || []).indexOf('audio') !== -1,
+        lightCourseRefs: this.buildLightCourseRefs()
       });
       $formContainer.empty().append(this.componentFormView.$el);
+    },
+
+    /**
+     * Data for the component field editor's "insert glossary/resource reference" CKEditor button
+     * (lightCourseRefPlugin.js) - glossary/resource items are only ever offered when their
+     * owning extension is actually selected for this course (per the main plan's "if extensions
+     * enabled" requirement), same isExtensionSelected() gate lightCourseHeaderView.js's own
+     * Menu/Reflection/Help icon pickers use.
+     */
+    buildLightCourseRefs: function() {
+      var extensions = (this.model.get('pluginSelections') && this.model.get('pluginSelections').extensions) || [];
+      return {
+        glossaryEnabled: extensions.indexOf('glossary') !== -1,
+        glossaryItems: this.model.get('glossaryItems') || [],
+        resourceEnabled: extensions.indexOf('resources') !== -1,
+        resourceItems: this.model.get('resourceItems') || []
+      };
     },
 
     flushOpenComponentForm: function() {
@@ -230,6 +364,7 @@ define(function(require) {
       if (found) {
         var formData = this.componentFormView.getFormData();
         Object.assign(found.node, formData);
+        Origin.trigger('lightCourseEditor:autosave');
       }
     },
 
@@ -250,7 +385,15 @@ define(function(require) {
     },
 
     setComponentTypes: function(componentTypes) {
-      this.componentTypes = componentTypes;
+      this.componentTypes = (componentTypes || []).slice().sort(function(a, b) {
+        return (a.displayName || a.component).localeCompare(b.displayName || b.component);
+      });
+      // componentTypes loads asynchronously (api/componenttype), after the tree's own first
+      // render - without this, every component's tree-label displayName lookup (buildNodeMeta)
+      // silently fell back to the raw, un-pretty `_component` value (e.g. "splash" instead of
+      // "Splash") until some unrelated tree mutation happened to trigger a re-render, confirmed
+      // live.
+      this.renderTree();
     },
 
     remove: function() {

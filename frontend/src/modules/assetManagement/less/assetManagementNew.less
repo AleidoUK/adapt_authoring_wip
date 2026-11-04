@@ -23,4 +23,40 @@
             }
         }
     }
+    
+    .asset-uses {
+        margin-top: 25px;
+    }
+
+    .asset-use-icon {
+        color: @aleido-logo-text-green;
+        cursor: pointer;
+        display: none;
+        &.is-visible {
+            display: block;
+        }
+    }
+
+    .asset-use-info {
+        display: none;
+        &.is-visible {
+            display: block;
+        }
+        &.hover {
+            position: absolute;
+            z-index: 2;
+            width: 350px;
+            padding: 5px;
+            border-radius: 6px;
+            margin: 10px 0;
+            background-color: @aleido-dark-green;
+            color: @white;
+            text-align: center;
+            transition: opacity 0.3s, visibility 0s 0.3s;
+
+            opacity: 0.9;
+            transition-delay: 0s;
+            visibility: inherit;
+        }
+    }
 }

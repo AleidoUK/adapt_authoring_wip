@@ -123,6 +123,13 @@ define([
       help: field.help,
       itemType: itemsProperties ? 'Object' : itemsInputType,
       inputType: inputType,
+      // Light Course Editor's "insert glossary/resource reference" CKEditor toolbar button
+      // (frontend/src/modules/lightCourseEditor/lightCourseRefPlugin.js) needs to know, per
+      // field, whether that feature applies - threaded straight through from whatever
+      // schemaFilter.js attached to the raw field, all the way down to the TextArea editor's own
+      // render() override (frontend/src/modules/scaffold/backboneFormsOverrides.js), via
+      // this.schema there. undefined/ignored for every other field/editor in the app.
+      lightCourseRefs: field.lightCourseRefs,
       legend: field.legend,
       subSchema: isFieldTypeObject ? field.properties : itemsProperties || items,
       title: getTitle(),

@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var LightCourseIconPickerView = require('./lightCourseIconPickerView');
 
   var TERMINOLOGY_OPTIONS = {
     section: ['Section', 'Topic'],
@@ -29,16 +30,20 @@ define(function(require) {
   }
 
   /**
-   * Header sections (Phase 3's "Header sections" section) - a fresh build, no existing
-   * equivalent. Reads/writes directly on this.model's headerData/pluginSelections (mutated
-   * in-memory; persisted only when the editor shell's "Save Draft" action calls model.save()).
+   * Header sections (Phase 3's "Header sections" section). Reads/writes directly on this.model's
+   * headerData/pluginSelections in-memory, then fires the shared `lightCourseEditor:autosave`
+   * Origin event (handled by lightCourseEditorView.js) so every field change/blur/version-row edit
+   * persists on its own, rather than only when a manual save action is taken.
    */
   var LightCourseHeaderView = OriginView.extend({
     className: 'light-course-header',
 
     events: {
       'change [data-bind]': 'onFieldChanged',
-      'blur [data-bind]': 'onFieldChanged'
+      'blur [data-bind]': 'onFieldChanged',
+      'click .light-course-header-drawer-icon-browse': 'onBrowseDrawerIconClicked',
+      'change .light-course-header-version-notes, .light-course-header-version-duration': 'onVersionRowFieldChanged',
+      'blur .light-course-header-version-notes, .light-course-header-version-duration': 'onVersionRowFieldChanged'
     },
 
     preRender: function() {
@@ -57,6 +62,15 @@ define(function(require) {
       this.setViewToReady();
     },
 
+    /**
+     * Renders every version-history row - safe to call repeatedly (e.g. after every autosave
+     * refreshes the current row's words/screens, not just on first render): only ever touches
+     * this container's own innerHTML, never the rest of the header view's DOM, so any in-progress
+     * typing in another header field survives a version-history-only refresh untouched. The
+     * notes/duration change|blur handling itself lives in this view's own delegated `events` map
+     * (bound once for the view's lifetime), not re-bound here on every call, to avoid stacking
+     * duplicate handlers across repeated renders.
+     */
     renderVersionHistory: function() {
       var headerData = this.model.get('headerData');
       var $tbody = this.$('.light-course-header-version-history-rows');
@@ -72,13 +86,15 @@ define(function(require) {
           .find('input').val(row.duration || '').attr('data-version-index', index).end());
         $tbody.append($row);
       });
+    },
 
-      this.$('.light-course-header-version-history-rows').on('change blur', '.light-course-header-version-notes, .light-course-header-version-duration', _.bind(function(event) {
-        var $target = $(event.currentTarget);
-        var index = $target.data('version-index');
-        var key = $target.hasClass('light-course-header-version-notes') ? 'notes' : 'duration';
-        headerData.versionHistory[index][key] = $target.val();
-      }, this));
+    onVersionRowFieldChanged: function(event) {
+      var $target = $(event.currentTarget);
+      var index = $target.data('version-index');
+      var key = $target.hasClass('light-course-header-version-notes') ? 'notes' : 'duration';
+      var headerData = this.model.get('headerData');
+      headerData.versionHistory[index][key] = $target.val();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     onFieldChanged: function(event) {
@@ -95,6 +111,30 @@ define(function(require) {
       }
       var value = $target.is(':checkbox') ? $target.is(':checked') : $target.val();
       target[path[path.length - 1]] = value;
+      Origin.trigger('lightCourseEditor:autosave');
+    },
+
+    /**
+     * Opens the "browse icons" reference picker (views/lightCourseIconPickerView.js) - a
+     * convenience for the freeform Side Drawer icon field (lib/lightcourse/iconOptions.js's
+     * CONTROLS.drawer), not a replacement for it. Writes the chosen class into the real text
+     * input and fires a real `change` event on it, so the existing generic onFieldChanged
+     * handler above (bound to every `[data-bind]` field) picks it up exactly as if the editor
+     * had typed it in directly - no separate write path needed here.
+     */
+    onBrowseDrawerIconClicked: function(event) {
+      event && event.preventDefault();
+      var $input = this.$('.light-course-header-drawer-icon-input');
+      Origin.trigger('modal:open', LightCourseIconPickerView, {
+        title: Origin.l10n.t('app.lightcoursedrawericonpickertitle'),
+        _shouldShowDoneButton: false,
+        onUpdate: function(data) {
+          if (!data || !data.className) {
+            return;
+          }
+          $input.val(data.className).trigger('change');
+        }
+      });
     },
 
     isExtensionSelected: function(extensionName) {
@@ -155,7 +195,9 @@ define(function(require) {
       $row.removeClass('display-none');
       var headerData = this.model.get('headerData');
       var $select = $('<select data-bind="iconChoices.' + key + '"></select>');
-      options.forEach(function(option, index) {
+      options.slice().sort(function(a, b) {
+        return a.localeCompare(b);
+      }).forEach(function(option, index) {
         var $option = $('<option></option>').attr('value', option).text(option);
         if (headerData.iconChoices[key] ? headerData.iconChoices[key] === option : index === 0) {
           $option.attr('selected', 'selected');

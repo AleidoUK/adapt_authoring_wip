@@ -29,6 +29,7 @@ define(function(require) {
 
     preRender: function(options) {
       this.includeAudio = !!options.includeAudio;
+      this.lightCourseRefs = options.lightCourseRefs || null;
       LightCourseAssetContext.set(options.lightCourseId);
     },
 
@@ -56,13 +57,20 @@ define(function(require) {
           Origin.l10n.t('app.lightcoursecomponentschemamissingreadonly') + '</p>');
       }
 
-      var filteredSchema = SchemaFilter.filterComponentSchema(rawSchema, { includeAudio: this.includeAudio });
+      var filteredSchema = SchemaFilter.filterComponentSchema(rawSchema, { includeAudio: this.includeAudio, lightCourseRefs: this.lightCourseRefs });
 
       // Light-editor-only fields, per the main plan - never part of the real component schema,
       // merged in here at the form-building level only (Phase 3's "Generic component-field
-      // rendering" deliverable 2).
-      filteredSchema.graphicsNotes = { type: 'TextArea', title: Origin.l10n.t('app.lightcoursegraphicsnotes') };
-      filteredSchema.developerNotes = { type: 'TextArea', title: Origin.l10n.t('app.lightcoursedevelopernotes') };
+      // rendering" deliverable 2). Must declare `inputType: 'TextArea'` (not just `type:
+      // 'TextArea'`) - confirmed via live browser testing that modules/scaffold/index.js's
+      // generateFieldObject()/getType() only ever resolves a real Backbone.Form editor from
+      // `field.inputType` (or a JSON-schema `type` of 'string'/'array'/etc, never a raw
+      // Backbone.Form editor name in `field.type` itself) - this was a real, pre-existing bug
+      // (present since Phase 3/4, never caught because those phases had no live browser session)
+      // that broke every component's form entirely, now fixed alongside this feature since it
+      // otherwise made the new reference-link button impossible to test at all.
+      filteredSchema.graphicsNotes = { type: 'string', inputType: 'TextArea', title: Origin.l10n.t('app.lightcoursegraphicsnotes'), lightCourseRefs: this.lightCourseRefs };
+      filteredSchema.developerNotes = { type: 'string', inputType: 'TextArea', title: Origin.l10n.t('app.lightcoursedevelopernotes'), lightCourseRefs: this.lightCourseRefs };
 
       var schema = Origin.scaffold.buildSchema(filteredSchema);
 

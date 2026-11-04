@@ -28,18 +28,38 @@
     }
   }
 
+  .login-logos {
+    .login-logo, .login-aleido-logo {
+      float: left;
+      width: 50%;
+      // margin-bottom: 2rem;
+    }
+  }
+
   .login-logo {
-    height: 123px;
+    height: 90px;
     background-image: url('assets/adapt-learning-logo-white.png');
     background-position: center;
     background-repeat: no-repeat;
+    background-size: contain;
+    margin-top: 1rem;
+    margin-bottom: 3rem;
+  }
+
+  .login-aleido-logo {
+    height: 123px;
+    background-image: url("assets/A_icon.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
   }
 
   .login-title {
     text-align: center;
     font-size: 32px;
-    margin-top: 60px;
+    margin-top: 20px;
     margin-bottom: 40px;
+    width: 100%;
   }
 
   #loginError {
@@ -111,6 +131,7 @@
     float: left;
     font-size: 15px;
     margin-left: 40px;
+    width: 100%;
   }
 
   .remember-me-label {

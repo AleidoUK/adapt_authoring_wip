@@ -2,7 +2,8 @@
   height: 100%;
   width:300px;
   float:left;
-  border-right: 1px solid #ddf2fa;
+  border-right: 1px solid @aleido-border;
+  background-color: rgba(@aleido-extra-light-green, 0.2);
   overflow:hidden;
 
   &.selected {
@@ -26,7 +27,7 @@
 .editor-menu-layer-controls {
   position:relative;
   padding: 20px;
-  border-bottom: 1px solid #d6f2f9;
+  border-bottom: 1px solid @aleido-border;
   // FIXME this should be dynamic...
   height: 40px;
 

@@ -25,7 +25,9 @@ define(function(require) {
       var self = this;
       $.get('api/content/lightcourse').done(function(courses) {
         var $select = self.$('.light-course-promote-course-select');
-        (courses || []).forEach(function(course) {
+        (courses || []).slice().sort(function(a, b) {
+          return (a.title || '').localeCompare(b.title || '');
+        }).forEach(function(course) {
           $select.append($('<option></option>').attr('value', course._id).text(course.title));
         });
         if (courses && courses.length) {

@@ -10,7 +10,14 @@
     {{else}}{{#ifValueEquals type "block"}}
       <span class="light-course-tree-node-label">{{t 'app.lightcourseblock'}}</span>
     {{else}}
-      <span class="light-course-tree-node-label">{{t 'app.lightcoursecomponent'}}: {{_component}}{{#if title}} - {{title}}{{/if}}</span>
+      {{#with (lookup @root.nodeMeta _id)}}
+        <span class="light-course-tree-node-label light-course-tree-component-label">
+          <span class="light-course-tree-component-type">{{componentTypeDisplayName}}</span>
+          <span class="light-course-tree-component-title">{{#if ../displayTitle}}{{../displayTitle}}{{else}}{{../title}}{{/if}}</span>
+          {{#if @root.uniqueIdEnabled}}{{#if ../uniqueId}}<span class="light-course-tree-component-uniqueid">({{t 'app.lightcourseuniqueid'}}: {{../uniqueId}})</span>{{/if}}{{/if}}
+          <span class="light-course-tree-component-wordcount">{{wordCount}} {{t 'app.lightcoursewords'}}</span>
+        </span>
+      {{/with}}
     {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
 
     <span class="light-course-tree-node-actions">
@@ -18,14 +25,21 @@
       <button class="btn-icon light-course-tree-move-down" title="{{t 'app.lightcoursemovedown'}}"><i class="fa fa-arrow-down"></i></button>
       {{#ifValueEquals type "component"}}
         <button class="btn-icon light-course-tree-edit" title="{{t 'app.edit'}}"><i class="fa fa-pencil"></i></button>
+      {{else}}{{#ifValueEquals type "page"}}
+        <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddarticle'}}</button>
+      {{else}}{{#ifValueEquals type "article"}}
+        <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddblock'}}</button>
       {{else}}
-        <button class="btn-icon light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i></button>
-      {{/ifValueEquals}}
+        <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddcomponent'}}</button>
+      {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
       <button class="btn-icon light-course-tree-remove" title="{{t 'app.remove'}}"><i class="fa fa-trash-o"></i></button>
     </span>
   </div>
 
   {{#ifValueEquals type "component"}}
+    {{#if body}}
+      <div class="light-course-tree-component-body">{{{body}}}</div>
+    {{/if}}
   {{else}}
     <ul class="light-course-tree-node-children light-course-tree-node-children-{{type}}">
       {{#each children}}

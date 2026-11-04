@@ -18,13 +18,29 @@ When creating a new course, an editor can start from a blank course or from a te
 
 Administrators manage the list of available templates: they can build one from scratch, or turn any existing light course version into a template for others to reuse. Templates are there to save repetitive setup, not to restrict what an editor can change afterwards.
 
+## Document headers
+
+At the top of every light course sits a set of header sections aimed at reviewers and whoever later builds the full course. Other than the button icon choices, none of this information is carried into the full course on conversion - it exists to support drafting, review and handover.
+
+**Version history** is a table with one row per export: Version (the course's current 1.0/1.1/2.0 number), Date, Author, Notes, No. of screens, No. of words and Est. duration. Version, Date, Author and the two counts are calculated and not editable; Notes and Est. duration are free text. A screen is counted as one component. A new row is added automatically whenever an exported document is re-imported, or an editor can add one manually.
+
+**Instructions for reviewing this document** is a short explanation shown to anyone reviewing an export. Each export keeps its own stored copy, including its text and any referenced images, so earlier exports stay available even as the draft keeps changing.
+
+**Important information for developers** captures the decisions a developer needs before building the full course: whether navigation is linear or non-linear, whether the layout is full or standard, whether tracking is by completion, assessment, or both, and whether a reflection tool is needed. The course's selected Extensions (see Images and plugin choices below) are also shown here.
+
+**Terminology** lets the editor choose the words the course should use: Section or Topic, Course or Module, and Assessment or Quiz.
+
+**Buttons** is where the editor picks an icon for Next, Back, Menu, Help, Side Drawer and Reflection from the Vanilla font icons supported by each control; the first option listed is always the default. A linked choice records which style of help screen is needed - a pop-up with icons and explanations, or a graphic walkthrough of the course with pop-up labels. Unlike the rest of this header, the chosen button icons do carry through to the full course's navigation when it is converted, wherever the resulting theme and menu support them.
+
 ## Building the course
 
 A course contains pages, pages contain articles, articles contain blocks, and blocks contain up to two components. Blocks and components can be reordered inside the tool. If a block has two components, they will be placed on the left and right when the full course is created.
 
 The component editor will have the same straightforward layout for every installed component. A dropdown lets the editor choose from all components currently available in the authoring tool. Common content fields include title, display title, body, instruction and a unique ID where applicable. Editors can add items to a component; for each item, they will see the text fields marked as translatable in that component's schema.
 
-Editors will not need to select video or audio files here. The tool will use administrator-configured defaults for the media and other required settings when it creates a full course. Where a component or item needs a graphic, the editor can choose an image from a shared light-course image bank.
+Editors will not need to select video files here. The tool will use administrator-configured defaults for the media and other required settings when it creates a full course. Where a component or item needs a graphic, the editor can choose an image from a shared light-course image bank. Where the audio extension is among the course's selected Extensions, components and their items also show an audio field, worked the same way.
+
+Each component also has two fields only the light editor sees: Graphics Notes and Developer Notes, for free-text guidance on graphics work and implementation. Like the header sections above, these notes are not carried into the full course.
 
 ## Images and plugin choices
 
@@ -54,7 +70,7 @@ Earlier versions can be opened for review, compared and exported, but not change
 
 ## Word counts and documents
 
-The light editor will show a word count for each component and a total for the course. Counts use translatable content only. Full-course editors will also have component and course word counts for full courses; the Light Editor role alone will not be able to see those full courses.
+The light editor will show a word count for each component and a total for the course. Counts use translatable content only; the Graphics Notes and Developer Notes fields and the document header sections are not counted. Full-course editors will also have component and course word counts for full courses; the Light Editor role alone will not be able to see those full courses.
 
 Courses can be exported as either a Markdown document or a Word document, chosen from an export menu. The documents will include word-count information. Full-course editors will get these document exports for full courses too. These are additional ways to review and work on content: they do not replace the existing Adapt course ZIP export.
 
@@ -66,7 +82,9 @@ Documents are for editing **text**, not rearranging the course. Their headings, 
 
 Only a full administrator can convert a light course, and only its latest saved version can be converted. The tool will first check that its components, selected Menu, Theme and Extensions, images, media and required default settings are available and valid. Administrators will have a configuration area for default plugin selections, graphic placeholders and required non-text values, including example/default media files.
 
-Successful conversion creates a new full course with its pages, articles, blocks, components, item text and other translatable content already in place. Selected plugins and configured defaults are applied, including left/right placement for paired components. A full administrator can then edit the resulting full course in the normal editor.
+Successful conversion creates a new full course with its pages, articles, blocks, components, item text and other translatable content already in place. Selected plugins and configured defaults are applied, including left/right placement for paired components and the chosen Next/Back/Menu/Help/Side Drawer/Reflection icons. A full administrator can then edit the resulting full course in the normal editor.
+
+The document header sections (version history, reviewing instructions, developer information, terminology and the help-screen style choice) and each component's Graphics Notes and Developer Notes are not needed once a full course exists, so none of them carry over - they remain visible on the light course for reference.
 
 The light course becomes read-only **only after** the full course has been created successfully. Its saved versions can still be reviewed, compared and exported. If conversion fails, the light course remains editable and the administrator receives an explanation of what must be fixed.
 

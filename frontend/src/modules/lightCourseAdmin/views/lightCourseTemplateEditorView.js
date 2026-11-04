@@ -84,7 +84,7 @@ define(function(require) {
         isEnabled: this.isExtensionSelected(RESOURCES_EXTENSION),
         disabledMessageKey: 'lightcourseresourcesdisabled',
         fields: [
-          { key: '_type', label: Origin.l10n.t('app.lightcoursetype'), type: 'select', options: ['document', 'media', 'link'] },
+          { key: '_type', label: Origin.l10n.t('app.lightcoursetype'), type: 'select', options: ['document', 'link', 'media'] },
           { key: 'title', label: Origin.l10n.t('app.title'), type: 'text' },
           { key: 'description', label: Origin.l10n.t('app.lightcoursedescription'), type: 'textarea' },
           { key: '_link', label: Origin.l10n.t('app.lightcourselink'), type: 'text' }
@@ -118,19 +118,25 @@ define(function(require) {
       var pluginSelections = this.model.get('pluginSelections') || {};
       var $menu = this.$('.light-course-template-editor-menu-select').empty();
       $menu.append($('<option></option>').attr('value', '').text(Origin.l10n.t('app.lightcoursenoneselected')));
-      menuTypes.forEach(function(menuType) {
+      menuTypes.slice().sort(function(a, b) {
+        return (a.displayName || a.menu).localeCompare(b.displayName || b.menu);
+      }).forEach(function(menuType) {
         $menu.append($('<option></option>').attr('value', menuType.menu).text(menuType.displayName || menuType.menu)
           .prop('selected', pluginSelections.menu === menuType.menu));
       });
       var $theme = this.$('.light-course-template-editor-theme-select').empty();
       $theme.append($('<option></option>').attr('value', '').text(Origin.l10n.t('app.lightcoursenoneselected')));
-      themeTypes.forEach(function(themeType) {
+      themeTypes.slice().sort(function(a, b) {
+        return (a.displayName || a.theme).localeCompare(b.displayName || b.theme);
+      }).forEach(function(themeType) {
         $theme.append($('<option></option>').attr('value', themeType.theme).text(themeType.displayName || themeType.theme)
           .prop('selected', pluginSelections.theme === themeType.theme));
       });
       var $extensions = this.$('.light-course-template-editor-extensions-list').empty();
       var selectedExtensions = pluginSelections.extensions || [];
-      extensionTypes.forEach(function(extensionType) {
+      extensionTypes.slice().sort(function(a, b) {
+        return (a.displayName || a.extension).localeCompare(b.displayName || b.extension);
+      }).forEach(function(extensionType) {
         var id = 'light-course-template-extension-' + extensionType.extension;
         var $checkbox = $('<input type="checkbox" class="light-course-template-editor-extension-checkbox">')
           .attr('id', id).attr('data-extension', extensionType.extension)
@@ -174,6 +180,7 @@ define(function(require) {
         wait: true,
         success: function() {
           Origin.Notify.alert({ type: 'success', text: Origin.l10n.t('app.lightcoursetemplatesaved') });
+          Origin.router.navigateTo('lightCourseTemplates');
         },
         error: function(model, response) {
           var message = (response && response.responseJSON && response.responseJSON.message) || Origin.l10n.t('app.errorgeneric');

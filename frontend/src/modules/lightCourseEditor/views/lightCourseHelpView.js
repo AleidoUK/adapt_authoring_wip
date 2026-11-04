@@ -8,7 +8,7 @@ define(function(require) {
   // (title/body/instruction) and `_items[]` (icon/title/body/graphic) exist - there is no
   // separate "linked help page"/style-toggle to build an editor for (Phase 1's resolved
   // product decision: scope down to this real shape).
-  var HELP_ICON_OPTIONS = ['question', 'info'];
+  var HELP_ICON_OPTIONS = ['info', 'question'];
 
   /**
    * Help extension content editor (Phase 4's "Help extension editor" section) - gated on the
@@ -64,6 +64,7 @@ define(function(require) {
     onPopupFieldChanged: function(event) {
       var $target = $(event.currentTarget);
       this.helpContent.popup[$target.data('help-field')] = $target.val();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     /**

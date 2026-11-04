@@ -13,7 +13,8 @@ define(function(require){
       this.listenTo(Origin, {
         'window:resize': this.resizePanels,
         'assetManagement:assetItemView:preview': this.onAssetClicked,
-        'assetManagement:assetPreviewView:delete': this.onAssetDeleted
+        'assetManagement:assetPreviewView:delete': this.onAssetDeleted,
+        'assetManagement:assetPreviewView:permanentdelete': this.onAssetPermanentDeleted
       });
     },
 
@@ -51,7 +52,12 @@ define(function(require){
 
     onAssetDeleted: function() {
       this.$('.asset-management-no-preview').show();
-    }
+    },
+
+    onAssetPermanentDeleted: function() {
+      console.log(this);
+    },
+
   }, {
     template: 'assetManagement'
   });

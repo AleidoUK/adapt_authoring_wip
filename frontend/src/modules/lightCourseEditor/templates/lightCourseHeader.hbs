@@ -31,16 +31,16 @@
     <div class="field-row">
       <label>{{t 'app.lightcourselayout'}}</label>
       <select data-bind="developerInfo.layout">
-        <option value="standard"{{selected headerData.developerInfo.layout "standard"}}>{{t 'app.lightcoursestandard'}}</option>
         <option value="full"{{selected headerData.developerInfo.layout "full"}}>{{t 'app.lightcoursefull'}}</option>
+        <option value="standard"{{selected headerData.developerInfo.layout "standard"}}>{{t 'app.lightcoursestandard'}}</option>
       </select>
     </div>
     <div class="field-row">
       <label>{{t 'app.lightcoursetracking'}}</label>
       <select data-bind="developerInfo.tracking">
-        <option value="completion"{{selected headerData.developerInfo.tracking "completion"}}>{{t 'app.lightcoursecompletion'}}</option>
         <option value="assessment"{{selected headerData.developerInfo.tracking "assessment"}}>{{t 'app.lightcourseassessment'}}</option>
         <option value="both"{{selected headerData.developerInfo.tracking "both"}}>{{t 'app.lightcoursetrackingboth'}}</option>
+        <option value="completion"{{selected headerData.developerInfo.tracking "completion"}}>{{t 'app.lightcoursecompletion'}}</option>
       </select>
     </div>
     <div class="field-row">
@@ -92,7 +92,10 @@
     </div>
     <div class="field-row">
       <label>{{t 'app.lightcoursedrawericon'}}</label>
-      <input type="text" data-bind="iconChoices.drawer" value="{{headerData.iconChoices.drawer}}">
+      <div class="light-course-header-drawer-icon-row">
+        <input type="text" data-bind="iconChoices.drawer" value="{{headerData.iconChoices.drawer}}" class="light-course-header-drawer-icon-input">
+        <button type="button" class="btn secondary-hollow light-course-header-drawer-icon-browse" title="{{t 'app.lightcoursedrawericonbrowse'}}" aria-label="{{t 'app.lightcoursedrawericonbrowse'}}">i</button>
+      </div>
     </div>
   </section>
 

@@ -25,13 +25,13 @@ textarea,
 select[multiple="multiple"] {
     padding: 11px 10px;
     border-radius: 2px;
-    border: solid 1px #ccc;
+    border: solid 1px @aleido-border;
     font-size: 13px;
     width:90%;
     /*max-width:700px;*/
     &:focus {
         outline:none;
-        border-color:#666;
+        border-color: @aleido-grey-1;
         box-shadow:none;
     }
 }
@@ -49,7 +49,7 @@ select {
 }
 
 input:disabled, textarea:disabled {
-    background-color:#e2e2e2;
+    background-color: @aleido-grey-3;
 }
 
 .form-list {

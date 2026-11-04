@@ -25,6 +25,7 @@ define([
 
     initialize: function(options) {
       this.listenTo(Origin, 'scaffold:assets:autofill', this.onAutofill);
+      // this.listenTo(Origin, 'scaffold:assets:course', this.addCourseTag);
 
       Backbone.Form.editors.Base.prototype.initialize.call(this, options);
     },

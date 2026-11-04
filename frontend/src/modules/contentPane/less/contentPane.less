@@ -2,3 +2,23 @@
   position: relative;
   overflow-y: auto;
 }
+
+.location-login {
+  .contentPane {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    &-inner {
+      padding: 1rem;
+      background-color: rgba(@aleido-dark-green, 0.8);
+      border-radius: 1rem;
+      overflow: hidden;
+  
+      input[type='email'], input[type='password'], input[type='submit'], button {
+        box-sizing: border-box;
+        width: 100% !important;
+      }
+    }
+  }
+}

@@ -97,12 +97,14 @@ define(function(require) {
       var $target = $(event.currentTarget);
       var index = $target.closest('.light-course-item-list-row').data('index');
       this.items[index][$target.data('item-field')] = $target.val();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     onAddClicked: function(event) {
       event && event.preventDefault();
       this.items.push(Object.assign({ _id: '' }, this.emptyItem()));
       this.renderItems();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     onRemoveClicked: function(event) {
@@ -110,6 +112,7 @@ define(function(require) {
       var index = $(event.currentTarget).closest('.light-course-item-list-row').data('index');
       this.items.splice(index, 1);
       this.renderItems();
+      Origin.trigger('lightCourseEditor:autosave');
     },
 
     onMoveUpClicked: function(event) {
@@ -130,6 +133,7 @@ define(function(require) {
       var item = this.items.splice(index, 1)[0];
       this.items.splice(newIndex, 0, item);
       this.renderItems();
+      Origin.trigger('lightCourseEditor:autosave');
     }
   }, {
     template: 'lightCourseItemList'

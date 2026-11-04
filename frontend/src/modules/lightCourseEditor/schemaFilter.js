@@ -104,25 +104,43 @@ define(function(require) {
    * @param {boolean} [options.includeAudio] - include the component/item audio fields declared by
    *   adapt-aleido-audio's properties.schema, only when that extension is among the course's
    *   selected extensions (per the product doc)
+   * @param {object} [options.lightCourseRefs] - if given, attached to every TextArea-typed field
+   *   as `field.lightCourseRefs` (see attachLightCourseRefs() below)
    * @return {object} a filtered schema fragment, safe to assign as a Backbone.Form schema
    */
   function filterComponentSchema(rawSchema, options) {
     options = options || {};
-    if (!rawSchema || !rawSchema.properties) {
+    if (!rawSchema) {
       return {};
     }
-    // `_extensions` and `properties` are handled explicitly below (uniqueId/audio remap, and
-    // the component's own opaque settings bag respectively) - never walk them generically, or
-    // e.g. the audio fields would be kept twice (once flattened, once in their raw nested shape).
-    var genericProperties = _.omit(rawSchema.properties, '_extensions', 'properties');
+    // Confirmed live (via Origin.schemas.get(componentName) in a real browser session -
+    // genuinely exercising this for the first time, the Phase 3/4 docs' own "no live browser
+    // session" caveat had let this go unnoticed): `rawSchema` is ALREADY the flat common/base
+    // field map itself (title/body/displayTitle/etc at its own top level, confirmed against a
+    // real installed component) - it is NOT wrapped in another `.properties` layer the way a
+    // plain JSON-schema object node would be. `_extensions` and `rawSchema.properties` (the
+    // component's own opaque per-component settings bag, confirmed nested one level via its OWN
+    // `.properties`, e.g. adapt-contrib-text's `instruction`) are handled explicitly below -
+    // never walked generically here, or e.g. the audio fields would be kept twice.
+    var genericProperties = _.omit(rawSchema, '_extensions', 'properties');
     var filtered = filterProperties(genericProperties);
 
+    // The component's own custom fields (e.g. adapt-contrib-text's `instruction`) - previously
+    // never actually reached at all (this whole function was reading one level too deep
+    // everywhere, so every component's field editor silently rendered with none of its own
+    // fields, only the two synthetic graphicsNotes/developerNotes ones) - merged in via the same
+    // generic filter, so a custom translatable field gets exactly the same keep/drop treatment a
+    // common one does.
+    if (rawSchema.properties && rawSchema.properties.properties) {
+      Object.assign(filtered, filterProperties(rawSchema.properties.properties));
+    }
+
     // Phase 1's confirmed uniqueId remap: not a literal top-level field in the raw schema.
-    var uniqueIdNode = rawSchema.properties._extensions &&
-      rawSchema.properties._extensions.properties &&
-      rawSchema.properties._extensions.properties._uniqueId &&
-      rawSchema.properties._extensions.properties._uniqueId.properties &&
-      rawSchema.properties._extensions.properties._uniqueId.properties._id;
+    var uniqueIdNode = rawSchema._extensions &&
+      rawSchema._extensions.properties &&
+      rawSchema._extensions.properties._uniqueId &&
+      rawSchema._extensions.properties._uniqueId.properties &&
+      rawSchema._extensions.properties._uniqueId.properties._id;
     if (uniqueIdNode) {
       filtered.uniqueId = Object.assign({}, uniqueIdNode, { title: uniqueIdNode.title || 'Unique ID' });
     }
@@ -135,10 +153,10 @@ define(function(require) {
     // component's own unrelated item array) is a significant extra bespoke-UI undertaking for
     // comparatively low value and is deliberately out of scope for now - only the single
     // component-level audio field is exposed.
-    var audioNode = rawSchema.properties._extensions &&
-      rawSchema.properties._extensions.properties &&
-      rawSchema.properties._extensions.properties._audio &&
-      rawSchema.properties._extensions.properties._audio.properties;
+    var audioNode = rawSchema._extensions &&
+      rawSchema._extensions.properties &&
+      rawSchema._extensions.properties._audio &&
+      rawSchema._extensions.properties._audio.properties;
     if (options.includeAudio && audioNode && audioNode._src) {
       filtered.audioSrc = remapAssetField(Object.assign({}, audioNode._src, { title: audioNode._src.title || 'Audio' }), 'audio');
       if (audioNode.transcript) {
@@ -146,7 +164,39 @@ define(function(require) {
       }
     }
 
+    if (options.lightCourseRefs) {
+      attachLightCourseRefs(filtered, options.lightCourseRefs);
+    }
+
     return filtered;
+  }
+
+  /**
+   * Attaches `field.lightCourseRefs` (consumed by frontend/src/modules/lightCourseEditor/
+   * lightCourseRefPlugin.js, via modules/scaffold/index.js's generateFieldObject() and
+   * backboneFormsOverrides.js's TextArea render() override) to every `TextArea`-typed field in a
+   * filtered schema - the "insert glossary/resource reference" button only ever makes sense on a
+   * CKEditor-backed rich-text field, never a plain single-line `Text` field. Recurses into nested
+   * item-array field sets (e.g. adapt-aleido-help's `_items[]`) since those can have their own
+   * TextArea fields too.
+   */
+  function attachLightCourseRefs(properties, lightCourseRefs) {
+    Object.keys(properties).forEach(function(key) {
+      var field = properties[key];
+      if (!field || typeof field !== 'object') {
+        return;
+      }
+      // Real component schema fields declare this as `inputType: 'TextArea'` (with `type:
+      // 'string'`), matching the JSON-schema `type` + Backbone.Form `inputType` split used
+      // throughout the real installed schemas (confirmed live) - not `type: 'TextArea'' directly
+      // (that was a separate pre-existing bug in graphicsNotes/developerNotes below, now fixed).
+      if (field.inputType === 'TextArea') {
+        field.lightCourseRefs = lightCourseRefs;
+      }
+      if (field.items && field.items.properties) {
+        attachLightCourseRefs(field.items.properties, lightCourseRefs);
+      }
+    });
   }
 
   return { filterComponentSchema: filterComponentSchema, isTranslatable: isTranslatable, isAssetField: isAssetField };

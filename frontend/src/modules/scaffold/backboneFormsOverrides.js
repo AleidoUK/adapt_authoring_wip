@@ -1,7 +1,8 @@
 define([
   'core/origin',
-  'backbone-forms'
-], function(Origin, BackboneForms) {
+  'backbone-forms',
+  '../lightCourseEditor/lightCourseRefPlugin'
+], function(Origin, BackboneForms, LightCourseRefPlugin) {
 
   var templates = Handlebars.templates;
   var fieldTemplate = templates.field;
@@ -99,11 +100,61 @@ define([
     }
 
     until(isAttached(this.$el)).then(() => {
+      var lightCourseRefs = this.schema && this.schema.lightCourseRefs;
+      var plugins = window.CKEDITOR.pluginsConfig;
+      var toolbarItems = [
+        'sourceEditing',
+        'showBlocks',
+        'undo',
+        'redo',
+        '|',
+        'findAndReplace',
+        'selectAll',
+        '|',
+        'numberedList',
+        'bulletedList',
+        'blockQuote',
+        'indent',
+        'outdent',
+        '|',
+        'bold',
+        'italic',
+        'underline',
+        'strikethrough',
+        'subscript',
+        'superscript',
+        'alignment',
+        'removeFormat',
+        '|',
+        'link',
+        'fontColor',
+        'fontBackgroundColor',
+        '|',
+        'specialCharacters',
+        'insertTable'
+      ];
+      // Light Course Editor-only "insert glossary/resource reference" button(s)
+      // (lightCourseRefPlugin.js) - only added to this specific field instance's own
+      // plugin/toolbar list when schemaFilter.js/lightCourseComponentFormView.js attached a
+      // lightCourseRefs config to its schema entry (never for the full/legacy course editor,
+      // which never sets this).
+      if (lightCourseRefs && (lightCourseRefs.glossaryEnabled || lightCourseRefs.resourceEnabled)) {
+        plugins = plugins.concat(LightCourseRefPlugin);
+        toolbarItems = toolbarItems.concat('|');
+        if (lightCourseRefs.glossaryEnabled && (lightCourseRefs.glossaryItems || []).length) {
+          toolbarItems.push('lightCourseGlossaryRef');
+        }
+        if (lightCourseRefs.resourceEnabled && (lightCourseRefs.resourceItems || []).length) {
+          toolbarItems.push('lightCourseResourceRef');
+        }
+      }
+
       return CKEDITOR.create(this.$el[0], {
         dataIndentationChars: '',
         disableNativeSpellChecker: false,
         enterMode: CKEDITOR[Origin.constants.ckEditorEnterMode],
         entities: false,
+        lightCourseRefs: lightCourseRefs,
         htmlSupport: {
           // Convert all allow/disallow strings to regexp, as config is json only
           allow: convertStringsToRegExDeep((Origin.constants.ckEditorHtmlSupport && Origin.constants.ckEditorHtmlSupport.allow) || []),
@@ -130,39 +181,9 @@ define([
             elements.forEach(function(element) { writer.setRules(element, rules); });
           }
         },
-        plugins: window.CKEDITOR.pluginsConfig,
+        plugins: plugins,
         toolbar: {
-          items: [
-            'sourceEditing',
-            'showBlocks',
-            'undo',
-            'redo',
-            '|',
-            'findAndReplace',
-            'selectAll',
-            '|',
-            'numberedList',
-            'bulletedList',
-            'blockQuote',
-            'indent',
-            'outdent',
-            '|',
-            'bold',
-            'italic',
-            'underline',
-            'strikethrough',
-            'subscript',
-            'superscript',
-            'alignment',
-            'removeFormat',
-            '|',
-            'link',
-            'fontColor',
-            'fontBackgroundColor',
-            '|',
-            'specialCharacters',
-            'insertTable'
-          ],
+          items: toolbarItems,
           shouldNotGroupWhenFull: true
         }
       }).then(editor => {

@@ -2,9 +2,9 @@
     overflow: hidden;
     position: relative;
     min-height: 90px;
-    background-color: #D6F3F9;
+    background-color: @aleido-component-bg;
     border-radius: 3px;
-    border: 1px solid #31B8CC;
+    border: 1px solid @aleido-component-border;
 
     // TODO fix these !importants
     .editor-item-settings {
@@ -31,6 +31,9 @@
     &-type {
         font-size: 14px;
         font-weight: @font-weight;
+    }
+    &-title {
+        font-weight: @font-weight-bold;
     }
 
     &-left {

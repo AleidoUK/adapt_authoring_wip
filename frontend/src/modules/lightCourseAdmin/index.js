@@ -7,6 +7,16 @@ define(function(require) {
   var LightCourseTemplateEditorView = require('./views/lightCourseTemplateEditorView');
   var LightCourseConfigModel = require('./models/lightCourseConfigModel');
   var LightCourseConfigView = require('./views/lightCourseConfigView');
+  var LightCourseComponentDefaultCollection = require('./collections/lightCourseComponentDefaultCollection');
+  var LightCourseComponentDefaultModel = require('./models/lightCourseComponentDefaultModel');
+  var LightCourseComponentDefaultListView = require('./views/lightCourseComponentDefaultListView');
+  var LightCourseComponentDefaultEditorView = require('./views/lightCourseComponentDefaultEditorView');
+  // Same module-load-time side-effect requirement as lightCourseEditor/index.js's own copy of
+  // this require (see that file's comment for the full explanation) - both the Template Editor
+  // and Component Default Editor in this module also render LightCourseComponentFormView, so
+  // this registration needs to have run regardless of which of the two top-level modules happens
+  // to load first in a given session.
+  var LightCourseBankAssetFieldView = require('../lightCourseEditor/views/lightCourseBankAssetFieldView');
 
   // This whole module is admin-only (template/default-config management, not day-to-day course
   // editing) - same wildcard-only check frontend/src/modules/userManagement/index.js and
@@ -20,6 +30,7 @@ define(function(require) {
   Origin.on('origin:dataReady login:changed', function() {
     Origin.permissions.addRoute('lightCourseTemplates', data.featurePermissions);
     Origin.permissions.addRoute('lightCourseConfig', data.featurePermissions);
+    Origin.permissions.addRoute('lightCourseComponentDefaults', data.featurePermissions);
 
     if (!Origin.permissions.hasPermissions(data.featurePermissions)) {
       return;
@@ -40,6 +51,14 @@ define(function(require) {
       callbackEvent: 'lightCourseConfig:open',
       sortOrder: 5
     });
+
+    Origin.globalMenu.addItem({
+      location: 'global',
+      text: Origin.l10n.t('app.lightcoursecomponentdefaults'),
+      icon: 'fa-puzzle-piece',
+      callbackEvent: 'lightCourseComponentDefaults:open',
+      sortOrder: 6
+    });
   });
 
   Origin.on('globalMenu:lightCourseTemplates:open', function() {
@@ -48,6 +67,10 @@ define(function(require) {
 
   Origin.on('globalMenu:lightCourseConfig:open', function() {
     Origin.router.navigateTo('lightCourseConfig');
+  });
+
+  Origin.on('globalMenu:lightCourseComponentDefaults:open', function() {
+    Origin.router.navigateTo('lightCourseComponentDefaults');
   });
 
   Origin.on('router:lightCourseTemplates', function(id) {
@@ -64,6 +87,16 @@ define(function(require) {
     Origin.trigger('sidebar:views:remove');
     Origin.trigger('sidebar:sidebarContainer:hide');
     loadConfigView();
+  });
+
+  Origin.on('router:lightCourseComponentDefaults', function(id) {
+    Origin.trigger('sidebar:views:remove');
+    Origin.trigger('sidebar:sidebarContainer:hide');
+
+    if (!id) {
+      return loadComponentDefaultListView();
+    }
+    return loadComponentDefaultEditorView(id);
   });
 
   function loadTemplateListView() {
@@ -92,6 +125,24 @@ define(function(require) {
       },
       error: function() {
         Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcourseconfig') });
+      }
+    });
+  }
+
+  function loadComponentDefaultListView() {
+    Origin.trigger('location:title:update', { title: Origin.l10n.t('app.lightcoursecomponentdefaults') });
+    Origin.contentPane.setView(LightCourseComponentDefaultListView, { collection: new LightCourseComponentDefaultCollection() });
+  }
+
+  function loadComponentDefaultEditorView(id) {
+    (new LightCourseComponentDefaultModel({ _id: id })).fetch({
+      success: function(model) {
+        Origin.trigger('location:title:update', { title: model.get('name') });
+        Origin.contentPane.setView(LightCourseComponentDefaultEditorView, { model: model });
+      },
+      error: function() {
+        Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcoursecomponentdefault') });
+        Origin.router.navigateTo('lightCourseComponentDefaults');
       }
     });
   }

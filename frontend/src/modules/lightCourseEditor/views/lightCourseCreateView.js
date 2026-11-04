@@ -17,7 +17,9 @@ define(function(require) {
 
     postRender: function() {
       var $select = this.$('.light-course-create-template');
-      this.templateCollection.each(function(template) {
+      this.templateCollection.toArray().sort(function(a, b) {
+        return (a.get('name') || '').localeCompare(b.get('name') || '');
+      }).forEach(function(template) {
         $select.append($('<option></option>').attr('value', template.get('_id')).text(template.get('name')));
       });
       this.setViewToReady();

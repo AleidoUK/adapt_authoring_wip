@@ -8,6 +8,14 @@ define(function(require) {
   var LightCourseCreateView = require('./views/lightCourseCreateView');
   var LightCourseEditorView = require('./views/lightCourseEditorView');
   var LightCourseAuditLogView = require('./views/lightCourseAuditLogView');
+  // Required purely for its module-load-time side effect (Origin.scaffold.addCustomField('Light
+  // CourseAsset:image'/'LightCourseAsset:audio', ...)) - nothing elsewhere actually required this
+  // file, so those editors were never registered and Backbone.Form.editors['LightCourseAsset:*']
+  // stayed undefined, crashing with "constructorFn is not a constructor" the instant any
+  // component with a real asset field (e.g. Splash's _graphic/_logo) was opened - confirmed live,
+  // the whole field editor silently rendered empty rather than just the broken field, since one
+  // throwing field aborts Backbone.Form's entire field-construction loop.
+  var LightCourseBankAssetFieldView = require('./views/lightCourseBankAssetFieldView');
 
   // Matches the resource/action strings lib/role/LightEditor.json's statements produce once
   // passed through lib/permissions.js's getUserPermissions() (urn:x-adapt:{{tenantid}}/api/...
