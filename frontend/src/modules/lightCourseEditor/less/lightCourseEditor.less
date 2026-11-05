@@ -30,6 +30,11 @@
   .field-row {
     margin-bottom: 15px;
 
+    &.column {
+      float: left;
+      margin: 1rem;
+    }
+
     label {
       display: block;
       font-weight: bold;
@@ -80,7 +85,7 @@
   }
 }
 
-.light-course-template-editor-extension-row {
+.light-course-template-editor-extension-row, .light-course-editor-extension-row {
     margin-bottom: 5px;
     display: flex;
 
@@ -91,7 +96,7 @@
     }
   }
 
-.light-course-template-editor-extensions-list {
+.light-course-template-editor-extensions-list, .light-course-editor-extensions-list {
   columns: 3;
   width: 50rem;
 }
@@ -100,9 +105,34 @@
 .light-course-editor {
   .light-course-editor-toolbar {
     display: flex;
-    justify-content: flex-end; //space-between;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+    // Stays visible while the rest of the editor scrolls beneath it (per direct user request,
+    // so the save-status label is always readable) - sticky relative to .contentPane, the actual
+    // scrolling ancestor (see frontend/src/modules/contentPane/less/contentPane.less - the page
+    // itself never scrolls, `html { overflow-y: hidden }` in core/less/app.less). The opaque
+    // background matches the page's own so scrolled-past content doesn't show through beneath it.
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: @ui-content-color;
+    padding: 10px 0;
+  }
+
+  .light-course-editor-save-status {
+    font-weight: @font-weight-bold;
+    white-space: nowrap;
+
+    &[data-state="saving"] {
+      color: @primary-color;
+    }
+    &[data-state="saved"] {
+      color: @success-color;
+    }
+    &[data-state="error"] {
+      color: @alert-color;
+    }
   }
 
   .light-course-editor-back-to-list {
@@ -134,6 +164,8 @@
 
   .light-course-editor-section {
     margin-bottom: 20px;
+    display: inline-block;
+    width: 100%;
   }
 
   .light-course-editor-extension-row {
@@ -144,7 +176,13 @@
 .light-course-header {
   .light-course-header-section {
     margin-bottom: 25px;
+    display: inline-block;
+    width: 100%;
+  }
 
+  .light-course-editor-tree-container {
+    display: inline-block;
+    width: 100%;
   }
 
   .light-course-header-version-row {

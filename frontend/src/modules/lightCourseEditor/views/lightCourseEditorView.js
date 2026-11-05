@@ -277,6 +277,7 @@ define(function(require) {
         return;
       }
       this._autosaveInFlight = true;
+      this.setSaveStatus('saving');
       this.hideConflictBanner();
       var self = this;
       this.model.save(this.assembleSaveData(), {
@@ -300,6 +301,8 @@ define(function(require) {
               if (self._autosavePending) {
                 self._autosavePending = false;
                 self.autosave();
+              } else {
+                self.setSaveStatus('saved');
               }
             }
           });
@@ -310,6 +313,18 @@ define(function(require) {
           self.onSaveError(response);
         }
       });
+    },
+
+    /**
+     * Persistent save-status label in the sticky toolbar (lightCourseEditor.hbs's
+     * .light-course-editor-save-status) - per direct user request, confirms autosave is actually
+     * happening without the author needing to hunt for a success message that might have already
+     * scrolled out of view. `state` is 'saving'/'saved'/'error', matching the three
+     * `data-state`-keyed colour rules in lightCourseEditor.less.
+     */
+    setSaveStatus: function(state) {
+      var key = state === 'saving' ? 'lightcoursesavestatussaving' : (state === 'error' ? 'lightcoursesavestatusfailed' : 'lightcoursesavestatussaved');
+      this.$('.light-course-editor-save-status').attr('data-state', state).text(Origin.l10n.t('app.' + key));
     },
 
     /**
@@ -373,6 +388,7 @@ define(function(require) {
 
     createVersion: function(bump) {
       this.hideConflictBanner();
+      this.setSaveStatus('saving');
       var self = this;
       // Create Version always saves the current draft content first, then publishes it, so the
       // version snapshot matches exactly what the editor is currently looking at (flushing
@@ -387,6 +403,7 @@ define(function(require) {
             success: function() {
               self.model.publishVersion(bump, {
                 success: function() {
+                  self.setSaveStatus('saved');
                   Origin.Notify.alert({ type: 'success', text: Origin.l10n.t('app.lightcourseversioncreated') });
                   self.model.fetch({
                     success: function() {
@@ -413,6 +430,7 @@ define(function(require) {
     },
 
     onSaveError: function(response) {
+      this.setSaveStatus('error');
       var status = response && response.status;
       var message = (response && response.responseJSON && response.responseJSON.message) || Origin.l10n.t('app.errorgeneric');
       if (status === 409) {

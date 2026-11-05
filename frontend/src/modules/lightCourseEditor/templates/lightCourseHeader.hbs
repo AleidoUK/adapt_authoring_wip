@@ -1,7 +1,7 @@
 <div class="light-course-header-inner">
 
   <section class="light-course-header-section light-course-header-version-history">
-    <h2>{{t 'app.lightcourseversionhistory'}}</h2>
+    <h1>{{t 'app.lightcourseversionhistory'}}</h1>
     <div class="tb-heading col-row tb-row">
       <div class="col-15">{{t 'app.lightcourseversion'}}</div>
       <div class="col-15">{{t 'app.lightcoursedate'}}</div>
@@ -15,27 +15,27 @@
   </section>
 
   <section class="light-course-header-section">
-    <h2>{{t 'app.lightcoursereviewinginstructions'}}</h2>
+    <h1>{{t 'app.lightcoursereviewinginstructions'}}</h1>
     <textarea data-bind="reviewingInstructions" class="light-course-header-reviewing-instructions">{{headerData.reviewingInstructions}}</textarea>
   </section>
 
   <section class="light-course-header-section light-course-header-developer-info">
-    <h2>{{t 'app.lightcoursedeveloperinfo'}}</h2>
-    <div class="field-row">
+    <h1>{{t 'app.lightcoursedeveloperinfo'}}</h1>
+    <div class="field-row column">
       <label>{{t 'app.lightcoursenavigationlinearity'}}</label>
       <select data-bind="developerInfo.navigationLinearity">
         <option value="linear"{{selected headerData.developerInfo.navigationLinearity "linear"}}>{{t 'app.lightcourselinear'}}</option>
         <option value="nonlinear"{{selected headerData.developerInfo.navigationLinearity "nonlinear"}}>{{t 'app.lightcoursenonlinear'}}</option>
       </select>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>{{t 'app.lightcourselayout'}}</label>
       <select data-bind="developerInfo.layout">
         <option value="full"{{selected headerData.developerInfo.layout "full"}}>{{t 'app.lightcoursefull'}}</option>
         <option value="standard"{{selected headerData.developerInfo.layout "standard"}}>{{t 'app.lightcoursestandard'}}</option>
       </select>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>{{t 'app.lightcoursetracking'}}</label>
       <select data-bind="developerInfo.tracking">
         <option value="assessment"{{selected headerData.developerInfo.tracking "assessment"}}>{{t 'app.lightcourseassessment'}}</option>
@@ -43,7 +43,7 @@
         <option value="completion"{{selected headerData.developerInfo.tracking "completion"}}>{{t 'app.lightcoursecompletion'}}</option>
       </select>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>
         <input type="checkbox" data-bind="developerInfo.reflectionNeeded"{{#if headerData.developerInfo.reflectionNeeded}} checked{{/if}}>
         {{t 'app.lightcoursereflectionneeded'}}
@@ -52,22 +52,22 @@
   </section>
 
   <section class="light-course-header-section light-course-header-terminology">
-    <h2>{{t 'app.lightcourseterminology'}}</h2>
-    <div class="field-row">
+    <h1>{{t 'app.lightcourseterminology'}}</h1>
+    <div class="field-row column">
       <label>{{t 'app.lightcourseterminologysection'}}</label>
       <select data-bind="terminology.section">
         <option value="Section"{{selected headerData.terminology.section "Section"}}>{{t 'app.lightcoursesection'}}</option>
         <option value="Topic"{{selected headerData.terminology.section "Topic"}}>{{t 'app.lightcoursetopic'}}</option>
       </select>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>{{t 'app.lightcourseterminologycourse'}}</label>
       <select data-bind="terminology.course">
         <option value="Course"{{selected headerData.terminology.course "Course"}}>{{t 'app.lightcoursecourse'}}</option>
         <option value="Module"{{selected headerData.terminology.course "Module"}}>{{t 'app.lightcoursemodule'}}</option>
       </select>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>{{t 'app.lightcourseterminologyassessment'}}</label>
       <select data-bind="terminology.assessment">
         <option value="Assessment"{{selected headerData.terminology.assessment "Assessment"}}>{{t 'app.lightcourseassessmentterm'}}</option>
@@ -77,20 +77,20 @@
   </section>
 
   <section class="light-course-header-section light-course-header-buttons">
-    <h2>{{t 'app.lightcoursebuttons'}}</h2>
-    <div class="field-row">
+    <h1>{{t 'app.lightcoursebuttons'}}</h1>
+    <div class="field-row column">
       <label>{{t 'app.lightcoursemenubutton'}}</label>
       <div class="light-course-header-icon-menuButton"></div>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>{{t 'app.lightcoursereflectionbutton'}}</label>
       <div class="light-course-header-icon-reflection"></div>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>{{t 'app.lightcoursehelpbutton'}}</label>
       <div class="light-course-header-icon-help"></div>
     </div>
-    <div class="field-row">
+    <div class="field-row column">
       <label>{{t 'app.lightcoursedrawericon'}}</label>
       <div class="light-course-header-drawer-icon-row">
         <input type="text" data-bind="iconChoices.drawer" value="{{headerData.iconChoices.drawer}}" class="light-course-header-drawer-icon-input">
