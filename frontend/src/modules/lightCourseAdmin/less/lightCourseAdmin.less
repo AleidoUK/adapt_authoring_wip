@@ -1,12 +1,17 @@
 .app-inner {
-  a {
-    font-weight: bold;
-    color: @aleido-green;
-    padding: 0.75rem;
-    border: 1px solid @aleido-green;
-    border-radius: 3px;
-    text-decoration: none;
-    margin-right: 0.5rem;
+  .light-course-editor-toolbar {
+    background-color: white;
+  }
+  .light-course-editor-toolbar, .light-course-template-editor-toolbar, .light-course-component-default-editor-toolbar {
+    a {
+      font-weight: bold;
+      color: @aleido-green;
+      padding: 0.75rem;
+      border: 1px solid @aleido-green;
+      border-radius: 3px;
+      text-decoration: none;
+      margin-right: 0.5rem;
+    }
   }
 }
 
@@ -135,6 +140,44 @@
 
   .light-course-template-editor-section {
     margin-bottom: 20px;
+
+    background-color: @aleido-extra-light-green;
+    padding: 18px 20px;
+    border: 1px solid #aaa;
+
+    h1 {
+      font-weight: bold;
+      border-bottom: 1px solid @aleido-green;
+    }
+
+    h2 {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    p {
+      color: black;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+
+    label {
+      border-bottom: 1px solid @aleido-green;
+    }
+
+    select {
+      border: 1px solid @aleido-green;
+    }
+
+    .field-row {
+      background-color: white;
+      padding: 1rem;
+
+      label {
+        margin-bottom: 15px;
+        font-size: 110%;
+      }
+    }
   }
 
   .light-course-template-editor-extension-row {
