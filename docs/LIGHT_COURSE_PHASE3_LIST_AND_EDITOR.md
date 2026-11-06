@@ -62,6 +62,16 @@ Model closely on [frontend/src/modules/assetManagement/views/assetManagementColl
 
 Create flow: title field + template picker (populated from `GET api/content/lightcoursetemplate`) + Save, per [LIGHT_COURSE_EDITOR.md](LIGHT_COURSE_EDITOR.md). "Edit button or title double-click opens it" - implement both as triggers to the same navigate-to-editor action.
 
+The list includes live, case-insensitive title substring search, a shared-tag
+multi-select and an All/Draft/Converted state filter. Selecting multiple tags
+requires **all** selected tag IDs, and all active filters are combined. Filtering
+uses the already permission-scoped collection and preserves its updated-date order;
+it does not fetch a narrowed subset or change courses/tags. Tag choices come from
+the complete visible course collection, not the current search results. The result
+count and a dedicated no-match message distinguish filtering from an empty list.
+Clear filters restores all courses. Active selections remain intact on refresh or
+deletion, even if the final matching course is removed.
+
 ## Editor shell and tree
 
 **No generic reusable sortable/reorderable Backbone component exists in this codebase** (confirmed: the full editor's reordering is bespoke per level - [frontend/src/modules/editor/contentObject/views/editorPageArticleView.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/editor/contentObject/views/editorPageArticleView.js), [editorPageBlockView.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/editor/contentObject/views/editorPageBlockView.js) and [editorPageComponentView.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/editor/contentObject/views/editorPageComponentView.js) each implement their own jQuery UI `.draggable()`/`.droppable()` logic with paste-zone views). Two implementation options:

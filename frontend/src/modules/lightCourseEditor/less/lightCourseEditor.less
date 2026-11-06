@@ -80,6 +80,24 @@
     margin-bottom: 20px;
   }
 
+  .light-course-list-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    .light-course-list-filter {
+      flex: 1 1 180px;
+      min-width: 0;
+      label { display: block; font-weight: bold; margin-bottom: 6px; }
+      > input, > select { width: 100%; box-sizing: border-box; }
+      p { margin: 6px 0 0; }
+    }
+    .light-course-list-filter-tags-container { flex: 2 1 280px; }
+    .light-course-list-filter-clear { margin-top: 25px; }
+  }
+  .light-course-list-results { margin: 0 0 12px; }
+
   .light-course-list-item {
     cursor: pointer;
 

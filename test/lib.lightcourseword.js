@@ -222,6 +222,38 @@ describe('mapped Word text round-trip', function() {
     assert.strictEqual(component(snapshot).body, '');
   });
 
+  it('accepts Word moving closing field bookmarks after paragraphs inside the green boxes', async function() {
+    var snapshot = fixture();
+    var expected = JSON.parse(JSON.stringify(snapshot));
+    component(expected).body = '<p><strong>Reviewed text</strong></p>';
+    var moved = 0;
+    var parsed = await edited(snapshot, function(xml) {
+      xml = replaceFieldContent(xml, 'Body', '<w:r><w:rPr><w:b/></w:rPr><w:t>Reviewed text</w:t></w:r>');
+      return xml.replace(/(<w:bookmarkEnd[^>]*\/>)(<\/w:p>)(<\/w:sdtContent>)/g, function(match, bookmark, paragraph, control) {
+        moved++;
+        return paragraph + bookmark + control;
+      });
+    });
+    assert(moved > 1);
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.deepStrictEqual(snapshot, expected);
+  });
+
+  it('keeps formatting and paragraph boundaries when bookmarks/comments surround paragraphs inside a box', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceBoxContent(xml, 'Body',
+        '<w:bookmarkStart w:name="_GoBack" w:id="500"/><w:commentRangeStart w:id="25"/>' +
+        '<w:p><w:r><w:rPr><w:i/></w:rPr><w:t>First paragraph</w:t></w:r></w:p>' +
+        '<w:bookmarkEnd w:id="500"/><w:commentRangeEnd w:id="25"/>' +
+        '<w:p><w:r><w:t>Second paragraph</w:t></w:r></w:p>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<p><em>First paragraph</em></p><p>Second paragraph</p>');
+  });
+
   it('imports formatting-only changes and accepted tracked rich text without changing plain title fields', async function() {
     var snapshot = fixture();
     component(snapshot).body = '<p>Same text</p>';

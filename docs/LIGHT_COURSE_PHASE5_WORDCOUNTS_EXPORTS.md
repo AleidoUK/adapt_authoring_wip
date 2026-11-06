@@ -20,6 +20,8 @@ the control and remains read-only. Controls cannot be deleted through normal Wor
 editing, but their contents can be replaced, extended with paragraphs or cleared.
 The control tag, rather than the positions of its internal bookmark, identifies
 the entire editable field. Grey labels and course context headings stay outside.
+Word may move bookmark/comment range markers beside a paragraph inside its box;
+these markers are accepted without becoming text or adding paragraph breaks.
 Documents use Calibri with 12 pt body text and smaller 8 pt grey field labels;
 the document title and section headings use `#61C6A2`, matching `@aleido-green`
 in the authoring interface. Word stores the hex colour directly, and tests verify

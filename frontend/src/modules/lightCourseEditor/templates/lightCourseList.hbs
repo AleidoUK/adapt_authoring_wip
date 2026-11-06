@@ -4,6 +4,28 @@
     <button class="btn primary light-course-list-create">{{t 'app.lightcoursecreate'}}</button>
   </div>
 
+  <div class="light-course-list-filters">
+    <div class="light-course-list-filter">
+      <label for="light-course-list-title">{{t 'app.title'}}</label>
+      <input id="light-course-list-title" class="light-course-list-filter-title" type="search" placeholder="{{t 'app.lightcourselistsearchtitle'}}">
+    </div>
+    <div class="light-course-list-filter light-course-list-filter-tags-container">
+      <label for="light-course-list-tags">{{t 'app.lightcoursetags'}}</label>
+      <select id="light-course-list-tags" class="light-course-list-filter-tags" multiple placeholder="{{t 'app.lightcourselistfiltertags'}}"></select>
+      <p id="light-course-list-tag-help">{{t 'app.lightcourselisttaghelp'}}</p>
+    </div>
+    <div class="light-course-list-filter">
+      <label for="light-course-list-state">{{t 'app.lightcoursestate'}}</label>
+      <select id="light-course-list-state" class="light-course-list-filter-state">
+        <option value="">{{t 'app.lightcourselistallstates'}}</option>
+        <option value="draft">{{t 'app.lightcoursestatedraft'}}</option>
+        <option value="converted">{{t 'app.lightcoursestateconverted'}}</option>
+      </select>
+    </div>
+    <button class="btn light-course-list-filter-clear" disabled>{{t 'app.lightcourselistclearfilters'}}</button>
+  </div>
+  <p class="light-course-list-results" role="status" aria-live="polite" aria-atomic="true"></p>
+
   <div class="tb-heading col-row tb-row">
     <div class="col-30"><div class="tb-col-inner"><h4>{{t 'app.title'}}</h4></div></div>
     <div class="col-20"><div class="tb-col-inner"><h4>{{t 'app.lastupdated'}}</h4></div></div>
