@@ -11,12 +11,13 @@
     <div class="tb-col-inner light-course-component-default-list-item-default"></div>
   </div>
   <div class="col-10">
-    <div class="tb-col-inner no-wrap">{{momentFormat updatedAt "Do MMMM YYYY"}}</div>
+    <div class="tb-col-inner">{{momentFormat updatedAt "Do MMMM YYYY HH:mm"}}</div>
   </div>
   <div class="col-30 light-course-component-default-list-item-actions">
     <div class="tb-col-inner">
       <button class="btn secondary-hollow light-course-component-default-list-item-setdefault display-none">{{t 'app.lightcoursecomponentdefaultsetdefault'}}</button>
       <button class="btn secondary-hollow light-course-component-default-list-item-edit">{{t 'app.edit'}}</button>
+      <button class="btn secondary-hollow light-course-item-history">{{t 'app.editorauditlog'}}</button>
       <button class="btn secondary-hollow light-course-component-default-list-item-clone">{{t 'app.lightcoursecomponentdefaultclone'}}</button>
       <button class="btn alert light-course-component-default-list-item-delete">{{t 'app.delete'}}</button>
     </div>

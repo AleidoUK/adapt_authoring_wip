@@ -162,7 +162,7 @@ function fromVersion(req, res) {
           return res.json({ success: false, message: 'You are not permitted to do that' });
         }
 
-        db.create('lightcoursetemplate', {
+        origin().contentmanager.create('lightcoursetemplate', {
           _tenantId: user.tenant._id,
           name: req.body.name || ('Template from version ' + version.versionNumber),
           description: req.body.description || '',

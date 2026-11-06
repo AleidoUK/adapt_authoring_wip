@@ -1,9 +1,9 @@
 <div class="light-course-bank-asset-preview">
   {{#if hasValue}}
     {{#ifValueEquals assetType "audio"}}
-      <audio controls src="api/asset/serve/{{assetId}}"></audio>
+      <audio controls src="api/content/lightcourseasset/{{assetId}}/serve"></audio>
     {{else}}
-      <img class="light-course-bank-asset-thumb" src="api/asset/thumb/{{assetId}}">
+      <img class="light-course-bank-asset-thumb" src="api/content/lightcourseasset/{{assetId}}/thumb">
     {{/ifValueEquals}}
     <span class="light-course-bank-asset-preview-filename"></span>
   {{else}}
@@ -11,10 +11,10 @@
   {{/if}}
 </div>
 <div class="light-course-bank-asset-actions">
-  <button class="btn secondary-hollow light-course-bank-asset-browse">{{t 'app.lightcoursechoosefrombank'}}</button>
-  <button class="btn secondary-hollow light-course-bank-asset-upload-trigger">{{t 'app.lightcourseuploadnew'}}</button>
+  <button class="btn secondary light-course-bank-asset-browse">{{t 'app.lightcoursechoosefrombank'}}</button>
+  <button class="btn secondary light-course-bank-asset-upload-trigger">{{t 'app.lightcourseuploadnew'}}</button>
   {{#if hasValue}}
-  <button class="btn tertiary light-course-bank-asset-clear">{{t 'app.lightcourseclear'}}</button>
+  <button class="btn primary-hollow light-course-bank-asset-clear">{{t 'app.lightcourseclear'}}</button>
   {{/if}}
   <input type="file" class="light-course-bank-asset-file-input display-none">
 </div>

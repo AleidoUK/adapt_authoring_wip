@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var itemHistory = require('../itemHistory');
   var LightCourseTreeView = require('../../lightCourseEditor/views/lightCourseTreeView');
   var LightCourseItemListView = require('../../lightCourseEditor/views/lightCourseItemListView');
   var LightCourseHelpView = require('../../lightCourseEditor/views/lightCourseHelpView');
@@ -28,6 +29,7 @@ define(function(require) {
     events: {
       'click .light-course-template-editor-back-to-list': 'onBackToListClicked',
       'click .light-course-template-editor-save': 'onSaveClicked',
+      'click .light-course-item-history': itemHistory('lightcoursetemplate'),
       'change .light-course-template-editor-menu-select': 'onPluginSelectionChanged',
       'change .light-course-template-editor-theme-select': 'onPluginSelectionChanged',
       'change .light-course-template-editor-extension-checkbox': 'onPluginSelectionChanged'

@@ -48,6 +48,9 @@ define(function(require) {
     toJSON: function() {
       var attrs = Backbone.Model.prototype.toJSON.call(this);
       return {
+        _id: attrs._id,
+        createdAt: attrs.createdAt,
+        updatedAt: attrs.updatedAt,
         name: attrs.name,
         description: attrs.description,
         // also exposed flat (not just nested below) - this view's own template renders

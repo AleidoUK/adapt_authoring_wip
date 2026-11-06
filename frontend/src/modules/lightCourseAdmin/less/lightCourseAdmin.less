@@ -1,6 +1,6 @@
 .app-inner {
   .light-course-editor-toolbar {
-    background-color: white;
+    background-color: white!important;
   }
   .light-course-editor-toolbar, .light-course-template-editor-toolbar, .light-course-component-default-editor-toolbar {
     a {
@@ -50,20 +50,29 @@
   }
 }
 
-.light-course-template-list, .light-course-component-default-list, .light-course-list {
+.light-course-template-list, .light-course-component-default-list, .light-course-list, .light-course-asset-list {
   .tb-heading, 
   .light-course-list-empty, .light-course-list-items, 
+  .light-course-asset-list-empty, .light-course-asset-list-items,
   .light-course-template-list-empty, .light-course-template-list-items,
   .light-course-component-default-list-empty, .light-course-component-default-list-items {
     background-color: white;
   }
-  .tb-heading, .light-course-template-list-empty, .light-course-component-default-list-empty, .light-course-list-empty {
+  .tb-heading, .light-course-template-list-empty, .light-course-component-default-list-empty, .light-course-list-empty, .light-course-asset-list-empty {
     padding: 1rem; 
   }
-  .light-course-template-list-items, .light-course-component-default-list-items, .light-course-list-items {
+  .light-course-template-list-items, .light-course-component-default-list-items, .light-course-list-items, .light-course-list-items {
     .tb-row {      
       padding: 1rem; 
     }
+  }
+}
+
+.light-course-asset-list {
+  h1 {
+    font-weight: bold;
+    border-bottom: 1px solid @aleido-green;
+    margin-bottom: 1rem;
   }
 }
 

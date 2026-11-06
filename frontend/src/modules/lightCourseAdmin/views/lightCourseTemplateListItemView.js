@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var itemHistory = require('../itemHistory');
   var LightCourseTemplateModel = require('../models/lightCourseTemplateModel');
 
   var LightCourseTemplateListItemView = OriginView.extend({
@@ -11,6 +12,7 @@ define(function(require) {
     events: {
       'dblclick .light-course-template-list-item-name': 'onEditClicked',
       'click .light-course-template-list-item-edit': 'onEditClicked',
+      'click .light-course-item-history': itemHistory('lightcoursetemplate'),
       'click .light-course-template-list-item-clone': 'onCloneClicked',
       'click .light-course-template-list-item-delete': 'onDeleteClicked'
     },
@@ -29,7 +31,7 @@ define(function(require) {
      */
     onCloneClicked: function(event) {
       event && event.preventDefault();
-      var clonedData = Object.assign({}, this.model.toJSON(), {
+      var clonedData = Object.assign({}, _.omit(this.model.toJSON(), '_id', 'createdAt', 'updatedAt'), {
         name: Origin.l10n.t('app.lightcoursetemplatecopyof', { name: this.model.get('name') })
       });
       new LightCourseTemplateModel().save(clonedData, {

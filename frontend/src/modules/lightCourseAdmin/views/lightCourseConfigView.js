@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var itemHistory = require('../itemHistory');
   var IconGlyphs = require('../../lightCourseEditor/iconGlyphs');
 
   // Same per-control option-fetch approach as lightCourseEditor/views/lightCourseHeaderView.js's
@@ -41,6 +42,7 @@ define(function(require) {
 
     events: {
       'click .light-course-config-save': 'onSaveClicked',
+      'click .light-course-item-history': itemHistory('lightcourseconfig'),
       'change .light-course-config-menu-select': 'onPluginSelectionChanged',
       'change .light-course-config-theme-select': 'onPluginSelectionChanged',
       'change .light-course-config-extension-checkbox': 'onPluginSelectionChanged',

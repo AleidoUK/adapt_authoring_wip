@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var itemHistory = require('../itemHistory');
   var LightCourseComponentDefaultModel = require('../models/lightCourseComponentDefaultModel');
 
   var LightCourseComponentDefaultListItemView = OriginView.extend({
@@ -11,6 +12,7 @@ define(function(require) {
     events: {
       'dblclick .light-course-component-default-list-item-name': 'onEditClicked',
       'click .light-course-component-default-list-item-edit': 'onEditClicked',
+      'click .light-course-item-history': itemHistory('lightcomponentdefault'),
       'click .light-course-component-default-list-item-clone': 'onCloneClicked',
       'click .light-course-component-default-list-item-delete': 'onDeleteClicked',
       'click .light-course-component-default-list-item-setdefault': 'onSetDefaultClicked'
@@ -72,9 +74,17 @@ define(function(require) {
 
     onSetDefaultClicked: function(event) {
       event && event.preventDefault();
+      var self = this;
       this.model.save({ isDefault: true }, {
         patch: true,
         wait: true,
+        success: function() {
+          self.model.collection.fetch({
+            error: function() {
+              Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcoursecomponentdefault') });
+            }
+          });
+        },
         error: function(model, response) {
           var message = (response && response.responseJSON && response.responseJSON.message) || Origin.l10n.t('app.errorgeneric');
           Origin.Notify.alert({ type: 'error', text: message });

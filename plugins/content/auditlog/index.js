@@ -347,7 +347,7 @@ function getContentTitle(item) {
   if (!item) {
     return '';
   }
-  return item.title || item.displayTitle || item.heading || item._component || '';
+  return item.title || item.name || item.displayTitle || item.heading || item._component || '';
 }
 
 /**
@@ -472,6 +472,7 @@ function getAuditLogsByCourse(req, res, next) {
  */
 function getAuditLogsByContent(req, res, next) {
   var app = require('../../../')();
+  var user = require('../../../lib/usermanager').getCurrentUser();
   var contentType = req.params.contentType;
   var contentId = req.params.contentId;
   
@@ -482,6 +483,7 @@ function getAuditLogsByContent(req, res, next) {
   };
   
   app.contentmanager.retrieve('auditlog', { 
+    _tenantId: user.tenant._id,
     contentType: contentType,
     contentId: contentId 
   }, options, function(err, results) {

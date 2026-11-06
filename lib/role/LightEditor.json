@@ -6,6 +6,7 @@
     { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourseversion/*", "action": ["create", "read"], "effect": "allow" },
     { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourseexport/*", "action": ["create", "read"], "effect": "allow" },
     { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcoursebankasset/*", "action": ["create", "read", "delete"], "effect": "allow" },
+    { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourseasset/*", "action": ["create", "read"], "effect": "allow" },
     { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcoursetemplate/*", "action": ["read"], "effect": "allow" },
     { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcourseconfig/*", "action": ["read"], "effect": "allow" },
     { "condition": {}, "resource": "urn:x-adapt:{{tenantid}}/api/content/lightcomponentdefault/*", "action": ["read"], "effect": "allow" },

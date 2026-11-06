@@ -163,8 +163,15 @@ function getOrCreateMine(req, res) {
             res.statusCode = 500;
             return res.json({ success: false, message: createErr.message });
           }
-          res.statusCode = 200;
-          return res.json(withConfigDefaults(created));
+          // Lazy initialization is authorized by the read check above, not config-create access.
+          origin().contentmanager.processContentHooks('create', 'lightcourseconfig', created, { when: 'post' }, function(hookError, result) {
+            if (hookError) {
+              res.statusCode = 500;
+              return res.json({ success: false, message: hookError.message });
+            }
+            res.statusCode = 200;
+            return res.json(withConfigDefaults(result));
+          });
         });
       });
     });

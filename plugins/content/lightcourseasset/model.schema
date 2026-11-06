@@ -1,0 +1,51 @@
+{
+  "type": "object",
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "id": "http://jsonschema.net",
+  "$ref": "http://localhost/system/tenantObject.schema",
+  "properties": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "default": ""
+    },
+    "description": {
+      "type": "string",
+      "required": false,
+      "default": ""
+    },
+    "assetType": {
+      "type": "string",
+      "required": true,
+      "default": "image"
+    },
+    "filename": {
+      "type": "string",
+      "required": true
+    },
+    "path": {
+      "type": "string",
+      "required": true
+    },
+    "directory": {
+      "type": "string",
+      "required": true
+    },
+    "repository": {
+      "type": "string",
+      "required": true
+    },
+    "size": {
+      "type": "number",
+      "required": false
+    },
+    "mimeType": {
+      "type": "string",
+      "required": false
+    },
+    "thumbnailPath": {
+      "type": "string",
+      "required": false
+    }
+  }
+}

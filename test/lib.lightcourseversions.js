@@ -110,7 +110,7 @@ after(function(done) {
   ], done);
 });
 
-it('should publish version 1.0 from the initial content', function(done) {
+it('should publish version 0.1 from the initial content (first-ever publish via a minor bump, before any major release, is 0.1 rather than 1.0)', function(done) {
   editorAgent
     .post('/api/content/lightcourse/' + lightCourseId + '/versions')
     .set('Accept', 'application/json')
@@ -118,14 +118,14 @@ it('should publish version 1.0 from the initial content', function(done) {
     .expect(200)
     .end(function(error, res) {
       should.not.exist(error);
-      res.body.versionNumber.should.equal('1.0');
+      res.body.versionNumber.should.equal('0.1');
       versionIds.push(res.body._id);
       lightCourseRevision += 1;
       done();
     });
 });
 
-it('should edit the draft and publish version 1.1 with an added component and changed text', function(done) {
+it('should edit the draft and publish version 0.2 with an added component and changed text', function(done) {
   editorAgent
     .put('/api/content/lightcourse/' + lightCourseId)
     .set('Accept', 'application/json')
@@ -154,7 +154,7 @@ it('should edit the draft and publish version 1.1 with an added component and ch
         .expect(200)
         .end(function(error2, res2) {
           should.not.exist(error2);
-          res2.body.versionNumber.should.equal('1.1');
+          res2.body.versionNumber.should.equal('0.2');
           versionIds.push(res2.body._id);
           lightCourseRevision += 1;
           done();
@@ -233,7 +233,7 @@ describe('document import', function() {
       });
   });
 
-  it('should apply an edited re-import with confirmed=true and append a version-history row', function(done) {
+  it('should apply an edited re-import with confirmed=true, refreshing the current open version-history row in place', function(done) {
     editorAgent
       .get('/api/content/lightcourse/' + lightCourseId)
       .expect(200)
@@ -262,13 +262,16 @@ describe('document import', function() {
                   .end(function(getError, getRes) {
                     should.not.exist(getError);
                     getRes.body.contentTree.children[0].children[0].children[0].children[0].title.should.equal('Edited via Word');
-                    // the document-import route's own plugin.update() call auto-appends exactly
-                    // one row (same as every other save, per the main plan extended to cover
-                    // every Save Draft) - asserted as a delta, since prior saves in this suite's
-                    // run also each added their own row.
-                    getRes.body.headerData.versionHistory.length.should.equal(versionHistoryCountBefore + 1);
+                    // the document-import route's own plugin.update() call goes through the same
+                    // generic update() override as every other save - which only ever refreshes
+                    // the current *open* version-history row in place (words/screens/date/author),
+                    // leaving the row count unchanged; only a Create Version publish ever appends
+                    // a new row (per the main plan, extended on direct user request so ordinary
+                    // saves - now autosaved on every change - don't flood the table with one
+                    // near-duplicate row per edit).
+                    getRes.body.headerData.versionHistory.length.should.equal(versionHistoryCountBefore);
                     var lastRow = getRes.body.headerData.versionHistory[getRes.body.headerData.versionHistory.length - 1];
-                    lastRow.version.should.equal('1.1');
+                    lastRow.version.should.equal('0.2');
                     lastRow.screens.should.equal(2);
                     lightCourseRevision = getRes.body.revision;
                     done();

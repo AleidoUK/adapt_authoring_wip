@@ -10,7 +10,8 @@
 
 var contentmanager = require('../../../lib/contentmanager'),
     ContentPlugin = contentmanager.ContentPlugin,
-    database = require('../../../lib/database'),
+    origin = require('../../../'),
+    async = require('async'),
     permissions = require('../../../lib/permissions'),
     permissionAction = require('../../../lib/lightcourse/permissionAction'),
     usermanager = require('../../../lib/usermanager'),
@@ -53,6 +54,18 @@ LightComponentDefaultContent.prototype.getModelName = function () {
   return 'lightcomponentdefault';
 };
 
+function clearDefaults(search, next) {
+  var manager = origin().contentmanager;
+  manager.retrieve('lightcomponentdefault', search, {}, function(error, records) {
+    if (error) {
+      return next(error);
+    }
+    async.eachSeries(records, function(record, done) {
+      manager.update('lightcomponentdefault', { _id: record._id }, { isDefault: false }, done);
+    }, next);
+  });
+}
+
 /**
  * overrides base implementation of create - enforces the "only one isDefault per componentType
  * per tenant" singleton rule: clearing any existing default for this componentType before the
@@ -65,20 +78,15 @@ LightComponentDefaultContent.prototype.create = function (data, next) {
   }
   var self = this;
   var user = usermanager.getCurrentUser();
-  database.getDatabase(function (error, db) {
+  clearDefaults({
+    _tenantId: user.tenant._id,
+    componentType: data.componentType,
+    isDefault: true
+  }, function (error) {
     if (error) {
       return next(error);
     }
-    db.update('lightcomponentdefault', {
-      _tenantId: user.tenant._id,
-      componentType: data.componentType,
-      isDefault: true
-    }, { isDefault: false }, function (updateError) {
-      if (updateError) {
-        return next(updateError);
-      }
-      ContentPlugin.prototype.create.call(self, data, next);
-    });
+    ContentPlugin.prototype.create.call(self, data, next);
   });
 };
 
@@ -99,24 +107,22 @@ LightComponentDefaultContent.prototype.update = function (search, delta, next) {
       return next(err);
     }
     var existing = results && results[0];
+    if (!existing) {
+      return next(new Error('Component default not found'));
+    }
     var componentType = delta.componentType || (existing && existing.componentType);
     var ownId = (existing && existing._id) || search._id;
 
-    database.getDatabase(function (error, db) {
+    clearDefaults({
+      _tenantId: existing && existing._tenantId,
+      componentType: componentType,
+      isDefault: true,
+      _id: { $ne: ownId }
+    }, function (error) {
       if (error) {
         return next(error);
       }
-      db.update('lightcomponentdefault', {
-        _tenantId: existing && existing._tenantId,
-        componentType: componentType,
-        isDefault: true,
-        _id: { $ne: ownId }
-      }, { isDefault: false }, function (updateError) {
-        if (updateError) {
-          return next(updateError);
-        }
-        ContentPlugin.prototype.update.call(self, search, delta, next);
-      });
+      ContentPlugin.prototype.update.call(self, search, delta, next);
     });
   });
 };

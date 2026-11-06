@@ -33,6 +33,10 @@ it('should allow requests to create an new asset', function(done) {
   postAsset(done);
 });
 
+it('should allow requests to replace an existing asset', function(done) {
+  replacetAsset(done);
+});
+
 it('should allow requests to retrieve an asset', function(done) {
   agent
     .get('/api/asset/' + assetIds[0])
@@ -92,6 +96,14 @@ it('should allow requests to update an asset', function(done) {
       res.body.success.should.be.true;
       done();
     });
+});
+
+
+it('should allow requests to retrieve uses of an asset', function(done) {
+  agent
+  .get('/api/asset/uses/' + assetIds[0])
+  .expect(200)
+  .expect('Content-Type', /javascript/, done);
 });
 
 it('should allow requests to soft-delete an asset', function(done) {

@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var itemHistory = require('../itemHistory');
   var LightCourseComponentFormView = require('../../lightCourseEditor/views/lightCourseComponentFormView');
 
   /**
@@ -17,6 +18,7 @@ define(function(require) {
     events: {
       'click .light-course-component-default-editor-back-to-list': 'onBackToListClicked',
       'click .light-course-component-default-editor-save': 'onSaveClicked',
+      'click .light-course-item-history': itemHistory('lightcomponentdefault'),
       'change .light-course-component-default-editor-type': 'onComponentTypeChanged'
     },
 

@@ -250,7 +250,7 @@ it('should save a light course when the submitted revision matches (optimistic c
     });
 });
 
-it('should auto-append a version-history row on every successful draft save, per the main plan', function(done) {
+it('should start the first version-history row on the first successful draft save', function(done) {
   editorAgent
     .get('/api/content/lightcourse/' + lightCourseId)
     .expect(200)
@@ -266,6 +266,57 @@ it('should auto-append a version-history row on every successful draft save, per
       versionHistory[0].duration.should.equal('');
       done();
     });
+});
+
+it('should refresh the current (open) version-history row in place on a second save, rather than appending another row, and preserve any notes/duration already on it', function(done) {
+  async.series([
+    function setNotesDirectly(next) {
+      // mirrors how the editor shell's repurposed "Edit current entry" action and the inline
+      // version-history table cells both work: write straight onto the existing row via the
+      // same generic PUT, not a separate endpoint.
+      editorAgent
+        .get('/api/content/lightcourse/' + lightCourseId)
+        .expect(200)
+        .end(function(error, res) {
+          should.not.exist(error);
+          var headerData = res.body.headerData;
+          headerData.versionHistory[0].notes = 'First pass notes';
+          headerData.versionHistory[0].duration = '2 mins';
+          editorAgent
+            .put('/api/content/lightcourse/' + lightCourseId)
+            .set('Accept', 'application/json')
+            .send({
+              revision: lightCourseRevision,
+              title: res.body.title,
+              contentTree: res.body.contentTree,
+              pluginSelections: res.body.pluginSelections,
+              glossaryItems: res.body.glossaryItems,
+              resourceItems: res.body.resourceItems,
+              helpContent: res.body.helpContent,
+              headerData: headerData
+            })
+            .expect(200)
+            .end(function(error) {
+              should.not.exist(error);
+              lightCourseRevision += 1;
+              next();
+            });
+        });
+    },
+    function assertStillOneRowWithNotesPreserved(next) {
+      editorAgent
+        .get('/api/content/lightcourse/' + lightCourseId)
+        .expect(200)
+        .end(function(error, res) {
+          should.not.exist(error);
+          var versionHistory = res.body.headerData.versionHistory;
+          versionHistory.length.should.equal(1); // still just the one open row, not appended to
+          versionHistory[0].notes.should.equal('First pass notes');
+          versionHistory[0].duration.should.equal('2 mins');
+          next();
+        });
+    }
+  ], done);
 });
 
 it('should return a draft word count reflecting the saved content', function(done) {
@@ -295,7 +346,7 @@ it('should reject a save that reuses a stale revision with a 409 conflict', func
     });
 });
 
-it('should publish sequential versions following the "1.0 -> 1.1 -> 2.0" numbering rule', function(done) {
+it('should publish sequential versions following the "0.1 -> 0.2 -> 1.0" numbering rule (first-ever publish via a minor bump is 0.1, not 1.0)', function(done) {
   function publish(bump, expectedVersionNumber, next) {
     editorAgent
       .post('/api/content/lightcourse/' + lightCourseId + '/versions')
@@ -312,10 +363,31 @@ it('should publish sequential versions following the "1.0 -> 1.1 -> 2.0" numberi
   }
 
   async.series([
-    function(next) { publish('minor', '1.0', next); }, // first publish is always 1.0
-    function(next) { publish('minor', '1.1', next); },
-    function(next) { publish('major', '2.0', next); }
+    function(next) { publish('minor', '0.1', next); }, // first-ever publish via minor is 0.1, not 1.0
+    function(next) { publish('minor', '0.2', next); },
+    function(next) { publish('major', '1.0', next); }
   ], done);
+});
+
+it('should append one new, blank version-history row per Create Version publish, stamped with that publish\'s own version number', function(done) {
+  editorAgent
+    .get('/api/content/lightcourse/' + lightCourseId)
+    .expect(200)
+    .end(function(error, res) {
+      should.not.exist(error);
+      var versionHistory = res.body.headerData.versionHistory;
+      // row 0 = the original draft save (still carrying the notes/duration set earlier),
+      // rows 1-3 = one freshly-appended, blank row per publish() call above, in order.
+      versionHistory.length.should.equal(4);
+      versionHistory[0].notes.should.equal('First pass notes');
+      ['0.1', '0.2', '1.0'].forEach(function(expectedVersion, index) {
+        var row = versionHistory[index + 1];
+        row.version.should.equal(expectedVersion);
+        row.notes.should.equal('');
+        row.duration.should.equal('');
+      });
+      done();
+    });
 });
 
 it('should list published versions for a light course', function(done) {

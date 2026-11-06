@@ -18,10 +18,19 @@ define(['core/origin', '../lightCourseAssetContext', 'backbone-forms'], function
    * collection, neither of which apply here (see schemaFilter.js/lightCourseComponentFormView.js
    * for how fields get remapped to this editor instead).
    *
-   * Attaches the chosen asset to the course's shared bank via `lightcoursebankasset`
-   * (Phase 2/4), scoped by the light course ID from lightCourseAssetContext.js and this field's
-   * own key (`_fieldName`) - deletion from the bank itself is intentionally not offered here
-   * (per the main plan, light editors can't delete bank assets even their own uploads).
+   * Browses/uploads against `plugins/content/lightcourseasset/` - a dedicated image/audio asset
+   * pool, entirely separate from the main Asset Management area's own `asset` collection/library,
+   * per direct user request (previously this browsed/uploaded against the shared `asset`
+   * collection directly, with `lightcoursebankasset` only tracking per-course usage on top of it -
+   * now neither the pool itself nor anything uploaded to it is visible from, or connected to,
+   * Asset Management at all).
+   *
+   * `lightcoursebankasset` (Phase 2/4) still separately tracks "used in this course" (for the
+   * badge shown in the browse list below), scoped by the light course ID from
+   * lightCourseAssetContext.js and this field's own key (`_fieldName`) - deletion from the bank
+   * itself is intentionally not offered here (per the main plan, light editors can't delete the
+   * underlying asset even one they uploaded themselves - only a Super Admin can, from the new
+   * "Light Course Placeholder Assets" admin screen).
    */
   var LightCourseBankAssetFieldView = Backbone.Form.editors.Base.extend({
     className: 'light-course-bank-asset-field',
@@ -64,9 +73,13 @@ define(['core/origin', '../lightCourseAssetContext', 'backbone-forms'], function
       }
       var self = this;
       var lightCourseId = LightCourseAssetContext.get();
+      // Plain GET /content/:type (not /content/:type/query) - the latter wraps every string
+      // search value in `new RegExp(value, 'i')` server-side (lib/contentmanager.js), which
+      // throws a Mongoose ObjectId cast error for an exact `_lightCourseId` match like this one;
+      // the plain list route passes req.query straight through as the filter, unmodified.
       $.when(
-        $.get('api/asset/query', { search: { assetType: { $in: [this.assetType] } } }),
-        lightCourseId ? $.get('api/content/lightcoursebankasset/query', { search: { _lightCourseId: lightCourseId } }) : $.Deferred().resolve([]).promise()
+        $.get('api/content/lightcourseasset', { assetType: this.assetType }),
+        lightCourseId ? $.get('api/content/lightcoursebankasset', { _lightCourseId: lightCourseId }) : $.Deferred().resolve([]).promise()
       ).done(function(assetsResponse, bankAssetsResponse) {
         var assets = assetsResponse[0];
         var usedAssetIds = (bankAssetsResponse[0] || []).map(function(bankAsset) { return bankAsset._assetId; });
@@ -104,11 +117,10 @@ define(['core/origin', '../lightCourseAssetContext', 'backbone-forms'], function
       var formData = new FormData();
       formData.append('file', file);
       formData.append('title', file.name);
-      formData.append('repo', 'localfs');
       formData.append('assetType', this.assetType);
       var self = this;
       $.ajax({
-        url: 'api/asset',
+        url: 'api/content/lightcourseasset/upload',
         type: 'POST',
         data: formData,
         processData: false,

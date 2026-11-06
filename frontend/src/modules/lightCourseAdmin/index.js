@@ -11,6 +11,8 @@ define(function(require) {
   var LightCourseComponentDefaultModel = require('./models/lightCourseComponentDefaultModel');
   var LightCourseComponentDefaultListView = require('./views/lightCourseComponentDefaultListView');
   var LightCourseComponentDefaultEditorView = require('./views/lightCourseComponentDefaultEditorView');
+  var LightCourseAssetCollection = require('./collections/lightCourseAssetCollection');
+  var LightCourseAssetListView = require('./views/lightCourseAssetListView');
   // Same module-load-time side-effect requirement as lightCourseEditor/index.js's own copy of
   // this require (see that file's comment for the full explanation) - both the Template Editor
   // and Component Default Editor in this module also render LightCourseComponentFormView, so
@@ -31,6 +33,7 @@ define(function(require) {
     Origin.permissions.addRoute('lightCourseTemplates', data.featurePermissions);
     Origin.permissions.addRoute('lightCourseConfig', data.featurePermissions);
     Origin.permissions.addRoute('lightCourseComponentDefaults', data.featurePermissions);
+    Origin.permissions.addRoute('lightCourseAssets', data.featurePermissions);
 
     if (!Origin.permissions.hasPermissions(data.featurePermissions)) {
       return;
@@ -46,10 +49,18 @@ define(function(require) {
 
     Origin.globalMenu.addItem({
       location: 'global',
+      text: Origin.l10n.t('app.lightcourseassets'),
+      icon: 'fa-picture-o',
+      callbackEvent: 'lightCourseAssets:open',
+      sortOrder: 5
+    });
+
+    Origin.globalMenu.addItem({
+      location: 'global',
       text: Origin.l10n.t('app.lightcoursetemplates'),
       icon: 'fa-clone',
       callbackEvent: 'lightCourseTemplates:open',
-      sortOrder: 5
+      sortOrder: 6
     });
 
     Origin.globalMenu.addItem({
@@ -57,7 +68,7 @@ define(function(require) {
       text: Origin.l10n.t('app.lightcoursecomponentdefaults'),
       icon: 'fa-puzzle-piece',
       callbackEvent: 'lightCourseComponentDefaults:open',
-      sortOrder: 6
+      sortOrder: 7
     });
   });
 
@@ -71,6 +82,10 @@ define(function(require) {
 
   Origin.on('globalMenu:lightCourseComponentDefaults:open', function() {
     Origin.router.navigateTo('lightCourseComponentDefaults');
+  });
+
+  Origin.on('globalMenu:lightCourseAssets:open', function() {
+    Origin.router.navigateTo('lightCourseAssets');
   });
 
   Origin.on('router:lightCourseTemplates', function(id) {
@@ -97,6 +112,12 @@ define(function(require) {
       return loadComponentDefaultListView();
     }
     return loadComponentDefaultEditorView(id);
+  });
+
+  Origin.on('router:lightCourseAssets', function() {
+    Origin.trigger('sidebar:views:remove');
+    Origin.trigger('sidebar:sidebarContainer:hide');
+    loadAssetListView();
   });
 
   function loadTemplateListView() {
@@ -145,5 +166,10 @@ define(function(require) {
         Origin.router.navigateTo('lightCourseComponentDefaults');
       }
     });
+  }
+
+  function loadAssetListView() {
+    Origin.trigger('location:title:update', { title: Origin.l10n.t('app.lightcourseassets') });
+    Origin.contentPane.setView(LightCourseAssetListView, { collection: new LightCourseAssetCollection() });
   }
 });
