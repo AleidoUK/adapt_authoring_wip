@@ -1,6 +1,10 @@
 {
   "app": {
     "lightcourseeditor": "Light Course Editor",
+    "lightcourseauditorder": "Order",
+    "lightcourseauditnofields": "Edited field details unavailable",
+    "lightcourseauditcreate": "Item created",
+    "lightcourseauditdelete": "Item deleted",
     "lightcourseeditorsettings": "Course details and settings",
     "lightcoursecreate": "Create",
     "lightcoursecreatetitle": "Create light course",

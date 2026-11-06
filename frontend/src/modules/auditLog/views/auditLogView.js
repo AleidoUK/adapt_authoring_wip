@@ -3,6 +3,7 @@ define(function(require) {
   var Backbone = require('backbone');
   var OriginView = require('core/views/originView');
   var Origin = require('core/origin');
+  var lightFieldChanges = require('../lightFieldChanges');
   
   var AuditLogView = OriginView.extend({
     
@@ -199,15 +200,24 @@ define(function(require) {
     },
     
     renderLogItem: function(log) {
+      var isLightEditor = ['lightcourse', 'lightcoursetemplate', 'lightcomponentdefault', 'lightcourseconfig', 'lightcourseasset']
+        .indexOf(this.contentType) !== -1;
+      if (isLightEditor) {
+        log = Object.assign({}, log, { changes: lightFieldChanges(log.changes, this.inferValueType.bind(this)) });
+      }
+      var title = isLightEditor
+        ? this.escapeHtml(log.changes.length ? _.uniq(log.changes.map(function(change) { return change.field; })).join(', ')
+          : Origin.l10n.t(log.action === 'update' ? 'app.lightcourseauditnofields' : 'app.lightcourseaudit' + log.action))
+        : (log.contentTitle ? this.escapeHtml(log.contentTitle) : '<em>(untitled)</em>');
       var actionClass = 'audit-action-' + log.action;
       var timestamp = new Date(log.timestamp);
       var timeAgo = this.getTimeAgo(timestamp);
       
       var html = '<div class="audit-log-item ' + actionClass + '" data-log-id="' + log._id + '">' +
-        '<div class="audit-log-header">' +
+        '<div class="audit-log-header' + (isLightEditor ? ' audit-log-header-light' : '') + '">' +
         '<span class="audit-action-badge">' + log.action.toUpperCase() + '</span>' +
         '<span class="audit-content-type">' + this.escapeHtml(log.contentType) + '</span>' +
-        '<span class="audit-content-title">' + (log.contentTitle ? this.escapeHtml(log.contentTitle) : '<em>(untitled)</em>') + '</span>' +
+        '<span class="audit-content-title">' + title + '</span>' +
         '<span class="audit-content-id" title="Content ID' + (log.parentId ? ' (Parent ID)' : '') + '">' + log.contentId + (log.parentId ? ' (' + log.parentId + ')' : '') + '</span>' +
         '<span class="audit-user-email" title="User">' + this.escapeHtml(log.userEmail || log.userName) + '</span>' +
         '<span class="audit-timestamp" title="' + timestamp.toLocaleString() + '">' + timeAgo + '</span>' +

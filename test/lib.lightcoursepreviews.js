@@ -186,6 +186,122 @@ describe('populated light course tree fields (isolated)', function() {
   });
 });
 
+describe('edited field labels in light editor audit logs (isolated)', function() {
+  var logOrigin = Object.assign({}, origin, {
+    l10n: { t: function(key) {
+      return {
+        'app.lightcoursepage': 'Page', 'app.lightcoursearticle': 'Article',
+        'app.lightcourseblock': 'Block', 'app.lightcoursecomponent': 'Component',
+        'app.lightcourseauditorder': 'Order', 'app.lightcoursefielduniqueid': 'Unique ID',
+        'app.lightcoursecomponentpreset': 'Preset'
+      }[key] || key;
+    } }
+  });
+  var fields = load('frontend/src/modules/auditLog/lightFieldChanges.js', {
+    'core/origin': logOrigin, '../lightCourseEditor/schemaFilter': filter
+  });
+  var audit = load('frontend/src/modules/auditLog/views/auditLogView.js', {
+    backbone: Backbone, 'core/origin': logOrigin,
+    'core/views/originView': { extend: function(proto) { return proto; } },
+    '../lightFieldChanges': fields
+  });
+  function diff(changes) { return fields(changes, audit.inferValueType.bind(audit)); }
+  function tree() {
+    return { children: [{ _id: 'page', type: 'page', title: 'Introduction', children: [
+      { _id: 'article', type: 'article', children: [{ _id: 'block', type: 'block', children: [
+        { _id: 'component', type: 'component', _component: 'text', uniqueId: 'c-01',
+          title: 'Welcome', instruction: '<p>Before</p>', items: [{ title: 'Item', body: 'Old body' }] }
+      ] }] }
+    ] }] };
+  }
+
+  it('finds the actual nested component and item fields, using labels rather than snapshot keys', function() {
+    var before = tree();
+    var after = copy(before);
+    var component = after.children[0].children[0].children[0].children[0];
+    component.instruction = '<p>After</p>';
+    component.items[0].body = 'New body';
+    var changes = [{ field: 'contentSnapshot', oldValue: { contentTree: before }, newValue: { contentTree: after } }];
+    var original = copy(changes);
+    var result = diff(changes);
+    assert.strictEqual(result.length, 2);
+    assert(result[0].field.includes('Component 1: Welcome (c-01) / Instruction'));
+    assert(result[1].field.endsWith('Items / 1 / Item body'));
+    assert.strictEqual(result[0].oldValue, '<p>Before</p>');
+    assert.strictEqual(result[1].newValue, 'New body');
+    assert.deepStrictEqual(changes, original);
+  });
+
+  it('matches stable node IDs when reordering and reports order separately from field edits', function() {
+    var before = tree();
+    before.children.push({ _id: 'second', type: 'page', title: 'Second', children: [] });
+    var after = copy(before);
+    after.children.reverse();
+    var result = diff([{ field: 'contentTree', oldValue: before, newValue: after }]);
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].field, 'Content Tree / Order');
+  });
+
+  it('reports additions, deletions, new nested values, zero, false, and preset selections', function() {
+    var before = tree();
+    var after = copy(before);
+    after.children[0].children[0].children[0].children = [];
+    var result = diff([
+      { field: 'contentTree', oldValue: before, newValue: after },
+      { field: 'values', oldValue: {}, newValue: { attempts: 0, enabled: false, _componentPresetId: 'preset' } },
+      { field: 'headerData', oldValue: {}, newValue: { iconChoices: { help: 'question' } } },
+      { field: 'revision', oldValue: 1, newValue: 2 }
+    ]);
+    assert.strictEqual(result.length, 5);
+    assert(result[0].field.includes('Component 1: Welcome'));
+    assert.strictEqual(result[0].newValue, undefined);
+    assert(result.some(function(change) { return change.field === 'Values / Attempts' && change.newValue === 0; }));
+    assert(result.some(function(change) { return change.field === 'Values / Enabled' && change.newValue === false; }));
+    assert(result.some(function(change) { return change.field === 'Values / Preset'; }));
+    assert(result.some(function(change) { return change.field === 'Header Data / Icon Choices / Help'; }));
+  });
+
+  it('shows edited fields in light log headers and details without changing full-editor logs', function() {
+    var log = { _id: 'log', timestamp: new Date().toISOString(), action: 'update',
+      contentType: 'lightcoursetemplate', contentId: 'template', contentTitle: 'Already known template',
+      userName: 'Editor', changes: [
+        { field: 'values', oldValue: { instruction: 'Old' }, newValue: { instruction: '<script>New</script>' }, changeType: 'object' }
+      ] };
+    var lightView = Object.assign(Object.create(audit), { contentType: 'lightcoursetemplate' });
+    var html = lightView.renderLogItem(log);
+    assert(html.includes('<span class="audit-content-title">Values / Instruction</span>'));
+    assert(html.includes('<strong>Values / Instruction:</strong>'));
+    assert(html.includes('&lt;script&gt;New&lt;/script&gt;'));
+    assert(!html.includes('Already known template'));
+    assert(!html.includes('<script>'));
+    var fullHtml = Object.create(audit).renderLogItem(log);
+    assert(fullHtml.includes('<span class="audit-content-title">Already known template</span>'));
+    assert(fullHtml.includes('<strong>values:</strong>'));
+    assert.strictEqual(log.changes[0].field, 'values');
+  });
+
+  it('keeps empty-value transitions and custom type fields visible', function() {
+    var result = diff([
+      { field: 'items', oldValue: [], newValue: null },
+      { field: 'settings', oldValue: {}, newValue: null },
+      { field: 'custom', oldValue: { type: 'article' }, newValue: { type: 'component' } }
+    ]);
+    assert.deepStrictEqual(copy(result.map(function(change) { return change.field; })), [
+      'Items', 'Settings', 'Custom / Type'
+    ]);
+  });
+
+  it('labels create and delete events explicitly and identifies missing edited-field details', function() {
+    var view = Object.assign(Object.create(audit), { contentType: 'lightcourse' });
+    ['create', 'delete', 'update'].forEach(function(action) {
+      var html = view.renderLogItem({ _id: 'log', contentId: 'course', timestamp: new Date().toISOString(),
+        action: action, contentType: 'lightcourse', userName: 'Editor' });
+      assert(html.includes(action === 'update' ? 'app.lightcourseauditnofields' : 'app.lightcourseaudit' + action));
+      assert(!html.includes('(untitled)'));
+    });
+  });
+});
+
 describe('light course editor collapsible settings (isolated)', function() {
   function render() {
     var hb = Handlebars.create();
