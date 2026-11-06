@@ -10,6 +10,7 @@ var generator = require('../lib/lightcourse/documentGenerator');
 var importer = require('../lib/lightcourse/documentImport');
 var wordFields = require('../lib/lightcourse/wordFields');
 var wordcount = require('../lib/lightcoursewordcount');
+var wordDocument = require('../lib/lightcourse/wordDocument');
 var docx = require('docx');
 var XMLParser = require('fast-xml-parser').XMLParser;
 
@@ -59,8 +60,11 @@ function apply(parsed, snapshot) {
     importer.importDocument(parsed, snapshot, db, function(error, value) { if (error) reject(error); else resolve(value); });
   });
 }
-async function edited(snapshot, edit) {
-  var zip = await unzipper.Open.buffer(await generate(snapshot));
+async function edited(snapshot, edit, editStyles, editRelationships) {
+  return editedBuffer(await generate(snapshot), edit, editStyles, editRelationships);
+}
+async function editedBuffer(buffer, edit, editStyles, editRelationships) {
+  var zip = await unzipper.Open.buffer(buffer);
   var archive = archiver('zip');
   var chunks = [];
   var buffer = new Promise(function(resolve, reject) {
@@ -70,10 +74,52 @@ async function edited(snapshot, edit) {
   });
   for (var file of zip.files) {
     var data = await file.buffer();
-    archive.append(file.path === 'word/document.xml' ? edit(data.toString('utf8')) : data, { name: file.path });
+    if (file.path === 'word/document.xml') data = edit(data.toString('utf8'));
+    else if (file.path === 'word/styles.xml' && editStyles) data = editStyles(data.toString('utf8'));
+    else if (file.path === 'word/_rels/document.xml.rels' && editRelationships) data = editRelationships(data.toString('utf8'));
+    archive.append(data, { name: file.path });
   }
   archive.finalize();
   return parse(await buffer);
+}
+function wordSavedStyleIds(xml) {
+  var ids = {
+    LightCourseFieldLabel: 'Lightcoursefieldlabel',
+    LightCourseReadOnly: 'Lightcourseread-onlyinstructions',
+    Title: 'title',
+    Heading1: 'heading1',
+    Heading2: 'heading2',
+    Heading3: 'heading3',
+    Heading4: 'heading4',
+    Heading5: 'heading5'
+  };
+  return xml.replace(/(w:(?:val|styleId)=")([^"]+)(")/g, function(match, prefix, id, suffix) {
+    return Object.prototype.hasOwnProperty.call(ids, id) ? prefix + ids[id] + suffix : match;
+  });
+}
+function replaceFieldContent(xml, fieldName, content) {
+  var label = xml.indexOf('>' + fieldName + '</w:t>');
+  assert(label !== -1, fieldName);
+  var start = xml.indexOf('<w:bookmarkStart', label);
+  start = xml.indexOf('/>', start) + 2;
+  var end = xml.indexOf('<w:bookmarkEnd', start);
+  assert(end > start);
+  var controlStart = xml.lastIndexOf('<w:sdt>', start);
+  var controlContent = xml.indexOf('<w:sdtContent>', controlStart);
+  if (controlStart !== -1 && controlContent < start && xml.slice(controlContent, start).includes('<w:p>')) {
+    var contentEnd = xml.indexOf('</w:sdtContent>', end);
+    var bookmarkEnd = xml.slice(end, xml.indexOf('/>', end) + 2);
+    return xml.slice(0, start) + content + bookmarkEnd + '</w:p>' + xml.slice(contentEnd);
+  }
+  return xml.slice(0, start) + content + xml.slice(end);
+}
+function replaceBoxContent(xml, fieldName, content) {
+  var label = xml.indexOf('<w:alias w:val="' + fieldName + '"');
+  assert(label !== -1, fieldName);
+  var start = xml.indexOf('<w:sdtContent>', label) + '<w:sdtContent>'.length;
+  var end = xml.indexOf('</w:sdtContent>', start);
+  assert(end > start);
+  return xml.slice(0, start) + content + xml.slice(end);
 }
 function replaceField(xml, fieldName, text) {
   var label = xml.indexOf('>' + fieldName + '</w:t>');
@@ -86,13 +132,259 @@ function replaceField(xml, fieldName, text) {
   }
   assert(label !== -1, fieldName);
   var start = xml.indexOf('<w:bookmarkStart', label);
-  var textStart = xml.indexOf('<w:t', start);
-  var contentStart = xml.indexOf('>', textStart) + 1;
-  var end = xml.indexOf('</w:t>', contentStart);
-  return xml.slice(0, contentStart) + text + xml.slice(end);
+  var contentStart = xml.indexOf('/>', start) + 2;
+  var end = xml.indexOf('<w:bookmarkEnd', contentStart);
+  var properties = /<w:rPr>[\s\S]*?<\/w:rPr>/.exec(xml.slice(contentStart, end));
+  return xml.slice(0, contentStart) + '<w:r>' + (properties ? properties[0] : '') +
+    '<w:t xml:space="preserve">' + text + '</w:t></w:r>' + xml.slice(end);
 }
 
 describe('mapped Word text round-trip', function() {
+  it('exports every editable field as a locked, tagged Aleido-green control with visible green borders', async function() {
+    var zip = await unzipper.Open.buffer(await generate(fixture()));
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString('utf8');
+    var metadataXml = (await zip.files.find(function(file) { return file.path === 'docProps/custom.xml'; }).buffer()).toString('utf8');
+    var metadata = JSON.parse(new XMLParser().parse(metadataXml).Properties.property['vt:lpwstr']);
+    assert.strictEqual(metadata.contentControls, true);
+    assert(xml.includes('xmlns:w15='));
+    var controls = [];
+    function collect(nodes) {
+      (nodes || []).forEach(function(node) {
+        if (node['w:sdt']) controls.push(node['w:sdt']);
+        Object.keys(node).forEach(function(key) { if (Array.isArray(node[key])) collect(node[key]); });
+      });
+    }
+    collect(new XMLParser({ preserveOrder: true, ignoreAttributes: false }).parse(xml));
+    assert.strictEqual(controls.length, metadata.fields.length);
+    var green = /^@aleido-green:\s*#([0-9a-f]{6})/im.exec(fs.readFileSync(path.join(__dirname, '../frontend/src/core/less/colours.less'), 'utf8'))[1].toUpperCase();
+    controls.forEach(function(control) {
+      var props = control.find(function(node) { return node['w:sdtPr']; })['w:sdtPr'];
+      assert.strictEqual(props.find(function(node) { return node['w15:color']; })[':@']['@_w:val'], green);
+      assert.strictEqual(props.find(function(node) { return node['w:lock']; })[':@']['@_w:val'], 'sdtLocked');
+      var content = control.find(function(node) { return node['w:sdtContent']; })['w:sdtContent'];
+      content.filter(function(node) { return node['w:p']; }).forEach(function(paragraph) {
+        var borders = paragraph['w:p'].find(function(node) { return node['w:pPr']; })['w:pPr']
+          .find(function(node) { return node['w:pBdr']; })['w:pBdr'];
+        ['top', 'bottom', 'left', 'right'].forEach(function(side) {
+          assert.strictEqual(borders.find(function(node) { return node['w:' + side]; })[':@']['@_w:color'], green);
+        });
+      });
+    });
+    var unique = xml.match(/<w:p>[\s\S]*?<\/w:p>/g).find(function(paragraph) { return paragraph.includes('>author-1</w:t>'); });
+    assert(unique.includes('w:bdr') && unique.includes('w:color="' + green + '"'));
+    assert(unique.indexOf('</w:sdt>') < unique.indexOf('> | '));
+  });
+
+  it('preserves exact existing HTML on an unchanged rich-text round trip, including lists, links and custom attributes', async function() {
+    var snapshot = fixture();
+    component(snapshot).body = '<p data-review="retain">A <strong>bold</strong> <em>italic</em> <u>underlined</u> <s>struck</s> &amp; ' +
+      '<a href="https://example.com/?a=1&amp;b=2">link</a></p><ol><li>One<ul><li>Nested</li></ul></li><li>Two</li></ol>' +
+      '<p style="text-align: center;">Centred<br>Second line</p>';
+    var original = JSON.stringify(snapshot);
+    assert.strictEqual((await apply(await parse(await generate(snapshot)), snapshot)).success, true);
+    assert.strictEqual(JSON.stringify(snapshot), original);
+  });
+
+  it('exports headings, inherited alignment and explicit normal emphasis without introducing empty list items', async function() {
+    var snapshot = fixture();
+    component(snapshot).body = '<div style="text-align: right;"><h2>Heading</h2><p><strong>Bold ' +
+      '<span style="font-weight: normal;">normal</span></strong></p><ul><li><p>List paragraph</p></li></ul></div>';
+    var original = JSON.stringify(snapshot);
+    var parsed = await parse(await generate(snapshot));
+    assert.deepStrictEqual(parsed.errors, []);
+    var body = parsed.blocks.find(function(block) { return block.id === 'component-1'; })
+      .fields.find(function(field) { return field.path === 'body'; });
+    assert(body.html.includes('<h2 style="text-align: right;">Heading</h2>'));
+    assert(body.html.includes('<strong>Bold </strong>normal'));
+    assert(body.html.includes('<ul><li style="text-align: right;">List paragraph</li></ul>'));
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(JSON.stringify(snapshot), original);
+  });
+
+  it('reports unsupported source links as export errors rather than throwing outside the callback', async function() {
+    var snapshot = fixture();
+    component(snapshot).body = '<p><a href="javascript:alert(1)">Unsafe link</a></p>';
+    await assert.rejects(generate(snapshot), /Only web, email and relative links/);
+  });
+
+  it('accepts all text and new paragraphs inside a box even when its old field bookmark is removed', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceBoxContent(xml, 'Body',
+        '<w:p><w:r><w:t>First paragraph</w:t></w:r></w:p>' +
+        '<w:p><w:r><w:rPr><w:i/></w:rPr><w:t>Second paragraph</w:t><w:br/><w:t>New line</w:t></w:r></w:p>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<p>First paragraph</p><p><em>Second paragraph<br>New line</em></p>');
+    parsed = await edited(snapshot, function(xml) { return replaceBoxContent(xml, 'Body', '<w:p/>'); });
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '');
+  });
+
+  it('imports formatting-only changes and accepted tracked rich text without changing plain title fields', async function() {
+    var snapshot = fixture();
+    component(snapshot).body = '<p>Same text</p>';
+    var parsed = await edited(snapshot, function(xml) {
+      xml = replaceBoxContent(xml, 'Body', '<w:p><w:del w:id="1"><w:r><w:delText>Deleted</w:delText></w:r></w:del>' +
+        '<w:ins w:id="2"><w:r><w:rPr><w:b/><w:i/><w:u w:val="single"/><w:strike/>' +
+        '<w:rPrChange w:id="3"><w:rPr><w:b w:val="0"/></w:rPr></w:rPrChange></w:rPr><w:t>Same text</w:t></w:r></w:ins></w:p>');
+      return replaceBoxContent(xml, 'Title', '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Plain title</w:t></w:r></w:p>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<p><s><u><em><strong>Same text</strong></em></u></s></p>');
+    assert.strictEqual(snapshot.contentTree.children[0].title, 'Plain title');
+  });
+
+  it('preserves edited nested lists and hyperlinks rather than flattening their HTML', async function() {
+    var snapshot = fixture();
+    component(snapshot).body = '<p>Intro</p><ol><li>One<ul><li>Nested</li></ul></li><li>Two</li></ol>' +
+      '<p><a href="https://example.com/review">Link</a></p>';
+    var parsed = await edited(snapshot, function(xml) {
+      return xml.replace('>One</w:t>', '>Edited one</w:t>').replace('>Link</w:t>', '>Reviewed link</w:t>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert(component(snapshot).body.includes('<ol><li>Edited one<ul><li>Nested</li></ul></li><li>Two</li></ol>'));
+    assert(component(snapshot).body.includes('<a href="https://example.com/review">'));
+    assert(component(snapshot).body.includes('Reviewed link'));
+  });
+
+  it('imports Word lists and alignment inherited from a paragraph style', async function() {
+    var snapshot = fixture();
+    component(snapshot).body = '<ul><li>List item</li></ul>';
+    var numPr;
+    var parsed = await edited(snapshot, function(xml) {
+      numPr = /<w:numPr>[\s\S]*?<\/w:numPr>/.exec(xml)[0];
+      assert(xml.includes('w:val="ListParagraph"'));
+      return xml.replace(numPr, '').replace('w:val="ListParagraph"', 'w:val="ReviewerList"')
+        .replace('>List item</w:t>', '>Edited list item</w:t>');
+    }, function(xml) {
+      return xml.replace('</w:styles>', '<w:style w:type="paragraph" w:styleId="ReviewerList"><w:name w:val="Reviewer list"/>' +
+        '<w:basedOn w:val="Normal"/><w:pPr>' + numPr + '<w:jc w:val="right"/></w:pPr></w:style></w:styles>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<ul><li style="text-align: right;">Edited list item</li></ul>');
+  });
+
+  it('escapes imported literal markup and refuses unsafe hyperlink targets atomically', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceBoxContent(xml, 'Body', '<w:p><w:r><w:t>&lt;script&gt;alert(1)&lt;/script&gt; &amp; text</w:t></w:r></w:p>');
+    });
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<p>&lt;script&gt;alert(1)&lt;/script&gt; &amp; text</p>');
+    snapshot = fixture();
+    component(snapshot).body = '<p><a href="https://example.com/">Link</a></p>';
+    var original = JSON.stringify(snapshot);
+    parsed = await edited(snapshot, function(xml) { return xml.replace('>Link</w:t>', '>Edited link</w:t>'); },
+      undefined, function(xml) { return xml.replace('Target="https://example.com/"', 'Target="javascript:alert(1)"'); });
+    assert(parsed.errors.some(function(error) { return error.includes('Only web, email and relative links'); }));
+    assert.strictEqual((await apply(parsed, snapshot)).success, false);
+    assert.strictEqual(JSON.stringify(snapshot), original);
+  });
+
+  it('retains unsupported original HTML tables unchanged but rejects edits that would remove their structure', async function() {
+    var snapshot = fixture();
+    component(snapshot).body = '<table><tr><td>Table text</td></tr></table>';
+    var original = JSON.stringify(snapshot);
+    assert.strictEqual((await apply(await parse(await generate(snapshot)), snapshot)).success, true);
+    assert.strictEqual(JSON.stringify(snapshot), original);
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceBoxContent(xml, 'Body', '<w:p><w:r><w:t>Changed table text</w:t></w:r></w:p>');
+    });
+    var result = await apply(parsed, snapshot);
+    assert.strictEqual(result.success, false);
+    assert(result.errors.some(function(error) { return error.includes('embedded media or tables'); }));
+    assert.strictEqual(JSON.stringify(snapshot), original);
+  });
+
+  it('rejects missing, unknown, duplicate and nested boxes, embedded content and out-of-box edits atomically', async function() {
+    for (var edit of [
+      function(xml) { return xml.replace('<w:tag w:val="lcfield_0"/>', ''); },
+      function(xml) { return xml.replace('<w:tag w:val="lcfield_0"/>', '<w:tag w:val="unknown"/>'); },
+      function(xml) { return xml.replace('<w:tag w:val="lcfield_1"/>', '<w:tag w:val="lcfield_0"/>'); },
+      function(xml) { return replaceBoxContent(xml, 'Body', '<w:sdt><w:sdtContent><w:p/></w:sdtContent></w:sdt>'); },
+      function(xml) { return replaceBoxContent(xml, 'Body', '<w:tbl><w:tr/></w:tbl>'); },
+      function(xml) { return replaceBoxContent(xml, 'Body', '<w:p><w:r><w:drawing/></w:r></w:p>'); },
+      function(xml) { return replaceBoxContent(xml, 'Body', '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'); },
+      function(xml) { return replaceBoxContent(xml, 'Body', '<w:p><w:hyperlink r:id="missing"><w:r><w:t>Link</w:t></w:r></w:hyperlink></w:p>'); },
+      function(xml) { return xml.replace('</w:body>', '<w:p><w:r><w:t>Outside</w:t></w:r></w:p></w:body>'); }
+    ]) {
+      var snapshot = fixture(), original = JSON.stringify(snapshot);
+      var parsed = await edited(snapshot, function(xml) {
+        return edit(replaceBoxContent(xml, 'Developer Notes', '<w:p><w:r><w:t>Do not partially import</w:t></w:r></w:p>'));
+      });
+      assert.strictEqual((await apply(parsed, snapshot)).success, false);
+      assert.strictEqual(JSON.stringify(snapshot), original);
+    }
+  });
+
+  it('imports one tracked text edit after Word rewrites label, read-only and heading style IDs', async function() {
+    var snapshot = fixture();
+    snapshot.headerData = { versionHistory: [{ version: '1.0', notes: 'Read-only version notes' }] };
+    var expected = JSON.parse(JSON.stringify(snapshot));
+    component(expected).body = '<p>Reviewed body</p>';
+    var parsed = await edited(snapshot, function(xml) {
+      return wordSavedStyleIds(replaceFieldContent(xml, 'Body',
+        '<w:del w:id="1"><w:r><w:delText>Original body. Second paragraph.</w:delText></w:r></w:del>' +
+        '<w:ins w:id="2"><w:r><w:t>Reviewed body</w:t></w:r></w:ins>'));
+    }, wordSavedStyleIds);
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.deepStrictEqual(snapshot, expected);
+  });
+
+  it('still rejects unknown label/read-only styles rather than ignoring unbookmarked text or tables', async function() {
+    for (var styleName of ['Light course field label', 'Light course read-only instructions']) {
+      var snapshot = fixture(), original = JSON.stringify(snapshot);
+      var parsed = await edited(snapshot, wordSavedStyleIds, function(xml) {
+        return wordSavedStyleIds(xml).replace('w:name w:val="' + styleName + '"', 'w:name w:val="Unknown style"');
+      });
+      assert(parsed.errors.length > 0);
+      assert.strictEqual((await apply(parsed, snapshot)).success, false);
+      assert.strictEqual(JSON.stringify(snapshot), original);
+    }
+  });
+
+  it('preserves atomic heading/bookmark/table validation after Word rewrites style IDs', async function() {
+    for (var edit of [
+      function(xml) { return xml.replace('>Section 1</w:t>', '>Renamed heading</w:t>'); },
+      function(xml) { return xml.replace(/<w:tag[^>]*w:val="lcfield_0"[^>]*\/>/, ''); },
+      function(xml) {
+        return xml.replace('</w:body>',
+          '<w:tbl><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="LightCourseReadOnly"/></w:pPr>' +
+          '<w:r><w:t>Unmapped added table</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body>');
+      }
+    ]) {
+      var snapshot = fixture(), original = JSON.stringify(snapshot);
+      var parsed = await edited(snapshot, function(xml) {
+        return wordSavedStyleIds(edit(replaceFieldContent(xml, 'Body', '<w:r><w:t>Do not partially import</w:t></w:r>')));
+      }, wordSavedStyleIds);
+      assert(parsed.errors.length > 0);
+      assert.strictEqual((await apply(parsed, snapshot)).success, false);
+      assert.strictEqual(JSON.stringify(snapshot), original);
+    }
+  });
+
+  it('reports invalid Word style XML explicitly without importing any text', async function() {
+    for (var stylesXml of [
+      '<w:styles>',
+      '<!DOCTYPE w:styles [<!ENTITY test "value">]><w:styles/>',
+      '<w:styles><w:style w:type="paragraph"><w:name w:val="Light course field label"/></w:style></w:styles>'
+    ]) {
+      var snapshot = fixture(), original = JSON.stringify(snapshot);
+      var parsed = await edited(snapshot, function(xml) {
+        return replaceFieldContent(xml, 'Body', '<w:r><w:t>Do not import</w:t></w:r>');
+      }, function() { return stylesXml; });
+      assert(parsed.errors.some(function(error) { return error.includes('Could not read the Word document'); }));
+      assert.strictEqual((await apply(parsed, snapshot)).success, false);
+      assert.strictEqual(JSON.stringify(snapshot), original);
+    }
+  });
+
   it('matches Aleido green for all heading styles and opening-page headings without recolouring field labels', async function() {
     var colours = fs.readFileSync(path.join(__dirname, '../frontend/src/core/less/colours.less'), 'utf8');
     var match = /^@aleido-green:\s*#([0-9a-f]{6})\s*;/im.exec(colours);
@@ -424,13 +716,13 @@ describe('mapped Word text round-trip', function() {
       return replaceField(xml, 'Developer Notes', 'Reviewer developer notes');
     });
     assert.strictEqual((await apply(parsed, snapshot)).success, true);
-    assert.strictEqual(component(snapshot).developerNotes, '<p>Reviewer developer notes</p>');
+    assert.strictEqual(component(snapshot).developerNotes, '<p><em>Reviewer developer notes</em></p>');
     component(snapshot).graphicsNotes = '';
     parsed = await edited(snapshot, function(xml) {
       return replaceField(xml, 'Graphics Notes', 'Reviewer graphics notes');
     });
     assert.strictEqual((await apply(parsed, snapshot)).success, true);
-    assert.strictEqual(component(snapshot).graphicsNotes, '<p>Reviewer graphics notes</p>');
+    assert.strictEqual(component(snapshot).graphicsNotes, '<p><em>Reviewer graphics notes</em></p>');
   });
 
   it('displays the exact core component word count beside its ID without counting notes, IDs or placeholders', async function() {
@@ -463,7 +755,7 @@ describe('mapped Word text round-trip', function() {
     assert.strictEqual((await apply(await parse(await generate(snapshot)), snapshot)).success, true);
   });
 
-  it('enables Track Changes by default while allowing clean imports and rejecting unaccepted revisions', async function() {
+  it('enables Track Changes by default and automatically accepts revisions on import', async function() {
     var snapshot = fixture(), original = JSON.stringify(snapshot);
     var buffer = await generate(snapshot);
     var zip = await unzipper.Open.buffer(buffer);
@@ -472,13 +764,142 @@ describe('mapped Word text round-trip', function() {
     assert.strictEqual((await apply(await parse(buffer), snapshot)).success, true);
     assert.strictEqual(JSON.stringify(snapshot), original);
     var parsed = await edited(snapshot, function(xml) {
-      var text = xml.indexOf('>Original body.</w:t>');
+      var text = xml.indexOf('>Original </w:t>');
       assert(text !== -1);
       var start = xml.lastIndexOf('<w:r>', text), end = xml.indexOf('</w:r>', text) + 6;
       return xml.slice(0, start) + '<w:ins w:id="999" w:author="Reviewer">' +
         xml.slice(start, end) + '</w:ins>' + xml.slice(end);
     });
-    assert(parsed.errors.some(function(error) { return error.includes('Accept or reject tracked changes'); }));
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(JSON.stringify(snapshot), original);
+  });
+
+  it('accepts tracked replacements, inline moves and full-field deletions using final text only', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceFieldContent(xml, 'Body',
+        '<w:del w:id="1"><w:r><w:delText>Deleted text</w:delText></w:r></w:del>' +
+        '<w:ins w:id="2"><w:r><w:t xml:space="preserve">Accepted </w:t></w:r></w:ins>' +
+        '<w:moveFrom w:id="3"><w:r><w:t>Old position</w:t></w:r></w:moveFrom>' +
+        '<w:moveTo w:id="4"><w:r><w:t>destination</w:t></w:r></w:moveTo>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<p>Accepted destination</p>');
+    parsed = await edited(snapshot, function(xml) {
+      return replaceFieldContent(xml, 'Body', '<w:del w:id="5"><w:r><w:delText>Accepted destination</w:delText></w:r></w:del>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '');
+  });
+
+  it('accepts replacement of an empty-field reviewer placeholder', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceFieldContent(xml, 'Developer Notes',
+        '<w:del w:id="1"><w:r><w:delText>Add developer notes here</w:delText></w:r></w:del>' +
+        '<w:ins w:id="2"><w:r><w:t>Reviewer notes</w:t></w:r></w:ins>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).developerNotes, '<p>Reviewer notes</p>');
+  });
+
+  it('accepts deleted paragraph marks as merges within an editable field', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      xml = replaceFieldContent(xml, 'Body',
+        '<w:r><w:t xml:space="preserve">First </w:t></w:r></w:p>' +
+        '<w:p><w:pPr><w:rPr><w:ins w:id="2"/></w:rPr></w:pPr>' +
+        '<w:ins w:id="3"><w:r><w:t>second paragraph</w:t></w:r></w:ins>');
+      var field = xml.indexOf('<w:bookmarkStart', xml.indexOf('>Body</w:t>'));
+      var paragraph = xml.lastIndexOf('<w:p>', field);
+      var propertiesEnd = xml.indexOf('</w:pPr>', paragraph);
+      assert(propertiesEnd < field);
+      return xml.slice(0, propertiesEnd) + '<w:rPr><w:del w:id="1"/></w:rPr>' + xml.slice(propertiesEnd);
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<p>First second paragraph</p>');
+  });
+
+  it('keeps inserted paragraph breaks and accepts inline ID replacements without importing word counts', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      xml = replaceFieldContent(xml, 'Body',
+        '<w:ins w:id="1"><w:r><w:t>First paragraph</w:t></w:r></w:ins></w:p>' +
+        '<w:p><w:pPr><w:rPr><w:ins w:id="2"/></w:rPr></w:pPr>' +
+        '<w:ins w:id="3"><w:r><w:t>Second paragraph</w:t></w:r></w:ins>');
+      return replaceField(xml, 'Unique Id',
+        '</w:t></w:r><w:del w:id="4"><w:r><w:delText>author-1</w:delText></w:r></w:del>' +
+        '<w:ins w:id="5"><w:r><w:t>reviewed-id</w:t></w:r></w:ins><w:r><w:t>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(component(snapshot).body, '<p>First paragraph</p><p>Second paragraph</p>');
+    assert.strictEqual(component(snapshot).uniqueId, 'reviewed-id');
+  });
+
+  it('discards previous property records without changing current properties or the original XML tree', function() {
+    var parser = new XMLParser({ preserveOrder: true, ignoreAttributes: false });
+    var nodes = parser.parse('<w:p><w:pPr><w:pStyle w:val="Normal"/>' +
+      '<w:pPrChange w:id="1"><w:pPr><w:pStyle w:val="Heading1"/></w:pPr></w:pPrChange></w:pPr>' +
+      '<w:r><w:rPr><w:i/><w:rPrChange w:id="2"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr><w:t>Current text</w:t></w:r></w:p>');
+    var original = JSON.stringify(nodes);
+    assert.deepStrictEqual(wordDocument.acceptTrackedChanges(nodes),
+      parser.parse('<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>Current text</w:t></w:r></w:p>'));
+    assert.strictEqual(JSON.stringify(nodes), original);
+  });
+
+  it('uses accepted text in legacy Word documents, dropping moved source paragraphs and previous formatting', async function() {
+    var document = new docx.Document({ sections: [{ children: [
+      new docx.Paragraph({ heading: docx.HeadingLevel.TITLE, text: 'Legacy course' }),
+      new docx.Paragraph({ heading: docx.HeadingLevel.HEADING_4,
+        children: [new docx.Bookmark({ id: 'lcid_component-1', children: [new docx.TextRun('text')] })] }),
+      new docx.Paragraph('Legacy body')
+    ] }] });
+    var parsed = await editedBuffer(await docx.Packer.toBuffer(document), function(xml) {
+      var paragraph = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)
+        .find(function(paragraph) { return paragraph.includes('>Legacy body</w:t>'); });
+      return wordSavedStyleIds(xml.replace(paragraph,
+        '<w:p><w:pPr><w:rPr><w:moveFrom w:id="1"/></w:rPr></w:pPr><w:r><w:t>Moved source</w:t></w:r></w:p>' +
+        '<w:p><w:pPr><w:pStyle w:val="Normal"/><w:rPr><w:moveTo w:id="2"/></w:rPr>' +
+        '<w:pPrChange w:id="3"><w:pPr><w:pStyle w:val="Heading1"/></w:pPr></w:pPrChange></w:pPr>' +
+        '<w:del w:id="4"><w:r><w:delText>Legacy body</w:delText></w:r></w:del>' +
+        '<w:ins w:id="5"><w:r><w:rPr><w:rPrChange w:id="6"><w:rPr><w:b/></w:rPr></w:rPrChange></w:rPr>' +
+        '<w:t>Accepted legacy body</w:t></w:r></w:ins></w:p>'));
+    }, wordSavedStyleIds);
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual(parsed.blocks.length, 1);
+    assert.strictEqual(parsed.blocks[0].id, 'component-1');
+    assert.strictEqual(parsed.blocks[0].body, 'Accepted legacy body');
+  });
+
+  it('still rejects accepted revisions to headings, required bookmarks and embedded-media text atomically', async function() {
+    for (var edit of [
+      function(xml) {
+        return xml.replace('>Section 1</w:t>', '></w:t></w:r><w:del w:id="1"><w:r><w:delText>Section 1</w:delText></w:r></w:del>' +
+          '<w:ins w:id="2"><w:r><w:t>Changed heading</w:t></w:r></w:ins><w:r><w:t>');
+      },
+      function(xml) {
+        return xml.replace(/(<w:tag[^>]*w:val="lcfield_0"[^>]*\/>)/, '<w:del w:id="1">$1</w:del>');
+      }
+    ]) {
+      var snapshot = fixture(), original = JSON.stringify(snapshot);
+      var parsed = await edited(snapshot, function(xml) {
+        return edit(replaceFieldContent(xml, 'Body', '<w:ins w:id="3"><w:r><w:t>Do not partially import</w:t></w:r></w:ins>'));
+      });
+      assert.strictEqual((await apply(parsed, snapshot)).success, false);
+      assert.strictEqual(JSON.stringify(snapshot), original);
+    }
+    var snapshot = fixture();
+    component(snapshot).body = '<p>Caption<img src="embedded.png"></p>';
+    var original = JSON.stringify(snapshot);
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceFieldContent(xml, 'Body', '<w:ins w:id="1"><w:r><w:t>Changed caption</w:t></w:r></w:ins>');
+    });
     assert.strictEqual((await apply(parsed, snapshot)).success, false);
     assert.strictEqual(JSON.stringify(snapshot), original);
   });
@@ -499,11 +920,32 @@ describe('mapped Word text round-trip', function() {
     assert.strictEqual((await apply(parsed, snapshot)).success, true);
     assert.strictEqual(JSON.stringify(snapshot), original);
     parsed = await edited(snapshot, function(xml) {
-      return xml.replace('<w:tbl>', '<w:tbl><w:ins w:id="999"/>');
+      return xml.replace('Original version notes',
+        '</w:t></w:r><w:del w:id="1"><w:r><w:delText>Original version notes</w:delText></w:r></w:del>' +
+        '<w:ins w:id="2"><w:r><w:t>Accepted read-only notes</w:t></w:r></w:ins><w:r><w:t>');
     });
-    assert(parsed.errors.some(function(error) { return error.includes('tracked changes'); }));
-    assert.strictEqual((await apply(parsed, snapshot)).success, false);
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
     assert.strictEqual(JSON.stringify(snapshot), original);
+    for (var reviseTable of [
+      function(table, row) { return table.replace(row, row.replace('<w:tr>', '<w:tr><w:trPr><w:del w:id="3"/></w:trPr>')); },
+      function(table, row) { return table.replace(row, row + row.replace('<w:tr>', '<w:tr><w:trPr><w:ins w:id="4"/></w:trPr>')); },
+      function(table) { return table.replace(/<w:tr>/g, '<w:tr><w:trPr><w:del w:id="5"/></w:trPr>'); },
+      function(table, row) {
+        return table.replace(row, row.replace('<w:tc>', '<w:tc><w:tcPr><w:cellDel w:id="6"/></w:tcPr>'));
+      }
+    ]) {
+      parsed = await edited(snapshot, function(xml) {
+        var table = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g)
+          .find(function(table) { return table.includes('Original version notes'); });
+        var row = table.match(/<w:tr>[\s\S]*?<\/w:tr>/g)
+          .find(function(row) { return row.includes('Original version notes'); });
+        return xml.replace(table, reviseTable(table, row));
+      });
+      assert.deepStrictEqual(parsed.errors, []);
+      assert.strictEqual((await apply(parsed, snapshot)).success, true);
+      assert.strictEqual(JSON.stringify(snapshot), original);
+    }
     for (var edit of [
       function(xml) { return xml.replace('</w:body>', '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>New table</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body>'); },
       function(xml) { return xml.replace('Original version notes', 'Original version notes</w:t></w:r><w:bookmarkStart w:name="lcfield_999" w:id="999"/><w:r><w:t>'); }
@@ -518,7 +960,7 @@ describe('mapped Word text round-trip', function() {
       var snapshot = fixture();
       var original = JSON.stringify(snapshot);
       var parsed = await edited(snapshot, function(xml) {
-        return replaceField(xml.replace(heading, 'Changed contextual heading'), 'Body', 'Do not partially import this');
+        return replaceField(xml.replace('>' + heading + '</w:t>', '>Changed contextual heading</w:t>'), 'Body', 'Do not partially import this');
       });
       var result = await apply(parsed, snapshot);
       assert.strictEqual(result.success, false);
@@ -1069,14 +1511,13 @@ describe('mapped Word text round-trip', function() {
   });
 
   [
-    ['missing field', function(xml) { return xml.replace(/w:name="lcfield_0"/, 'w:name="removed"'); }],
+    ['missing field', function(xml) { return xml.replace(/<w:tag w:val="lcfield_0"\/>/, ''); }],
     ['duplicate field', function(xml) { return xml.replace(/w:name="lcfield_1"/, 'w:name="lcfield_0"'); }],
     ['unknown marker', function(xml) { return xml.replace(/w:name="lcfield_0"/, 'w:name="lcfield_unknown"'); }],
     ['missing section', function(xml) { return xml.replace(/w:name="lcnode_0"/, 'w:name="removed"'); }],
     ['changed level', function(xml) { return xml.replace('w:val="Heading1"', 'w:val="Heading2"'); }],
     ['edited read-only heading', function(xml) { return xml.replace('Section 1', 'Section 1: Different heading'); }],
     ['malformed XML', function(xml) { return xml.replace('</w:body>', '</w:broken>'); }],
-    ['tracked changes', function(xml) { return xml.replace('<w:t xml:space="preserve">Course title</w:t>', '<w:ins><w:t>Changed title</w:t></w:ins>'); }],
     ['text outside fields', function(xml) { return xml.replace('</w:body>', '<w:p><w:r><w:t>Outside</w:t></w:r></w:p></w:body>'); }]
   ].forEach(function(test) {
     it('rejects ' + test[0] + ' without partially applying changes', async function() {

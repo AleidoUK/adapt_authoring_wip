@@ -9,9 +9,17 @@ Word-only and is not exposed in the template editor. Export saves the committed
 draft first, downloads a `.docx` and records the export snapshot; persistence or
 download failures are shown rather than treated as successful exports.
 
-New Word documents use safe sequential section and field bookmarks, with their
+New Word documents use safe sequential section bookmarks and tagged rich-text
+content controls for editable fields, with their
 course ID, node IDs and exact field paths mapped in the `LightCourseWord` custom
 property. Text fields are labelled separately from read-only contextual headings.
+Each editable field has an Aleido-green outline (`@aleido-green`, `#61C6A2`).
+Rich-text paragraphs also have green borders visible when the control is not selected.
+The unique-ID control has a green text border; its adjacent word count is outside
+the control and remains read-only. Controls cannot be deleted through normal Word
+editing, but their contents can be replaced, extended with paragraphs or cleared.
+The control tag, rather than the positions of its internal bookmark, identifies
+the entire editable field. Grey labels and course context headings stay outside.
 Documents use Calibri with 12 pt body text and smaller 8 pt grey field labels;
 the document title and section headings use `#61C6A2`, matching `@aleido-green`
 in the authoring interface. Word stores the hex colour directly, and tests verify
@@ -57,9 +65,27 @@ Unsafe filename characters are replaced, and Unicode names are preserved. An
 unpublished course without a version uses `vdraft`.
 Word-count rules are unchanged.
 
-New Word exports have Track Changes enabled by default. Keep the exported
-bookmarks and headings intact when editing; accept or reject all tracked changes
-before import (enabling tracking without outstanding revisions does not block import).
+New Word exports have Track Changes enabled by default. Import automatically
+accepts tracked revisions in the imported text: insertions and move destinations
+are retained; deletions and move sources are removed. Deleted paragraph marks
+merge adjacent paragraphs. Formatting revisions use their current properties,
+not the recorded previous formatting. New boxed exports preserve paragraphs,
+line breaks, headings, bold, italics, underline, strikethrough, nested numbered/bulleted
+lists, paragraph alignment and safe web/email/relative links in rich-text fields.
+Plain text fields remain plain text. Word font, size and colour choices are not imported.
+Unchanged fields preserve their exact original HTML, including attributes outside
+the supported formatting subset. Changed fields use safely generated HTML for
+that subset; arbitrary HTML, editable tables and embedded media are not supported.
+Fields already containing tables/media must be edited in the course editor.
+Older bookmark-only exports retain their existing plain-paragraph import behavior.
+The uploaded Word file itself is not rewritten.
+Keep the exported boxes and course headings intact; validation runs on the accepted
+document and still rejects unknown, missing, duplicate, moved or reordered field
+controls and course structure changes. Internal field bookmarks can be removed
+without losing the field mapping. Older documents still require their bookmarks.
+Import resolves field-label, read-only and heading styles from `word/styles.xml`
+by their names, so Word can regenerate internal style IDs without causing
+false bookmark/table errors. Unknown styles do not bypass the existing checks.
 Page/component context headings are not
 editable title fields: changing one rejects the whole import, even when its
 labelled Title field is unchanged. Edit the value beneath the Title label instead.

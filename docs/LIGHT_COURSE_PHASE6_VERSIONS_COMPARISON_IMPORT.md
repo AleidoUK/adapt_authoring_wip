@@ -36,15 +36,26 @@ error explicitly reports the saved version and asks the author to reload; it doe
 not claim the draft was updated.
 
 Mapped Word documents (format version 2) are validated against the current course
-structure and schema-derived field paths before any changes are applied. Missing,
-duplicate, unknown, moved or reordered markers/sections, altered heading levels,
-tracked changes and text outside editable fields are rejected. Text may contain
+structure and schema-derived field paths before any changes are applied.
+Tracked changes are automatically accepted before validation, including text
+insertions/deletions, moves and paragraph merges. This also applies to older Word
+exports; reviewers do not need to accept revisions manually. Read-only settings
+remain unchanged regardless of revisions in their tables. Missing,
+duplicate, unknown, moved or reordered field controls/sections, altered course heading levels,
+text outside editable fields are rejected. Text may contain
 multiple paragraphs, blank lines or an empty value; it is not assigned by line
-count. Optional help instructions are supported by this format.
+count. New exports use green-bordered, tagged rich-text controls: all text inside
+each original control belongs to its field, regardless of internal bookmark changes.
+Deleting, duplicating or nesting controls is unsupported. Older bookmark-only
+exports retain their original marker checks. Optional help instructions are supported.
 
-Unchanged fields retain their original HTML exactly. Changed rich-text values are
-escaped and become plain paragraphs; Word styling, links and images are not
-imported. A changed field containing embedded rich media is rejected rather than
+Unchanged fields retain their original HTML exactly. Boxed rich-text fields retain
+paragraphs, line breaks, headings, bold, italics, underline, strikethrough,
+nested lists, alignment and safe links through HTML-to-Word/Word-to-HTML conversion.
+Formatting-only edits are imported too. Plain text fields remain plain text.
+Word fonts, sizes and colours, embedded media and editable tables are not imported.
+Older bookmark-only exports still convert edited rich text to plain paragraphs.
+A changed field containing embedded rich media or an HTML table is rejected rather than
 silently removing that media. Asset references, settings, presets, internal IDs
 and course structure remain untouched. Imports go through ContentManager and its
 existing audit/version-history hooks. Temporary uploaded files are removed after
