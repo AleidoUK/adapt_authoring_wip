@@ -27,6 +27,7 @@ define(function(require) {
       // neither is supplied, so the full-course editor's existing usage is unaffected.
       this.contentType = this.model ? this.model.get('contentType') : (options && options.contentType);
       this.contentId = this.model ? this.model.get('contentId') : (options && options.contentId);
+      this.auditVersion = this.model ? this.model.get('auditVersion') : (options && options.auditVersion);
       this.logs = [];
       this.filteredLogs = [];
       this.currentPage = 0;
@@ -55,11 +56,14 @@ define(function(require) {
       var url = this.contentType
         ? ('api/auditlog/content/' + this.contentType + '/' + this.contentId + '?limit=500')
         : ('api/auditlog/course/' + this.courseId + '?limit=500');
+      if (this.contentType === 'lightcourse' && this.auditVersion) url += '&version=' + encodeURIComponent(this.auditVersion);
 
-      $.ajax({
+      if (this.loadRequest) this.loadRequest.abort();
+      this.loadRequest = $.ajax({
         url: url,
         type: 'GET',
         success: function(data) {
+          if (self._removed) return;
           // belt-and-braces: ensure newest-first regardless of what order the server returned
           self.logs = (data || []).slice().sort(function(a, b) {
             return new Date(b.timestamp) - new Date(a.timestamp);
@@ -68,6 +72,7 @@ define(function(require) {
           self.renderLogs();
         },
         error: function(error) {
+          if (self._removed || error.statusText === 'abort') return;
           Origin.Notify.alert({
             type: 'error',
             text: Origin.l10n.t('app.errorloadingauditlogs')
@@ -217,6 +222,10 @@ define(function(require) {
         '<div class="audit-log-header' + (isLightEditor ? ' audit-log-header-light' : '') + '">' +
         '<span class="audit-action-badge">' + log.action.toUpperCase() + '</span>' +
         '<span class="audit-content-type">' + this.escapeHtml(log.contentType) + '</span>' +
+        (log.versionNumber ? '<span class="audit-content-version">' + this.escapeHtml(
+          log.versionNumber === 'draft' ? Origin.l10n.t('app.lightcourseauditdraft') :
+          log.versionNumber === 'unknown' ? Origin.l10n.t('app.lightcourseauditunknown') :
+          Origin.l10n.t('app.lightcourseversion') + ' ' + log.versionNumber) + '</span>' : '') +
         '<span class="audit-content-title">' + title + '</span>' +
         '<span class="audit-content-id" title="Content ID' + (log.parentId ? ' (Parent ID)' : '') + '">' + log.contentId + (log.parentId ? ' (' + log.parentId + ')' : '') + '</span>' +
         '<span class="audit-user-email" title="User">' + this.escapeHtml(log.userEmail || log.userName) + '</span>' +
@@ -417,6 +426,12 @@ define(function(require) {
     onLogItemClick: function(e) {
       var $item = $(e.currentTarget);
       $item.toggleClass('expanded');
+    },
+
+    remove: function() {
+      this._removed = true;
+      if (this.loadRequest) this.loadRequest.abort();
+      OriginView.prototype.remove.apply(this, arguments);
     }
     
   }, {

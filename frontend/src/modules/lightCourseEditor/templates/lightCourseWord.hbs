@@ -1,0 +1,17 @@
+<h1>{{t 'app.lightcoursewordexport'}}</h1>
+<p class="light-course-word-instructions">{{t 'app.lightcoursewordinstructions'}}<br/>&nbsp;</p>
+<button class="btn primary light-course-word-export">{{t 'app.lightcoursewordexport'}}</button>
+<section class="light-course-word-import-section">
+  <hr/>
+  <h1>{{t 'app.lightcoursewordimport'}}</h1>
+  <label for="light-course-word-file">{{t 'app.lightcoursewordfile'}}</label>
+  <input id="light-course-word-file" class="light-course-word-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+  <label for="light-course-word-version">{{t 'app.lightcoursewordversion'}}</label>
+  <select id="light-course-word-version" class="light-course-word-version">
+    <option value="">{{t 'app.lightcoursewordchooseversion'}}</option>
+    <option value="minor">{{t 'app.lightcoursewordminor'}}</option>
+    <option value="major">{{t 'app.lightcoursewordmajor'}}</option>
+  </select>
+  <button class="btn primary light-course-word-import">{{t 'app.lightcoursewordimport'}}</button>
+</section>
+<p class="light-course-word-status" role="alert" hidden></p>

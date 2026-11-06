@@ -8,6 +8,7 @@ define(function(require) {
   var LightCourseCreateView = require('./views/lightCourseCreateView');
   var LightCourseEditorView = require('./views/lightCourseEditorView');
   var LightCourseAuditLogView = require('./views/lightCourseAuditLogView');
+  var LightCourseVersionsView = require('./views/lightCourseVersionsView');
   // Required purely for its module-load-time side effect (Origin.scaffold.addCustomField('Light
   // CourseAsset:image'/'LightCourseAsset:audio', ...)) - nothing elsewhere actually required this
   // file, so those editors were never registered and Backbone.Form.editors['LightCourseAsset:*']
@@ -77,7 +78,16 @@ define(function(require) {
       return loadCreateView();
     }
     if (route2 === 'auditlog') {
-      return loadAuditLogView(route1);
+      return loadAuditLogView(route1, route3);
+    }
+    if (route2 === 'versions') {
+      return (new LightCourseModel({ _id: route1 })).fetch({
+        success: function(model) {
+          Origin.contentPane.setView(LightCourseVersionsView, { model: model, selectedVersionId: route3 });
+          Origin.trigger('location:title:update', { title: Origin.l10n.t('app.lightcoursesavedversions') });
+        },
+        error: function() { Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcourse') }); }
+      });
     }
     return loadEditorView(route1);
   });
@@ -116,8 +126,11 @@ define(function(require) {
     });
   }
 
-  function loadAuditLogView(id) {
+  function loadAuditLogView(id, selectedVersion) {
     Origin.trigger('location:title:update', { title: Origin.l10n.t('app.editorauditlog') });
-    Origin.contentPane.setView(LightCourseAuditLogView, { lightCourseId: id });
+    (new LightCourseModel({ _id: id })).fetch({
+      success: function(model) { Origin.contentPane.setView(LightCourseAuditLogView, { model: model, lightCourseId: id, selectedVersion: selectedVersion }); },
+      error: function() { Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcourse') }); }
+    });
   }
 });

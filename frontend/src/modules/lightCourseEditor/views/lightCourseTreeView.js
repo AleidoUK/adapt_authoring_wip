@@ -167,8 +167,6 @@ define(function(require) {
       this.clearClipboard();
       var title = $input.val().trim();
       $input.val(title);
-      $input.closest('.light-course-tree-node').find('.light-course-tree-page-heading')
-        .text(title || Origin.l10n.t('app.lightcoursepage'));
       if ((found.node.title || '') === title) {
         return;
       }

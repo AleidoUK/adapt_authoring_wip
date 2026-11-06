@@ -1,0 +1,9 @@
+{{#each versions}}
+<div class="light-course-saved-version">
+  <strong>{{t 'app.lightcourseversion'}} {{versionNumber}}</strong>
+  <span>{{createdAt}}</span>
+  <button class="btn secondary light-course-version-export" data-version-id="{{_id}}">{{t 'app.lightcoursewordexport'}}</button>
+</div>
+{{else}}
+<p>{{t 'app.lightcoursenosavedversions'}}</p>
+{{/each}}

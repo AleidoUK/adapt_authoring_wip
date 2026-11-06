@@ -9,6 +9,7 @@ define(function(require) {
     defaults: {
       title: '',
       body: '',
+      tags: [],
       revision: 0,
       contentTree: {},
       pluginSelections: {},
@@ -36,6 +37,15 @@ define(function(require) {
 
     fetchVersions: function(options) {
       return $.ajax({ url: this.url() + '/versions', type: 'GET' }).done(options.success).fail(options.error);
+    },
+
+    fetchVersion: function(id, options) {
+      return $.ajax({ url: this.url() + '/versions/' + encodeURIComponent(id), type: 'GET' }).done(options.success).fail(options.error);
+    },
+
+    compareVersions: function(a, b, options) {
+      return $.ajax({ url: this.url() + '/versions/compare', type: 'GET', data: { a: a, b: b } })
+        .done(options.success).fail(options.error);
     },
 
     isLocked: function() {

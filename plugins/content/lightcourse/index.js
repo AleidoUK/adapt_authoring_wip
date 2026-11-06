@@ -354,7 +354,7 @@ LightCourseContent.prototype.update = function (search, delta, next) {
             // the client's own delta is deliberately setting them to, e.g. via the "edit current
             // row" action - both read from the exact same `headerData.versionHistory` array, so
             // a client-submitted notes/duration edit on the last row survives this untouched).
-            // Only publishVersion() (Create Version) ever appends a *new* row - per the main
+            // Version creation (Create Version or Word import) appends a *new* row - per the main
             // plan's "A new row is added automatically whenever an exported document is
             // re-imported, or an editor can add one manually" direction, extended on direct user
             // request so that a published version always starts a fresh open row, while ordinary
@@ -396,7 +396,9 @@ LightCourseContent.prototype.update = function (search, delta, next) {
                   // somebody else saved first - the client's revision is stale
                   return next(new ContentConflictError('This light course has changed since it was last loaded - please reload and try again'));
                 }
-                return next(null, updated);
+                Model.populate(updated, { path: 'tags', select: '_id title' }).then(function(populated) {
+                  next(null, populated);
+                }, next);
               }
             );
           });
@@ -424,6 +426,81 @@ function nextVersionNumber(draft, bump) {
   }
   return { versionMajor: draft.versionMajor, versionMinor: (draft.versionMinor || 0) + 1 };
 }
+
+  LightCourseContent.prototype.importVersion = function(db, draft, snapshot, bump, next) {
+    var user = usermanager.getCurrentUser();
+    if (bump !== 'minor' && bump !== 'major') return next(new Error('Choose a minor or major version for this import.'));
+    snapshot = Object.assign({}, snapshot, { tags: draft.tags || [] });
+    var merged = Object.assign({}, draft, snapshot);
+    validatePayload(db, merged, user.tenant._id.toString(), function(validationError) {
+      if (validationError) return next(new Error(validationError));
+      wordcount.computeWordCount(merged, db, function(error, counts) {
+        if (error) return next(error);
+        var versionInfo = nextVersionNumber(draft, bump);
+        var number = versionInfo.versionMajor + '.' + versionInfo.versionMinor;
+        var headerData = Object.assign({}, draft.headerData || {});
+        headerData.versionHistory = (headerData.versionHistory || []).concat([{
+          version: number, date: new Date().toISOString().slice(0, 10),
+          author: user.email || '', notes: '', screens: counts.screens, words: counts.total, duration: ''
+        }]);
+        var Model = db.getModel('lightcourse');
+        // Reserve the number before creating the snapshot; do not replace draft content until
+        // that immutable snapshot has been persisted successfully.
+        Model.findOneAndUpdate(
+          { _id: draft._id, revision: draft.revision },
+          { $set: Object.assign({}, versionInfo, { currentVersionNumber: number }), $inc: { revision: 1 } },
+          { new: true },
+          function(error, reserved) {
+            if (error) return next(error);
+            if (!reserved) return next(new ContentConflictError('This course changed before import. Reload and try again.'));
+            origin().contentmanager.create('lightcourseversion', {
+              _tenantId: user.tenant._id, _lightCourseId: draft._id, versionNumber: number,
+              contentSnapshot: snapshot, headerSnapshot: headerData, schemaFormatVersion: 1, createdBy: user._id
+            }, function(createError, version) {
+              if (createError) {
+                // A post-create hook can fail after the immutable record is already stored.
+                return db.retrieve('lightcourseversion', { _lightCourseId: draft._id, versionNumber: number },
+                  { jsonOnly: true }, function(lookupError, stored) {
+                    if (lookupError) return next(new Error('Could not confirm imported version creation: ' + lookupError.message + '. Reload the editor.'));
+                    if (stored && stored.length) {
+                      var failure = new Error('Version ' + number + ' was created, but its creation hooks failed: ' + createError.message + '. Reload the editor.');
+                      failure.version = stored[0];
+                      return next(failure);
+                    }
+                var restore = { $set: {}, $unset: {}, $inc: { revision: 1 } };
+                ['versionMajor', 'versionMinor', 'currentVersionNumber'].forEach(function(field) {
+                  if (Object.prototype.hasOwnProperty.call(draft, field)) restore.$set[field] = draft[field];
+                  else restore.$unset[field] = 1;
+                });
+                if (!Object.keys(restore.$set).length) delete restore.$set;
+                if (!Object.keys(restore.$unset).length) delete restore.$unset;
+                // Ordinary concurrent edits can remain; only restore our reservation, never a
+                // newer publisher's version number or another editor's content.
+                return Model.findOneAndUpdate({ _id: draft._id, currentVersionNumber: number },
+                  restore, { new: true }, function(restoreError) {
+                    next(new Error('Could not create the imported version: ' + createError.message +
+                      (restoreError ? '. Could not restore its version reservation: ' + restoreError.message : '') +
+                      '. Reload the editor before retrying.'));
+                  });
+              });
+              }
+              origin().contentmanager.update('lightcourse', { _id: draft._id },
+                Object.assign({}, snapshot, { revision: reserved.revision, headerData: headerData }),
+                function(activateError) {
+                  if (activateError) {
+                    var failure = activateError instanceof ContentConflictError ?
+                      new ContentConflictError('Version ' + number + ' was created, but the draft changed before it could be activated. Reload the editor.') :
+                      new Error('Version ' + number + ' was created, but activating the editable draft could not be confirmed: ' + activateError.message + '. Reload the editor.');
+                    failure.version = version;
+                    return next(failure);
+                  }
+                  next(null, version);
+                });
+            });
+          });
+      });
+    });
+  };
 
 /**
  * Publishes a new immutable lightcourseversion snapshot of the given draft.
@@ -454,7 +531,7 @@ function publishVersion(req, res) {
       return res.json({ success: false, message: error.message });
     }
 
-    db.retrieve('lightcourse', { _id: id }, { jsonOnly: true }, function (err, results) {
+    db.retrieve('lightcourse', { _id: id }, { jsonOnly: true, populate: { tags: '_id title' } }, function (err, results) {
       if (err) {
         res.statusCode = 500;
         return res.json({ success: false, message: err.message });
@@ -535,6 +612,9 @@ function publishVersion(req, res) {
                 _lightCourseId: id,
                 versionNumber: currentVersionNumber,
                 contentSnapshot: {
+                  title: updatedDraft.title,
+                  body: updatedDraft.body,
+                  tags: draft.tags || [],
                   contentTree: updatedDraft.contentTree,
                   pluginSelections: updatedDraft.pluginSelections,
                   glossaryItems: updatedDraft.glossaryItems,
@@ -635,7 +715,8 @@ function compareVersions(req, res) {
       var a = results.find(function (v) { return v._id.toString() === ids[0]; });
       var b = results.find(function (v) { return v._id.toString() === ids[1]; });
 
-      versionDiff.diffSnapshots(a.contentSnapshot, b.contentSnapshot, db, function (diffError, diff) {
+      versionDiff.diffSnapshots(Object.assign({}, a.contentSnapshot, { headerData: a.headerSnapshot }),
+        Object.assign({}, b.contentSnapshot, { headerData: b.headerSnapshot }), db, function (diffError, diff) {
         if (diffError) {
           res.statusCode = 500;
           return res.json({ success: false, message: diffError.message });
@@ -644,6 +725,9 @@ function compareVersions(req, res) {
         return res.json({
           a: a.versionNumber,
           b: b.versionNumber,
+          courseFields: diff.courseFields,
+          headerChanges: diff.headerChanges,
+          listOrderChanges: diff.listOrderChanges,
           contentTree: diff.contentTree,
           glossaryItems: diff.glossaryItems,
           resourceItems: diff.resourceItems,

@@ -66,8 +66,10 @@
         BlockQuote,
         BlockToolbar,
         Bold,
+        ButtonView,
         Clipboard,
         Code,
+        Command,
         Essentials,
         FindAndReplace,
         GeneralHtmlSupport,
@@ -80,6 +82,7 @@
         List,
         ListProperties,
         Paragraph,
+        Plugin,
         SelectAll,
         ShowBlocks,
         SourceEditing,
@@ -103,6 +106,15 @@
       } from 'ckeditor5';
       
       window.CKEDITOR = ClassicEditor
+      // Exposed as static properties on the same global every other CKEditor-related module in
+      // this app already references (frontend/src/modules/scaffold/backboneFormsOverrides.js),
+      // so frontend/src/modules/lightCourseEditor/lightCourseRefPlugin.js (a plain RequireJS/AMD
+      // module, not part of this inline ES module's own import graph) can build a genuine custom
+      // CKEditor 5 plugin - this is the full, standard CDN build, so real Plugin/Command/UI
+      // classes are available, not a sealed custom build.
+      window.CKEDITOR.Plugin = Plugin
+      window.CKEDITOR.Command = Command
+      window.CKEDITOR.ButtonView = ButtonView
       window.CKEDITOR.pluginsConfig = [
         Alignment,
         Autoformat,

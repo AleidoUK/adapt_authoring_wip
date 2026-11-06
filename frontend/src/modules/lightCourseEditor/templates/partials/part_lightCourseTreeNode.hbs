@@ -4,7 +4,9 @@
 <li class="light-course-tree-node light-course-tree-node-{{type}}" data-node-id="{{_id}}" data-node-type="{{type}}">
   <div class="light-course-tree-node-row">
     {{#ifValueEquals type "page"}}
-      <h1 class="light-course-tree-node-label light-course-tree-page-heading">{{#if title}}{{title}}{{else}}{{t 'app.lightcoursepage'}}{{/if}}</h1>
+      <h1 class="light-course-tree-node-label light-course-tree-page-heading">
+        <input type="text" class="light-course-tree-page-title-input" value="{{title}}" aria-label="{{t 'app.lightcoursepagetitle'}}" placeholder="{{t 'app.lightcoursepage'}}">
+      </h1>
     {{else}}{{#ifValueEquals type "article"}}
       <span class="light-course-tree-node-label">{{t 'app.lightcoursearticle'}}</span>
     {{else}}{{#ifValueEquals type "block"}}
@@ -48,13 +50,6 @@
       <button class="btn-icon light-course-tree-remove" title="{{t 'app.remove'}}"><i class="fa fa-trash-o"></i></button>
     </span>
   </div>
-
-  {{#ifValueEquals type "page"}}
-    <label class="light-course-tree-page-title-editor">
-      {{t 'app.lightcoursepagetitle'}}
-      <input type="text" class="light-course-tree-page-title-input" value="{{title}}">
-    </label>
-  {{/ifValueEquals}}
 
   {{#with (lookup @root.nodeMeta _id)}}
     {{#if fields}}

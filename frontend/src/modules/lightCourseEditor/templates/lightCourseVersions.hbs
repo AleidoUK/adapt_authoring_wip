@@ -1,0 +1,14 @@
+<a href="#" class="light-course-versions-back">&laquo; {{t 'app.lightcoursebacktocourse'}}</a>
+<p>&nbsp;</p>
+<h1>{{t 'app.lightcoursesavedversions'}}: {{title}}</h1>
+<p>{{t 'app.lightcourseversionsreadonly'}}</p>
+<p class="light-course-versions-error" role="alert" hidden></p>
+<div class="light-course-versions-list"></div>
+<section>
+  <h1>{{t 'app.lightcoursecompareversions'}}</h1>
+  <label>{{t 'app.lightcourseversionfrom'}} <select class="light-course-versions-from"></select></label>
+  <label>{{t 'app.lightcourseversionto'}} <select class="light-course-versions-to"></select></label>
+  <button class="btn primary light-course-versions-compare" disabled>{{t 'app.lightcoursecompareversions'}}</button>
+  <div class="light-course-version-comparison"></div>
+</section>
+<section class="light-course-version-preview"></section>

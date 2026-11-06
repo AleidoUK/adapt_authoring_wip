@@ -112,7 +112,9 @@ function createHarness() {
     '../../../lib/usermanager': usermanager,
     '../../../lib/logger': { log: function() {} },
     '../../../lib/rest': rest,
-    '../../../lib/lightcoursewordcount': {},
+    '../../../lib/lightcoursewordcount': { computeWordCount: function(snapshot, database, next) {
+      next(null, { total: 0, screens: 0 });
+    } },
     '../../../lib/lightcourse/versionDiff': {},
     '../../../lib/lightcourse/iconClasses': {},
     '../../../': function() { return app; },
@@ -149,6 +151,7 @@ function createHarness() {
   app.emit('serverStarted');
   return {
     manager: app.contentmanager,
+    ContentPlugin: managerModule.ContentPlugin,
     db: db,
     permissions: permissions,
     records: records,
@@ -176,6 +179,92 @@ function callRoute(harness, name, req) {
 describe('light editor timestamps and item audit history (isolated)', function() {
   var harness;
   beforeEach(function() { harness = createHarness(); });
+
+  it('stamps course creation and editing with the active audit version', async function() {
+    var course = await harness.create('lightcourse', {
+      title: 'Course', currentVersionNumber: '1.2', revision: 0,
+      contentTree: { children: [] }, pluginSelections: {}
+    });
+    harness.db.getModel = function() { return { populate: function(record) { return Promise.resolve(record); }, findOneAndUpdate: function(search, delta, options, next) {
+      harness.db.update('lightcourse', search, Object.assign({}, delta.$set, { revision: course.revision + delta.$inc.revision }), next);
+    } }; };
+    await harness.update('lightcourse', { _id: course._id }, { title: 'Edited course', revision: course.revision });
+    var logs = harness.records.auditlog.filter(function(log) { return log.contentType === 'lightcourse'; });
+    assert.strictEqual(logs.length, 2);
+    logs.forEach(function(log) {
+      assert.strictEqual(log.metadata.lightCourseId, course._id);
+      assert.strictEqual(log.metadata.lightCourseVersion, '1.2');
+    });
+  });
+
+  it('ignores tag ordering and populated-versus-reference changes in course audits', async function() {
+    var tags = [{ _id: 'first', title: 'First tag' }, { _id: 'second', title: 'Second tag' }];
+    var course = await harness.create('lightcourse', { title: 'Course', tags: tags, revision: 0 });
+    var revision = course.revision;
+    harness.db.getModel = function() { return {
+      populate: function(record) { return Promise.resolve(record); },
+      findOneAndUpdate: function(search, delta, options, next) {
+        revision += delta.$inc.revision;
+        harness.db.update('lightcourse', search, Object.assign({}, delta.$set, { revision: revision }), next);
+      }
+    }; };
+    for (var selection of [['second', 'first'], tags]) {
+      await harness.update('lightcourse', { _id: course._id }, { tags: selection, revision: revision });
+    }
+    var changes = harness.records.auditlog.filter(function(log) { return log.action === 'update'; })
+      .reduce(function(all, log) { return all.concat(log.changes); }, []);
+    assert(!changes.some(function(change) { return change.field === 'tags'; }));
+  });
+
+  it('stores tag references and audits genuine changes with populated tag titles', async function() {
+    var tags = [{ _id: 'first', title: 'First tag' }, { _id: 'second', title: 'Second tag' },
+      { _id: 'third', title: 'Third tag' }];
+    var course = await harness.create('lightcourse', { title: 'Course', tags: tags.slice(0, 2), revision: 0 });
+    harness.db.getModel = function() { return {
+      populate: function(record, options) {
+        assert.strictEqual(options.path, 'tags');
+        assert.strictEqual(options.select, '_id title');
+        return Promise.resolve(Object.assign({}, record, {
+          tags: record.tags.map(function(id) { return tags.find(function(tag) { return tag._id === id; }); })
+        }));
+      },
+      findOneAndUpdate: function(search, delta, options, next) {
+        harness.db.update('lightcourse', search, Object.assign({}, delta.$set, {
+          revision: course.revision + delta.$inc.revision
+        }), next);
+      }
+    }; };
+    await harness.update('lightcourse', { _id: course._id }, { tags: ['first', 'third'], revision: course.revision });
+    assert.deepStrictEqual(harness.records.lightcourse[0].tags, ['first', 'third']);
+    var log = harness.records.auditlog.find(function(record) { return record.action === 'update'; });
+    var change = log.changes.find(function(record) { return record.field === 'tags'; });
+    assert.deepStrictEqual(change.oldValue, tags.slice(0, 2));
+    assert.deepStrictEqual(change.newValue, [tags[0], tags[2]]);
+  });
+
+  it('records course title and body in manually published version snapshots', async function() {
+    var course = await harness.create('lightcourse', {
+      title: 'Recorded title', body: '<p>Recorded body</p>', revision: 0,
+      tags: [{ _id: 'core-tag', title: 'Shared core tag' }],
+      contentTree: { children: [] }, pluginSelections: {}
+    });
+    harness.db.getModel = function() { return { findOneAndUpdate: function(search, delta, options, next) {
+      harness.db.update('lightcourse', search, Object.assign({}, delta.$set, { revision: course.revision + delta.$inc.revision }), next);
+    } }; };
+    var versionPlugin = new harness.ContentPlugin();
+    versionPlugin.getModelName = function() { return 'lightcourseversion'; };
+    versionPlugin.hasPermission = function(action, userId, tenantId, item, next) { next(null, true); };
+    harness.manager._contentTypes.lightcourseversion = versionPlugin;
+    var version = await callRoute(harness, 'post /content/lightcourse/:id/versions', {
+      params: { id: course._id }, body: { revision: course.revision, bump: 'minor' }
+    });
+    assert.strictEqual(version.contentSnapshot.title, course.title);
+    assert.strictEqual(version.contentSnapshot.body, course.body);
+    assert.deepStrictEqual(version.contentSnapshot.tags, course.tags);
+    var log = harness.records.auditlog.find(function(log) { return log.contentType === 'lightcourseversion'; });
+    assert.strictEqual(log.metadata.lightCourseVersion, '0.1');
+    assert.strictEqual(log.metadata.lightCourseId, course._id);
+  });
 
   it('replaces a submitted stale timestamp and audits the changed preset fields', async function() {
     var preset = await harness.create('lightcomponentdefault', {

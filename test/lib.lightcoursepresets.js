@@ -141,13 +141,12 @@ describe('editing light course page titles (isolated)', function() {
     h.page = { _id: 'page', type: 'page', title: title, children: [] };
     h.tree.tree = { children: [h.page] };
     h.tree.getNodeIdFromEvent = function() { return h.page._id; };
-    h.heading = new Element();
     h.input = new Element();
-    h.input.closest = function() { return { find: function() { return h.heading; } }; };
+    h.input.closest = function() { assert.fail('Do not replace the heading containing the title input'); };
     return h;
   }
 
-  it('saves page titles and updates the heading without rebuilding the active input', function() {
+  it('saves page titles in the heading field without rebuilding or replacing the active input', function() {
     var h = setup();
     var renders = 0;
     h.tree.renderTree = function() { renders++; };
@@ -155,7 +154,6 @@ describe('editing light course page titles (isolated)', function() {
     h.input.val('  My page <title>  ');
     h.tree.onPageTitleChanged({ currentTarget: h.input });
     assert.strictEqual(h.page.title, 'My page <title>');
-    assert.strictEqual(h.heading.label, 'My page <title>');
     assert.strictEqual(h.input.val(), 'My page <title>');
     assert.strictEqual(h.tree.clipboardNode, null);
     assert.strictEqual(renders, 0);
@@ -165,12 +163,12 @@ describe('editing light course page titles (isolated)', function() {
     assert.strictEqual(new Model(serialized, { parse: true }).get('contentTree').children[0].title, h.page.title);
   });
 
-  it('clears a title and restores the default heading', function() {
+  it('clears a title without replacing the field, allowing its default placeholder to show', function() {
     var h = setup('Old title');
     h.input.val(' ');
     h.tree.onPageTitleChanged({ currentTarget: h.input });
     assert.strictEqual(h.page.title, '');
-    assert.strictEqual(h.heading.label, 'app.lightcoursepage');
+    assert.strictEqual(h.input.val(), '');
     assert.strictEqual(h.events.length, 1);
   });
 

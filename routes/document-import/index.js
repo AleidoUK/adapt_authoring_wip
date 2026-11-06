@@ -15,8 +15,8 @@
  *     lib/lightcourse/documentImport.js's header comment for the detail; this route only owns
  *     the upload/permission/concurrency/version-history plumbing around that shared logic.
  *
- * Import always updates the **draft**, never creates a version directly - publishing remains the
- * separate `POST .../versions` action, per the main plan.
+ * Word imports require a minor/major choice, create a new immutable version and activate its
+ * content as the draft. Markdown retains the original draft-only import behaviour.
  */
 
 var fs = require('fs');
@@ -44,6 +44,9 @@ function handleError(res, statusCode, error) {
 
 function snapshotOf(record) {
   return {
+    title: record.title,
+    body: record.body,
+    tags: record.tags || [],
     contentTree: record.contentTree,
     pluginSelections: record.pluginSelections,
     glossaryItems: record.glossaryItems,
@@ -52,8 +55,9 @@ function snapshotOf(record) {
   };
 }
 
-function draftHasAnyContent(draft) {
+function draftHasAnyContent(draft, includeCourseText) {
   return !!(
+    (includeCourseText && (draft.title || draft.body)) ||
     (draft.contentTree && draft.contentTree.children && draft.contentTree.children.length) ||
     (draft.glossaryItems && draft.glossaryItems.length) ||
     (draft.resourceItems && draft.resourceItems.length) ||
@@ -110,6 +114,20 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
 
   var form = new IncomingForm();
   form.maxFileSize = configuration.getMaxFileUploadSize();
+  var uploadPaths = [];
+  var cleaned = false;
+  form.on('fileBegin', function(name, file) { uploadPaths.push(file.path); });
+  function cleanup() {
+    if (cleaned) return;
+    cleaned = true;
+    uploadPaths.forEach(function(path) {
+      fs.unlink(path, function(error) {
+        if (error && error.code !== 'ENOENT') logger.log('error', 'Could not remove document import upload', error);
+      });
+    });
+  }
+  res.once('finish', cleanup);
+  res.once('close', cleanup);
 
   form.parse(req, function (formError, fields, files) {
     if (formError) {
@@ -119,15 +137,24 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
     if (!uploaded) {
       return res.status(400).json({ success: false, message: 'No file was uploaded - expected a "file" field' });
     }
+    if (fields.format === 'docx' && !/\.docx$/i.test(uploaded.name || '')) {
+      return res.status(400).json({ success: false, message: 'Please upload a .docx Word document.' });
+    }
     var format = detectFormat(fields, uploaded.name);
     var confirmed = fields.confirmed === 'true' || fields.confirmed === true;
+    if (format === 'docx' && fields.bump !== 'minor' && fields.bump !== 'major') {
+      return res.status(400).json({ success: false, message: 'Choose a minor (part) or major (full) version for this import.' });
+    }
+    if (format === 'docx' && fields.revision === undefined) {
+      return res.status(400).json({ success: false, message: 'A valid course revision is required.' });
+    }
 
     database.getDatabase(function (error, db) {
       if (error) {
         return handleError(res, 500, error);
       }
 
-      db.retrieve('lightcourse', { _id: lightCourseId }, { jsonOnly: true }, function (err, draftResults) {
+      db.retrieve('lightcourse', { _id: lightCourseId }, { jsonOnly: true, populate: { tags: '_id title' } }, function (err, draftResults) {
         if (err) {
           return handleError(res, 500, err);
         }
@@ -135,6 +162,12 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
           return res.status(404).json({ success: false, message: 'Light course not found' });
         }
         var draft = draftResults[0];
+        if (fields.revision !== undefined && !/^\d+$/.test(String(fields.revision))) {
+          return res.status(400).json({ success: false, message: 'A valid course revision is required.' });
+        }
+        if (fields.revision !== undefined && Number(fields.revision) !== draft.revision) {
+          return res.status(409).json({ success: false, message: 'The course changed before import. Reload and try again.' });
+        }
 
         origin().contentmanager.getContentPlugin('lightcourse', function (pluginError, plugin) {
           if (pluginError) {
@@ -165,6 +198,9 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
                   if (parseError) {
                     return handleError(res, 500, parseError);
                   }
+                  if (parsedResult.formatVersion === 2 && String(parsedResult.sourceId) !== String(lightCourseId)) {
+                    return res.status(422).json({ success: false, errors: ['This Word document was exported from a different course. Export a document from this course first.'] });
+                  }
                   var snapshot = JSON.parse(JSON.stringify(snapshotOf(draft)));
                   documentImport.importDocument(parsedResult, snapshot, db, function (importError, result) {
                     if (importError) {
@@ -172,6 +208,16 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
                     }
                     if (!result.success) {
                       return res.status(422).json({ success: false, title: origin().polyglot.t('app.documentimportstructuretitle'), errors: result.errors });
+                    }
+                    if (format === 'docx') {
+                      return plugin.importVersion(db, draft, snapshot, fields.bump, function(versionError, version) {
+                        if (versionError) {
+                          logger.log('error', versionError);
+                          return res.status(versionError instanceof contentmanager.errors.ContentConflictError ? 409 : 500)
+                            .json({ success: false, message: versionError.message, version: versionError.version });
+                        }
+                        res.status(200).json({ success: true, version: version, message: origin().polyglot.t('app.documentimportsuccess') });
+                      });
                     }
 
                     // Routed through app.contentmanager.update() (not plugin.update() directly)
@@ -181,6 +227,8 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
                     // (including this one - no need to build one here too).
                     origin().contentmanager.update('lightcourse', { _id: lightCourseId }, {
                       revision: draft.revision,
+                      title: snapshot.title,
+                      body: snapshot.body,
                       contentTree: snapshot.contentTree,
                       glossaryItems: snapshot.glossaryItems,
                       resourceItems: snapshot.resourceItems,
@@ -212,8 +260,9 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
                 return proceedWithImport();
               }
 
-              var baselineSnapshot = latestVersion ? latestVersion.contentSnapshot : { contentTree: { children: [] }, pluginSelections: {}, glossaryItems: [], resourceItems: [], helpContent: {} };
-              var draftSnapshot = snapshotOf(draft);
+              var baselineSnapshot = latestVersion ? Object.assign({}, latestVersion.contentSnapshot, { headerData: latestVersion.headerSnapshot }) :
+                { contentTree: { children: [] }, pluginSelections: {}, glossaryItems: [], resourceItems: [], helpContent: {} };
+              var draftSnapshot = Object.assign(snapshotOf(draft), { headerData: draft.headerData });
 
               function respondConfirmNeeded() {
                 res.status(409).json({
@@ -225,10 +274,15 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
               }
 
               if (!latestVersion) {
-                if (draftHasAnyContent(draft)) {
+                if (draftHasAnyContent(draft, format === 'docx')) {
                   return respondConfirmNeeded();
                 }
                 return proceedWithImport();
+              }
+              if (format === 'docx' && ['title', 'body'].some(function(field) {
+                return baselineSnapshot[field] !== draftSnapshot[field];
+              })) {
+                return respondConfirmNeeded();
               }
 
               versionDiff.diffSnapshots(baselineSnapshot, draftSnapshot, db, function (diffError, diff) {

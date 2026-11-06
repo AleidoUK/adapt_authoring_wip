@@ -27,7 +27,7 @@ function handleError(res, statusCode, error) {
  * if clearly labelled as a draft").
  */
 function resolveExportSource(id, db, callback) {
-  db.retrieve('lightcourse', { _id: id }, { jsonOnly: true }, function (err, draftResults) {
+  db.retrieve('lightcourse', { _id: id }, { jsonOnly: true, populate: { tags: '_id title' } }, function (err, draftResults) {
     if (err) {
       return callback(err);
     }
@@ -39,7 +39,17 @@ function resolveExportSource(id, db, callback) {
         return callback(err);
       }
       if (versionResults && versionResults.length) {
-        return callback(null, { isDraft: false, record: versionResults[0] });
+        var version = versionResults[0];
+        if (version.contentSnapshot && version.contentSnapshot.title) {
+          return callback(null, { isDraft: false, record: version });
+        }
+        return db.retrieve('lightcourse', { _id: version._lightCourseId }, { jsonOnly: true }, function(error, courses) {
+          if (error) return callback(error);
+          if (!courses || !courses.length || !courses[0].title) {
+            return callback(new Error('The course title is unavailable for this saved version.'));
+          }
+          callback(null, { isDraft: false, record: version, courseTitle: courses[0].title });
+        });
       }
       callback(null, null);
     });
@@ -51,9 +61,12 @@ function buildGeneratorData(source) {
     var draft = source.record;
     return {
       title: draft.title,
+      body: draft.body,
+      tags: draft.tags,
       versionNumber: draft.currentVersionNumber,
       isDraft: true,
       headerData: draft.headerData,
+      pluginSelections: draft.pluginSelections,
       contentTree: draft.contentTree,
       glossaryItems: draft.glossaryItems,
       resourceItems: draft.resourceItems,
@@ -65,10 +78,13 @@ function buildGeneratorData(source) {
   var version = source.record;
   var snapshot = version.contentSnapshot || {};
   return {
-    title: snapshot.title,
+    title: snapshot.title || source.courseTitle,
+    body: snapshot.body,
+    tags: snapshot.tags,
     versionNumber: version.versionNumber,
     isDraft: false,
     headerData: version.headerSnapshot,
+    pluginSelections: snapshot.pluginSelections,
     contentTree: snapshot.contentTree,
     glossaryItems: snapshot.glossaryItems,
     resourceItems: snapshot.resourceItems,
@@ -122,14 +138,20 @@ server.get('/document-export/:tenant/:id', function (req, res) {
 
             persistExport(db, data, format, output, currentUser, function (persistError) {
               if (persistError) {
-                // export persistence failing shouldn't block the editor getting their file -
-                // log it and still serve the generated document.
-                logger.log('error', 'Failed to persist lightcourseexport record', persistError);
+                return handleError(res, 500, persistError);
               }
 
               if (format === 'docx') {
                 res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                res.setHeader('Content-Disposition', 'attachment; filename="' + slugify(data.title) + '.docx"');
+                var tags = (data.tags || []).map(function(tag) {
+                  return tag && typeof tag.title === 'string' ? tag.title.trim() : '';
+                }).filter(Boolean);
+                var filename = tags.concat(data.title || 'light-course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() +
+                  '_v' + (data.versionNumber || 'draft').replace(/[^a-zA-Z0-9.-]/g, '-') + '.docx';
+                res.setHeader('Content-Disposition', 'attachment; filename="' + filename.replace(/[^\x20-\x7e]/g, '-') +
+                  '"; filename*=UTF-8\'\'' + encodeURIComponent(filename).replace(/['()*]/g, function(character) {
+                    return '%' + character.charCodeAt(0).toString(16).toUpperCase();
+                  }));
                 return res.send(output);
               }
               res.setHeader('Content-Type', 'text/markdown');
@@ -160,6 +182,7 @@ function persistExport(db, data, format, output, currentUser, callback) {
     _lightCourseId: data._lightCourseId,
     _versionId: data._versionId || undefined,
     isDraft: data.isDraft,
+    versionNumber: data.versionNumber || 'draft',
     format: format,
     renderedText: renderedText,
     assetSnapshotRefs: [],

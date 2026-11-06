@@ -180,9 +180,17 @@ describe('populated light course tree fields (isolated)', function() {
       { _id: 'titled', type: 'page', title: '<Title & "quoted">', children: [] },
       { _id: 'untitled', type: 'page', children: [] }
     ] });
-    assert(titledPage.includes('<h1 class="light-course-tree-node-label light-course-tree-page-heading">&lt;Title &amp; &quot;quoted&quot;&gt;</h1>'));
-    assert(titledPage.includes('<h1 class="light-course-tree-node-label light-course-tree-page-heading">app.lightcoursepage</h1>'));
-    assert(titledPage.includes('class="light-course-tree-page-title-input" value="&lt;Title &amp; &quot;quoted&quot;&gt;"'));
+    var headings = titledPage.match(/<h1 class="light-course-tree-node-label light-course-tree-page-heading">[\s\S]*?<\/h1>/g);
+    assert.strictEqual(headings.length, 2);
+    headings.forEach(function(heading) {
+      assert.strictEqual((heading.match(/<input /g) || []).length, 1);
+      assert(heading.includes('aria-label="app.lightcoursepagetitle"'));
+      assert(heading.includes('placeholder="app.lightcoursepage"'));
+    });
+    assert.strictEqual((titledPage.match(/light-course-tree-page-title-input/g) || []).length, 2);
+    assert(!titledPage.includes('light-course-tree-page-title-editor'));
+    assert(headings[0].includes('value="&lt;Title &amp; &quot;quoted&quot;&gt;"'));
+    assert(headings[1].includes('value=""'));
   });
 });
 

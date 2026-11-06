@@ -42,6 +42,7 @@ define(function(require) {
       'change [data-bind]': 'onFieldChanged',
       'blur [data-bind]': 'onFieldChanged',
       'click .light-course-header-drawer-icon-browse': 'onBrowseDrawerIconClicked',
+      'click .light-course-header-saved-versions': 'onSavedVersionsClicked',
       'change .light-course-header-version-notes, .light-course-header-version-duration': 'onVersionRowFieldChanged',
       'blur .light-course-header-version-notes, .light-course-header-version-duration': 'onVersionRowFieldChanged'
     },
@@ -95,6 +96,11 @@ define(function(require) {
       var headerData = this.model.get('headerData');
       headerData.versionHistory[index][key] = $target.val();
       Origin.trigger('lightCourseEditor:autosave');
+    },
+
+    onSavedVersionsClicked: function(event) {
+      event.preventDefault();
+      Origin.trigger('lightCourseEditor:showVersions');
     },
 
     onFieldChanged: function(event) {

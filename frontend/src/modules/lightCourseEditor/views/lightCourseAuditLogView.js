@@ -16,19 +16,55 @@ define(function(require) {
     className: 'light-course-auditlog',
 
     events: {
-      'click .light-course-auditlog-back': 'onBackClicked'
+      'click .light-course-auditlog-back': 'onBackClicked',
+      'change .light-course-auditlog-version': 'onVersionChanged'
     },
 
     preRender: function(options) {
       this.lightCourseId = options.lightCourseId;
+      this.selectedVersion = options.selectedVersion || this.model.get('currentVersionNumber') || 'draft';
     },
 
     postRender: function() {
-      this.auditLogView = new AuditLogView({
-        model: new Backbone.Model({ contentType: 'lightcourse', contentId: this.lightCourseId })
+      var self = this;
+      this.versionRequest = this.model.fetchVersions({
+        success: function(versions) {
+          if (self.disposed) return;
+          var numbers = _.uniq(versions.map(function(version) { return version.versionNumber; }));
+          var current = self.model.get('currentVersionNumber');
+          if (current && numbers.indexOf(current) === -1) numbers.unshift(current);
+          var choices = [
+            { value: 'all', label: Origin.l10n.t('app.lightcourseauditallversions') },
+            { value: 'draft', label: Origin.l10n.t('app.lightcourseauditdraft') }
+          ].concat(numbers.map(function(number) {
+            return { value: number, label: number + (number === current ? ' (' + Origin.l10n.t('app.lightcourseversioncurrent') + ')' : '') };
+          })).concat([{ value: 'unknown', label: Origin.l10n.t('app.lightcourseauditunknown') }]);
+          self.$('.light-course-auditlog-version').empty();
+          choices.forEach(function(choice) { self.$('.light-course-auditlog-version').append($('<option></option>').val(choice.value).text(choice.label)); });
+          self.$('.light-course-auditlog-version').val(self.selectedVersion);
+          self.renderAudit();
+          self.setViewToReady();
+        },
+        error: function(response) {
+          if (self.disposed) return;
+          self.$('.light-course-auditlog-error').text(response.responseJSON && response.responseJSON.message ||
+            Origin.l10n.t('app.lightcourseversionloaderror')).prop('hidden', false);
+          self.setViewToReady();
+        }
       });
-      this.$('.light-course-auditlog-container').append(this.auditLogView.$el);
-      this.setViewToReady();
+    },
+
+    renderAudit: function() {
+      if (this.auditLogView) this.auditLogView.remove();
+      this.auditLogView = new AuditLogView({
+        model: new Backbone.Model({ contentType: 'lightcourse', contentId: this.lightCourseId, auditVersion: this.selectedVersion })
+      });
+      this.$('.light-course-auditlog-container').empty().append(this.auditLogView.$el);
+    },
+
+    onVersionChanged: function() {
+      this.selectedVersion = this.$('.light-course-auditlog-version').val();
+      this.renderAudit();
     },
 
     onBackClicked: function(event) {
@@ -37,6 +73,8 @@ define(function(require) {
     },
 
     remove: function() {
+      this.disposed = true;
+      if (this.versionRequest) this.versionRequest.abort();
       if (this.auditLogView) {
         this.auditLogView.remove();
       }

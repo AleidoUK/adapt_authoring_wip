@@ -7,6 +7,7 @@ define(function(require) {
   var LightCourseItemListView = require('./lightCourseItemListView');
   var LightCourseHelpView = require('./lightCourseHelpView');
   var LightCourseVersionNotesView = require('./lightCourseVersionNotesView');
+  var LightCourseWordView = require('./lightCourseWordView');
 
   // Real installed extension identifiers (extensiontype.extension field), confirmed against the
   // live installed instance - NOT the Phase 1 schema-spike's assumed `adapt-aleido-*`/
@@ -35,6 +36,8 @@ define(function(require) {
     events: {
       'click .light-course-editor-back-to-list': 'onBackToListClicked',
       'click .light-course-editor-auditlog': 'onAuditLogClicked',
+      'click .light-course-editor-word': 'onWordClicked',
+      'click .light-course-editor-versions': 'onVersionsClicked',
       'click .light-course-editor-edit-current-entry': 'onEditCurrentEntryClicked',
       'click .light-course-editor-create-minor-version': 'onCreateMinorVersionClicked',
       'click .light-course-editor-create-major-version': 'onCreateMajorVersionClicked',
@@ -51,9 +54,56 @@ define(function(require) {
       Origin.router.navigateTo('lightCourseEditor');
     },
 
+    onVersionsClicked: function(event) {
+      event && event.preventDefault();
+      var self = this;
+      this.afterPendingSave(function(error) {
+        if (!error && !self._removed) Origin.router.navigateTo('lightCourseEditor/' + self.model.get('_id') + '/versions');
+      });
+    },
+
+    afterPendingSave: function(callback) {
+      if (!this._autosaveInFlight) return callback();
+      this._saveCallbacks = this._saveCallbacks || [];
+      this._saveCallbacks.push(callback);
+    },
+
     onAuditLogClicked: function(event) {
       event && event.preventDefault();
-      Origin.router.navigateTo('lightCourseEditor/' + this.model.get('_id') + '/auditlog');
+      var self = this;
+      this.afterPendingSave(function(error) {
+        if (!error && !self._removed) Origin.router.navigateTo('lightCourseEditor/' + self.model.get('_id') + '/auditlog');
+      });
+    },
+
+    onWordClicked: function(event) {
+      event.preventDefault();
+      var self = this;
+      Origin.trigger('modal:open', LightCourseWordView, {
+        title: Origin.l10n.t('app.lightcourseword'),
+        model: this.model,
+        _shouldShowDoneButton: false,
+        prepare: function(callback) {
+          if (self.model.isLocked()) return callback();
+          self.autosave(callback);
+        },
+        onImported: function() {
+          self.headerView.remove();
+          self.treeView.remove();
+          self.headerView = new LightCourseHeaderView({ model: self.model });
+          self.treeView = new LightCourseTreeView({ model: self.model });
+          self.$('.light-course-editor-header-container').empty().append(self.headerView.$el);
+          self.$('.light-course-editor-tree-container').empty().append(self.treeView.$el);
+          self.$('.light-course-editor-menu-title').val(self.model.get('title'));
+          self.$('.light-course-editor-menu-body').val(self.model.get('body'));
+          self.initializeTags();
+          self.renderGlossaryResourcesHelp();
+          self.fetchComponentTypes();
+          self.updateVersionButtonLabels();
+          self.setSaveStatus('saved');
+          self.hideConflictBanner();
+        }
+      });
     },
 
     preRender: function() {
@@ -76,11 +126,80 @@ define(function(require) {
       this.renderGlossaryResourcesHelp();
 
       this.listenTo(Origin, 'lightCourseEditor:autosave', this.autosave);
+      this.listenTo(Origin, 'lightCourseEditor:showVersions', this.onVersionsClicked);
+      this.initializeTags();
 
       this.fetchComponentTypes();
       this.fetchPluginTypes();
       this.updateVersionButtonLabels();
       this.setViewToReady();
+    },
+
+    initializeTags: function() {
+      if (this.tagPicker) this.tagPicker.destroy();
+      var self = this;
+      var tags = this.model.get('tags') || [];
+      this._initializingTags = true;
+      this._tagRequests = this._tagRequests || [];
+      this.$('.light-course-editor-tags-input').selectize({
+        valueField: '_id',
+        labelField: 'title',
+        searchField: ['title'],
+        loadingClass: 'selectize-loading',
+        maxItems: null,
+        preload: true,
+        options: tags.map(function(tag) {
+          return typeof tag === 'string' ? { _id: tag, title: tag } : tag;
+        }),
+        items: tags.map(function(tag) { return typeof tag === 'string' ? tag : tag._id; }),
+        createFilter: function(value) { return !!value.replace(/,/g, '').trim(); },
+        load: function(query, callback) {
+          self._tagRequests.push($.ajax({ url: 'api/autocomplete/tag', type: 'GET' })
+            .done(function(data) { if (!self._removed) callback(data); })
+            .fail(function(response) {
+              if (self._removed || response.statusText === 'abort') return;
+              self.onTagError(response, 'app.lightcoursetagsloaderror');
+              callback();
+            }));
+        },
+        create: function(value, callback) {
+          self._tagRequests.push($.ajax({
+            url: 'api/content/tag', type: 'POST', data: { title: value.replace(/,/g, '').trim() }
+          }).done(function(tag) {
+            if (self._removed) return;
+            if (!tag || !tag._id || typeof tag.title !== 'string') {
+              self.onTagError(null, 'app.lightcoursetagscreateerror');
+              return callback();
+            }
+            callback(tag);
+          }).fail(function(response) {
+            if (self._removed || response.statusText === 'abort') return;
+            self.onTagError(response, 'app.lightcoursetagscreateerror');
+            callback();
+          }));
+        },
+        onChange: function() {
+          if (self._initializingTags || self._removed || self.model.isLocked()) return;
+          self.model.set('tags', self.getSelectedTags());
+          self.autosave();
+        }
+      });
+      this.tagPicker = this.$('.light-course-editor-tags-input')[0].selectize;
+      this.tagPicker.$control_input.attr('aria-label', Origin.l10n.t('app.lightcoursetags'));
+      if (this.model.isLocked()) this.tagPicker.disable();
+      this._initializingTags = false;
+    },
+
+    getSelectedTags: function() {
+      if (!this.tagPicker) return this.model.get('tags') || [];
+      return this.tagPicker.items.map(function(id) {
+        return { _id: id, title: this.tagPicker.options[id].title };
+      }, this);
+    },
+
+    onTagError: function(response, key) {
+      Origin.Notify.alert({ type: 'error', text: response && response.responseJSON && response.responseJSON.message ||
+        Origin.l10n.t(key) });
     },
 
     isExtensionSelected: function(extensionName) {
@@ -248,6 +367,7 @@ define(function(require) {
       return {
         title: this.model.get('title'),
         body: this.model.get('body'),
+        tags: this.getSelectedTags().map(function(tag) { return typeof tag === 'string' ? tag : tag._id; }),
         revision: this.model.get('revision'),
         contentTree: this.treeView.getContentTree(),
         pluginSelections: this.model.get('pluginSelections'),
@@ -271,9 +391,14 @@ define(function(require) {
      * same 409-conflict handling real concurrent-edit conflicts use, even though it's the same
      * editor making every one of these calls.
      */
-    autosave: function() {
+    autosave: function(callback) {
+      if (typeof callback === 'function') {
+        this._saveCallbacks = this._saveCallbacks || [];
+        this._saveCallbacks.push(callback);
+      }
       if (this._autosaveInFlight) {
         this._autosavePending = true;
+        this._pendingSaveData = this.assembleSaveData();
         return;
       }
       this._autosaveInFlight = true;
@@ -283,12 +408,14 @@ define(function(require) {
       this.model.save(this.assembleSaveData(), {
         wait: true,
         success: function() {
+          if (self._removed) return;
           // the server response here is just {success:true} (lib/contentmanager.js's generic
           // PUT route doesn't echo the updated document back) - re-fetch so the client picks up
           // the incremented `revision` (needed for the *next* save's concurrency check) and the
           // current version-history row's server-refreshed words/screens.
           self.model.fetch({
             success: function() {
+              if (self._removed) return;
               // Deliberately only re-renders the version-history table, not the whole header
               // view - autosave can fire while the editor is mid-use elsewhere (e.g. another
               // header field still focused), and a full header teardown/rebuild would discard
@@ -300,19 +427,39 @@ define(function(require) {
               self._autosaveInFlight = false;
               if (self._autosavePending) {
                 self._autosavePending = false;
+                self.model.set(_.omit(self._pendingSaveData, 'revision'), { silent: true });
+                self._pendingSaveData = null;
                 self.autosave();
               } else {
                 self.setSaveStatus('saved');
+                self.finishSaveCallbacks();
               }
+            },
+            error: function(model, response) {
+              if (self._removed) return;
+              self._autosaveInFlight = false;
+              self._autosavePending = false;
+              self._pendingSaveData = null;
+              self.onSaveError(response);
+              self.finishSaveCallbacks(response);
             }
           });
         },
         error: function(model, response) {
+          if (self._removed) return;
           self._autosaveInFlight = false;
           self._autosavePending = false;
+          self._pendingSaveData = null;
           self.onSaveError(response);
+          self.finishSaveCallbacks(response);
         }
       });
+    },
+
+    finishSaveCallbacks: function(error) {
+      var callbacks = this._saveCallbacks || [];
+      this._saveCallbacks = [];
+      callbacks.forEach(function(callback) { callback(error); });
     },
 
     /**
@@ -455,6 +602,10 @@ define(function(require) {
     },
 
     remove: function() {
+      this._removed = true;
+      (this._tagRequests || []).forEach(function(request) { request.abort(); });
+      if (this.tagPicker) this.tagPicker.destroy();
+      this.finishSaveCallbacks({ responseJSON: { message: Origin.l10n.t('app.errorgeneric') } });
       if (this.headerView) {
         this.headerView.remove();
       }

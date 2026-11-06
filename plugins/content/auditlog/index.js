@@ -1,10 +1,12 @@
 // LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
 var ContentPlugin = require('../../../lib/contentmanager').ContentPlugin,
+    ContentPermissionError = require('../../../lib/contentmanager').errors.ContentPermissionError,
     configuration = require('../../../lib/configuration'),
     permissions = require('../../../lib/permissions'),
     async = require('async'),
     util = require('util'),
-    path = require('path');
+    path = require('path'),
+    auditVersion = require('../../../lib/lightcourse/auditVersion');
 
 function AuditLog() {
 }
@@ -118,6 +120,7 @@ function auditCreate(data, callback, contentType) {
         userEmail: user.email,
         timestamp: new Date().toISOString(),
         changes: [],
+        metadata: auditVersion.metadataFor(itemType, item),
         snapshot: item.toJSON ? item.toJSON() : item,
         _tenantId: user.tenant._id
       };
@@ -190,7 +193,7 @@ function auditUpdate(data, callback, hookContentType) {
       }
 
       var updated = item.toJSON ? item.toJSON() : item;
-      var changes = detectChanges(original, updated);
+      var changes = detectChanges(original, updated, contentType);
         
       if (changes.length > 0) {
         var logEntry = {
@@ -206,6 +209,7 @@ function auditUpdate(data, callback, hookContentType) {
           userEmail: user.email,
           timestamp: new Date().toISOString(),
           changes: changes,
+          metadata: auditVersion.metadataFor(contentType, updated),
           snapshot: updated,
           _tenantId: user.tenant._id
         };
@@ -353,7 +357,7 @@ function getContentTitle(item) {
 /**
  * Detect changes between old and new objects
  */
-function detectChanges(oldObj, newObj) {
+function detectChanges(oldObj, newObj, contentType) {
   var changes = [];
   var ignoredFields = ['updatedAt', '__v', '_id', 'createdAt', 'createdBy'];
   
@@ -365,6 +369,10 @@ function detectChanges(oldObj, newObj) {
     
     var oldValue = oldObj[key];
     var newValue = newObj[key];
+    if (contentType === 'lightcourse' && key === 'tags') {
+      function ids(tags) { return (tags || []).map(function(tag) { return String(tag._id || tag); }).sort(); }
+      if (JSON.stringify(ids(oldValue)) === JSON.stringify(ids(newValue))) return;
+    }
     
     // Skip if values are the same
     if (JSON.stringify(oldValue) === JSON.stringify(newValue)) {
@@ -475,6 +483,41 @@ function getAuditLogsByContent(req, res, next) {
   var user = require('../../../lib/usermanager').getCurrentUser();
   var contentType = req.params.contentType;
   var contentId = req.params.contentId;
+  if (contentType === 'lightcourse') {
+    var selectedVersion = req.query.version || 'all';
+    if (!/^(all|draft|unknown|\d+\.\d+)$/.test(selectedVersion)) {
+      return res.status(400).json({ success: false, message: 'Invalid version filter.' });
+    }
+    return app.contentmanager.retrieve('lightcourse', { _id: contentId }, {}, function(error, courses) {
+      if (error) return res.status(error instanceof ContentPermissionError ? 403 : 500).json({ success: false, message: error.message });
+      if (!courses.length) return res.status(404).json({ success: false, message: 'Course not found.' });
+      var id = courses[0]._id;
+      app.contentmanager.retrieve('lightcourseversion', { _lightCourseId: id }, {}, function(error, versions) {
+        if (error) return res.status(500).json({ success: false, message: error.message });
+        app.contentmanager.retrieve('auditlog', {
+          _tenantId: user.tenant._id,
+          contentType: { $in: ['lightcourse', 'lightcourseversion', 'lightcourseexport'] },
+          $or: [
+            { contentType: 'lightcourse', contentId: id },
+            { 'metadata.lightCourseId': String(id) },
+            { 'snapshot._lightCourseId': { $in: [id, String(id)] } }
+          ]
+        }, { operators: { sort: { timestamp: -1 } } }, function(error, logs) {
+          if (error) return res.status(500).json({ success: false, message: error.message });
+          var result = logs.map(function(log) {
+            var entry = Object.assign({}, log.toJSON ? log.toJSON() : log);
+            entry.versionNumber = auditVersion.versionFor(entry, versions);
+            if (entry.contentType === 'lightcourseexport' && entry.snapshot) {
+              entry.snapshot = Object.assign({}, entry.snapshot);
+              delete entry.snapshot.renderedText;
+            }
+            return entry;
+          }).filter(function(log) { return selectedVersion === 'all' || log.versionNumber === selectedVersion; });
+          res.status(200).json(result);
+        });
+      });
+    });
+  }
   
   var options = {
     operators: {

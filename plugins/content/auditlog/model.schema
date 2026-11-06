@@ -96,6 +96,12 @@
           "type": "string",
           "title": "IP Address"
         },
+        "lightCourseId": {
+          "type": "string"
+        },
+        "lightCourseVersion": {
+          "type": "string"
+        },
         "userAgent": {
           "type": "string",
           "title": "User Agent"

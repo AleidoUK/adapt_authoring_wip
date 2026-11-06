@@ -1,0 +1,37 @@
+<h3>{{from}} &rarr; {{to}}</h3>
+{{#if added}}
+<section>
+  <h4>{{t 'app.lightcourseversionadded'}}</h4>
+  <ul>{{#each added}}<li>{{element}}</li>{{/each}}</ul>
+</section>
+{{/if}}
+{{#if removed}}
+<section>
+  <h4>{{t 'app.lightcourseversionremoved'}}</h4>
+  <ul>{{#each removed}}<li>{{element}}</li>{{/each}}</ul>
+</section>
+{{/if}}
+{{#if moved}}
+<section>
+  <h4>{{t 'app.lightcourseversionmoved'}}</h4>
+  {{#each moved}}
+  <article class="light-course-version-change">
+    <h4>{{element}}</h4>
+    <div class="light-course-version-values">
+      <div><strong>{{t 'app.lightcourseversionbefore'}}</strong><div class="light-course-version-value">{{before}}</div></div>
+      <div><strong>{{t 'app.lightcourseversionafter'}}</strong><div class="light-course-version-value">{{after}}</div></div>
+    </div>
+  </article>
+  {{/each}}
+</section>
+{{/if}}
+{{#each fields}}
+<article class="light-course-version-change">
+  <h4>{{field}}</h4>
+  <div class="light-course-version-values">
+    <div><strong>{{t 'app.lightcourseversionbefore'}}</strong><div class="light-course-version-value">{{before}}</div></div>
+    <div><strong>{{t 'app.lightcourseversionafter'}}</strong><div class="light-course-version-value">{{after}}</div></div>
+  </div>
+</article>
+{{/each}}
+{{#unless hasChanges}}<p>{{t 'app.lightcourseversionnochanges'}}</p>{{/unless}}

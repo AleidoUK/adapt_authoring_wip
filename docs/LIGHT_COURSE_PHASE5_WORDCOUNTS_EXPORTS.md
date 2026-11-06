@@ -2,7 +2,78 @@
 
 Part of the [Light Course Editor implementation plan](LIGHT_COURSE_IMPLEMENTATION_PLAN.md). Depends on [Phase 1](LIGHT_COURSE_PHASE1_SCHEMA_SPIKE.md) for the schema-walking rules and [Phase 2](LIGHT_COURSE_PHASE2_STORAGE_API_AUTH.md) for the export-snapshot collection.
 
-## Implementation status: done, backend only (no frontend UI this phase)
+## Word editing workflow
+
+The light course editor now has a **Word export / import** toolbar button. This is
+Word-only and is not exposed in the template editor. Export saves the committed
+draft first, downloads a `.docx` and records the export snapshot; persistence or
+download failures are shown rather than treated as successful exports.
+
+New Word documents use safe sequential section and field bookmarks, with their
+course ID, node IDs and exact field paths mapped in the `LightCourseWord` custom
+property. Text fields are labelled separately from read-only contextual headings.
+Documents use Calibri with 12 pt body text and smaller 8 pt grey field labels;
+the document title and section headings use `#61C6A2`, matching `@aleido-green`
+in the authoring interface. Word stores the hex colour directly, and tests verify
+it matches the LESS definition.
+headings retain their larger sizes. The editable text remains its normal colour. Article and
+block sections (including their field labels) are omitted from the Word document.
+Their IDs remain in the mapping, so the course's articles, blocks and stored values
+are preserved unchanged on import; pages and components remain visible.
+Existing empty strings are included so they can be populated or cleared.
+Page titles, page instructions, component translatable fields,
+author Unique IDs, graphics/developer notes and glossary/resource/help text are
+editable. Component Unique IDs precede the editable Title field, displayed as
+`c-01_01_010 | 100 words` in 8 pt grey Calibri, without a Unique Id label.
+The count is read-only and uses the core schema-based component word-count rules
+at export time; it excludes review placeholders, labels and non-translatable notes/IDs.
+Keep the count unchanged when editing the ID; it is never imported as part of the ID.
+Other field values
+remain 12 pt. Fields have a blank line's spacing between them. Graphics/developer
+notes are italic. Every empty editable field (including visually blank rich text)
+has a reviewer placeholder; replace it to add content. Leaving it unchanged
+preserves the original empty value and markup.
+Component context headings use the installed component display name (for example,
+Text or Splash), without the editable title. Page context headings use the saved
+section terminology and position (Section 1 or Topic 1), without the page title.
+
+Version history, developer information and terminology use read-only tables.
+Opening-page section headings have a blank line's spacing before them.
+These tables, reviewing instructions and tags appear at the top. Missing developer/terminology settings
+show the same defaults as the editor controls. Buttons/icons, menu content,
+plugin selections and the general instructional headings are omitted.
+The editable content starts on a new page, as does each topic.
+These settings have no editable field bookmarks and never
+overwrite course settings on import. Menu title/body edits in older mapped Word
+documents are also ignored; edit these in the course editor instead. Historical
+exports use the saved version's settings, not the current draft's.
+Older snapshots without a recorded course title use the parent course's current
+title; recorded historical titles are preserved. Word filenames start with the
+course's tag titles, separated by underscores:
+`{tag1}_{tag2}_{coursename}_v{version}.docx`. Tags retain their saved order;
+historical exports use the tags recorded in that version, not the current draft.
+Without tags, the filename remains `{coursename}_v{version}.docx`.
+Unsafe filename characters are replaced, and Unicode names are preserved. An
+unpublished course without a version uses `vdraft`.
+Word-count rules are unchanged.
+
+New Word exports have Track Changes enabled by default. Keep the exported
+bookmarks and headings intact when editing; accept or reject all tracked changes
+before import (enabling tracking without outstanding revisions does not block import).
+Page/component context headings are not
+editable title fields: changing one rejects the whole import, even when its
+labelled Title field is unchanged. Edit the value beneath the Title label instead.
+The exported settings tables are read-only; their value edits are ignored,
+and adding editable tables is unsupported. Older mapped documents retain their
+original field layout on import.
+Import targets this same draft and does not
+create, delete or rearrange course elements. Import requires a minor (part) or major
+(full) version choice, saves a new immutable version, and activates its content as
+the editable draft without changing previous saved versions. Markdown endpoints remain unchanged
+and have no new UI. See [Word import rules](LIGHT_COURSE_PHASE6_VERSIONS_COMPARISON_IMPORT.md#word-import-workflow)
+for validation and rich-text limitations.
+
+## Original phase validation (backend)
 
 Validated via the full backend suite (123 passing / the same 14 pre-existing unrelated assetmanager/contentmanager failures as every prior clean run - confirmed no regressions from the `lightcourseexport` schema change or the new word-count/document-export routes) plus 33 passing direct-Mocha unit tests across [test/lib.lightcoursewordcount.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcoursewordcount.js) and [test/lib.lightcoursedocuments.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcoursedocuments.js). This phase is backend-only (word-count endpoints + document-export route/generator) - there is no new frontend UI to smoke-test via the build pipeline, so the **Manual QA checklist** below is scoped to exercising the HTTP endpoints directly (e.g. via the browser/`curl`/Postman) rather than a live editor session.
 

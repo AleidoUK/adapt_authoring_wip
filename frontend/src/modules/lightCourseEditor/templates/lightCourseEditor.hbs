@@ -17,12 +17,20 @@
     {{!-- <h1>{{title}}</h1> --}}
     <span class="light-course-editor-save-status" data-state="saved">{{t 'app.lightcoursesavestatussaved'}}</span>
     <div class="light-course-editor-toolbar-actions">
-      <button class="btn secondary light-course-editor-auditlog">{{t 'app.editorauditlog'}}</button>
-      <button class="btn primary light-course-editor-edit-current-entry">{{t 'app.lightcourseeditcurrententry'}}</button>
-      <button class="btn secondary light-course-editor-create-minor-version"></button>
-      <button class="btn secondary light-course-editor-create-major-version"></button>
+      <button class="btn primary light-course-editor-create-minor-version"></button>
+      <button class="btn primary light-course-editor-create-major-version"></button>
+      <button class="btn secondary light-course-editor-edit-current-entry">{{t 'app.lightcourseeditcurrententry'}}</button>
+      <button class="btn secondary-hollow light-course-editor-word">{{t 'app.lightcourseword'}}</button>
+      <button class="btn secondary-hollow light-course-editor-versions">{{t 'app.lightcoursesavedversions'}}</button>
+      <button class="btn secondary-hollow light-course-editor-auditlog">{{t 'app.editorauditlog'}}</button>
     </div>
   </div>
+
+  <section class="light-course-editor-tags">
+    <label for="light-course-tags-{{_id}}">{{t 'app.lightcoursetags'}}</label>
+    <input type="text" id="light-course-tags-{{_id}}" class="light-course-editor-tags-input">
+    <p>{{t 'app.lightcoursetagshelp'}}</p>
+  </section>
 
   <div class="light-course-editor-tree-container"></div>
 

@@ -2,7 +2,8 @@
   .light-course-editor-toolbar {
     background-color: white!important;
   }
-  .light-course-editor-toolbar, .light-course-template-editor-toolbar, .light-course-component-default-editor-toolbar {
+  .light-course-editor-toolbar, .light-course-template-editor-toolbar, .light-course-component-default-editor-toolbar,
+  .light-course-versions, .light-course-auditlog {
     a {
       font-weight: bold;
       color: @aleido-green;
@@ -13,6 +14,65 @@
       margin-right: 0.5rem;
     }
   }
+}
+
+.light-course-auditlog-inner {
+  padding: 20px;
+}
+
+.light-course-versions {
+    padding: 20px;
+
+    background-color: @aleido-extra-light-green;
+    padding: 18px 20px;
+    border: 1px solid #aaa;
+
+    h1 {
+      font-weight: bold;
+      border-bottom: 1px solid @aleido-green;
+    }
+
+    h2 {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    p {
+      color: black;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+
+    label {
+      // border-bottom: 1px solid @aleido-green;
+    }
+
+    select {
+      border: 1px solid @aleido-green;
+    }
+
+    .field-row {
+      background-color: white;
+      padding: 1rem;
+
+      label {
+        margin-bottom: 15px;
+        font-size: 110%;
+      }
+    }
+
+    section, .light-course-versions-list {
+      background-color: white;
+      padding: 20px;
+
+      .light-course-version-comparison {
+        h3, h4 {
+          font-weight: bold;
+          font-size: 110%;
+        }
+      }
+    }
+    
 }
 
 .light-course-template-list,
@@ -50,8 +110,9 @@
   }
 }
 
-.light-course-template-list, .light-course-component-default-list, .light-course-list, .light-course-asset-list {
+.light-course-template-list, .light-course-component-default-list, .light-course-list, .light-course-asset-list, .light-course-header-version-history {
   .tb-heading, 
+  .light-course-header-version-history-rows,
   .light-course-list-empty, .light-course-list-items, 
   .light-course-asset-list-empty, .light-course-asset-list-items,
   .light-course-template-list-empty, .light-course-template-list-items,

@@ -2,7 +2,105 @@
 
 Part of the [Light Course Editor implementation plan](LIGHT_COURSE_IMPLEMENTATION_PLAN.md). Depends on [Phase 2](LIGHT_COURSE_PHASE2_STORAGE_API_AUTH.md) (version collection, concurrency) and [Phase 5](LIGHT_COURSE_PHASE5_WORDCOUNTS_EXPORTS.md) (export generator, to build the inverse import parser against the same format).
 
-## Implementation status: done, backend only (no frontend UI this phase)
+## Word import workflow
+
+The light course editor's **Word export / import** dialog accepts `.docx` files
+exported from that same course. It saves pending committed changes before the
+operation, waits for the refreshed revision and asks for confirmation before
+importing. The author must choose a minor (part) or major (full) version; no choice
+is selected automatically. The import creates a new immutable saved version and
+makes its text the editable draft. Existing saved versions are never modified.
+Course details and settings appear at the top of new Word exports as read-only
+reference information. They have no editable bookmarks and are never applied on
+import, including menu title/body edits made in older mapped Word documents.
+Page/component content remains editable; course title/body, header information
+and plugin selections retain the current course editor values.
+Numbering matches Create Version: first minor `0.1`, first major `1.0`, subsequent
+minor increments the second number and major increments the first/resetting the second.
+Existing draft-versus-published confirmation remains enforced by the
+server. Client revision conflicts return 409, and wrong-course documents or invalid
+structure/field mappings return 422 with actionable errors. The editor reloads its
+content and version-button labels after a successful import without navigating away.
+The Word dialog closes after a successful export or import. It shows no progress
+or success log below its buttons; only errors are shown there, in red. Failed
+operations leave the dialog open. Normal same-paragraph title replacements remain
+mapped even when Word collapses the field bookmark or places the replacement
+outside its endpoints. Unmarked additional paragraphs and missing field markers
+are still rejected rather than assigned to guessed fields.
+The server reserves the version number with the draft revision guard, persists the
+snapshot through ContentManager, then activates the imported draft through
+ContentManager (so both creation and text changes are audited). A snapshot-creation
+failure leaves draft content untouched and releases its number reservation without
+overwriting concurrent edits. If a snapshot is created but activation fails, the
+error explicitly reports the saved version and asks the author to reload; it does
+not claim the draft was updated.
+
+Mapped Word documents (format version 2) are validated against the current course
+structure and schema-derived field paths before any changes are applied. Missing,
+duplicate, unknown, moved or reordered markers/sections, altered heading levels,
+tracked changes and text outside editable fields are rejected. Text may contain
+multiple paragraphs, blank lines or an empty value; it is not assigned by line
+count. Optional help instructions are supported by this format.
+
+Unchanged fields retain their original HTML exactly. Changed rich-text values are
+escaped and become plain paragraphs; Word styling, links and images are not
+imported. A changed field containing embedded rich media is rejected rather than
+silently removing that media. Asset references, settings, presets, internal IDs
+and course structure remain untouched. Imports go through ContentManager and its
+existing audit/version-history hooks. Temporary uploaded files are removed after
+the response, including rejected imports.
+
+Legacy Word files without the mapping property retain the original strict line-count
+text mapping, but also require the minor/major version choice. Markdown imports
+retain their original draft-only behaviour. Re-export existing courses
+to use the multiline/empty-field workflow.
+
+Focused validation: `./node_modules/.bin/mocha test/lib.lightcourseimportversions.js test/lib.lightcourseword.js
+test/lib.lightcoursedocuments.js test/lib.lightcoursedocumentimport.js
+test/lib.lightcoursewordcount.js`. Manual QA: export in the editor, edit labelled
+text in desktop Word (including adding a paragraph and clearing a field), save as
+`.docx`, import and confirm that changes appear while settings/structure are intact.
+
+## Saved versions and version-specific history
+
+**Saved versions**, available in the editor toolbar and beneath version history,
+lists every saved major/minor version in numerical order. Each row offers
+**Export Word**, which downloads that version's document directly, without an
+intermediate modal, using its ID rather than the current draft. Export buttons
+are disabled while downloading, and failures appear in the saved-versions error
+area so the author can retry. Leaving the list cancels an unfinished download.
+These actions do not save or replace the draft.
+Navigation from the editor waits for any pending autosave to finish; save errors
+keep the author in the editor. Older snapshots lacking a recorded course title
+display a notice; new manual and imported snapshots record course title/body.
+
+Choose any two versions (including the same version) and **Compare** to see
+labelled, complete before/after values. Comparisons cover course/page/component
+text, additions, clearing fields, presets, asset references, nested settings,
+resources/glossary/help, plugin selections and list reordering. Named lists show
+added, removed and moved elements, with old/new locations for moves. Added/removed
+content is expanded into meaningful field values rather than whole-node JSON;
+schema snapshots, node IDs and empty added defaults are not displayed.
+Stable IDs match elements across parents, so a move is not reported as removal
+plus addition; inserting/removing a sibling does not count as moving unchanged
+siblings. Empty values and absent/unrecorded fields are distinguished. HTML is
+escaped in comparison values. Saved-version rows no longer offer View or Change
+history buttons; the main course Change history control remains available.
+
+**Change history** defaults to the current active version, with selectors for
+other saved versions, the pre-first-version draft, all versions and unassigned
+older records. Audit
+records are not duplicated per snapshot: edits are attributed to the version
+active when edited, while version creation/export records refer to that saved
+version. Historical attribution uses explicit metadata or recorded snapshot
+version information; unknown older records are never assigned by guessed dates.
+The endpoint checks course access, scopes records to the tenant and includes
+related version/export events. Export binary payloads are excluded from its DTO.
+
+Focused isolated validation: `./node_modules/.bin/mocha test/lib.lightcoursesavedversions.js
+test/lib.lightcourseversiondiff.js test/lib.lightcoursehistory.js`.
+
+## Original phase validation (backend)
 
 Validated via the full backend suite (155 passing / the same 14 pre-existing unrelated assetmanager/contentmanager failures as every prior clean run) plus 19 passing direct-Mocha unit tests across [test/lib.lightcourseversiondiff.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcourseversiondiff.js) and [test/lib.lightcoursedocumentimport.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcoursedocumentimport.js), plus a new [test/lib.lightcourseversions.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcourseversions.js) integration suite (version publishing, comparison, and document-import HTTP flows) exercised as part of that full-suite run. Like Phase 5, this phase is backend-only - the **Manual QA checklist** below exercises the HTTP endpoints directly.
 

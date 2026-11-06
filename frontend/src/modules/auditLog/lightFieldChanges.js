@@ -40,7 +40,8 @@ define(function(require) {
     });
   }
 
-  return function(changes, inferValueType) {
+  function fieldChanges(changes, inferValueType, options) {
+    options = options || {};
     var result = [];
     function add(path, oldValue, newValue, key) {
       result.push({
@@ -52,6 +53,10 @@ define(function(require) {
     }
     function walk(oldValue, newValue, path, descriptor, key) {
       if (JSON.stringify(oldValue) === JSON.stringify(newValue)) return;
+      function empty(value) {
+        return value == null || value === '' || typeof value === 'object' && !Object.keys(value).length;
+      }
+      if (options.omitEmptyAdditions && (oldValue === undefined && empty(newValue) || newValue === undefined && empty(oldValue))) return;
       if (Array.isArray(oldValue) || Array.isArray(newValue)) {
         if ((oldValue != null && !Array.isArray(oldValue)) || (newValue != null && !Array.isArray(newValue))) {
           add(path, oldValue, newValue, key);
@@ -72,9 +77,19 @@ define(function(require) {
             var newItem = _.findWhere(after, { _id: id });
             var item = newItem || oldItem;
             var index = newItem ? after.indexOf(newItem) : before.indexOf(oldItem);
+            if (options.onItemChange) {
+              var element = path.concat(nodeLabel(item, index)).join(' / ');
+              if (!oldItem || !newItem) {
+                options.onItemChange({ action: oldItem ? 'removed' : 'added', element: element });
+              } else if (beforeIds.filter(function(id) { return afterIds.indexOf(id) !== -1; }).indexOf(id) !==
+                         afterIds.filter(function(id) { return beforeIds.indexOf(id) !== -1; }).indexOf(id)) {
+                options.onItemChange({ action: 'moved', element: element, parent: path.join(' / '),
+                  beforeIndex: before.indexOf(oldItem), afterIndex: after.indexOf(newItem) });
+              }
+            }
             walk(oldItem, newItem, path.concat(nodeLabel(item, index)), descriptor && descriptor.items, key);
           });
-          if (beforeIds.length === afterIds.length && ids.length === beforeIds.length &&
+          if (!options.onItemChange && beforeIds.length === afterIds.length && ids.length === beforeIds.length &&
               JSON.stringify(beforeIds) !== JSON.stringify(afterIds)) {
             add(path.concat(Origin.l10n.t('app.lightcourseauditorder')),
               before.map(nodeLabel), after.map(nodeLabel), 'order');
@@ -90,7 +105,7 @@ define(function(require) {
           (oldValue == null || typeof oldValue === 'object') && (newValue == null || typeof newValue === 'object')) {
         var object = newValue || oldValue;
         var isNode = !!object._id && ['page', 'article', 'block', 'component'].indexOf(object.type) !== -1;
-        if (isNode && (!oldValue || !newValue)) {
+        if (isNode && (!oldValue || !newValue) && !options.expandNodes) {
           add(path, oldValue, newValue, key);
           return;
         }
@@ -118,5 +133,8 @@ define(function(require) {
         change.field === 'contentSnapshot' ? [] : [label(change.field)], null, change.field);
     });
     return result;
-  };
+  }
+  fieldChanges.nodeLabel = nodeLabel;
+  fieldChanges.label = label;
+  return fieldChanges;
 });

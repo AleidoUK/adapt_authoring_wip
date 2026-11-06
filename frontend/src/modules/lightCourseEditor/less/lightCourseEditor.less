@@ -1,7 +1,35 @@
 @import 'colours';
 
+.light-course-versions, .light-course-auditlog {
+  .light-course-versions-error, .light-course-auditlog-error { color: #b00020; }
+}
+.light-course-versions {
+  section { margin-top: 24px; }
+  .light-course-saved-version { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+  .light-course-version-node { list-style: none; }
+  .light-course-version-change { border-top: 1px solid @aleido-grey-3; padding-top: 12px; }
+  .light-course-version-values {
+    display: flex; flex-wrap: wrap; gap: 20px;
+    > div { flex: 1 1 250px; min-width: 0; }
+    .light-course-version-value { white-space: pre-wrap; overflow-wrap: anywhere; }
+  }
+}
+
+.light-course-editor-settings-content {
+  label {
+    border:none!important;
+  }
+}
+
 .light-course-editor-tree-container, .light-course-template-editor-tree-container {
   margin-bottom: 1rem;
+}
+
+.light-course-editor-tags {
+  margin-bottom: 20px;
+  label { display: block; font-weight: bold; margin-bottom: 6px; }
+  .selectize-control { max-width: 600px; }
+  p { margin-top: 6px; }
 }
 
 .light-course-config-toolbar, .light-course-component-default-editor-toolbar {
@@ -512,20 +540,26 @@
     border-radius: 3px;
   }
 
-  .light-course-tree-page-heading {
+  .light-course-tree-node .light-course-tree-page-heading {
     margin: 0;
-    overflow-wrap: break-word;
+    border-bottom: 0;
+    flex: 1 1 220px;
+    min-width: 0;
   }
 
-  .light-course-tree-page-title-editor {
+  .light-course-tree-page-title-input {
     display: block;
-    margin: 8px 0;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 4px 6px;
+    font: inherit;
+    color: inherit;
+    background-color: transparent;
+    border: 1px solid transparent;
 
-    input {
-      display: block;
-      width: 100%;
-      max-width: 600px;
-      margin-top: 4px;
+    &:focus {
+      border-color: @primary-color;
     }
   }
 
@@ -865,4 +899,9 @@
     font-size: 0.85em;
     color: #777;
   }
+}
+.light-course-word {
+  .light-course-word-import-section { margin-top: 24px; }
+  .light-course-word-file { display: block; margin: 12px 0; }
+  .light-course-word-status { white-space: pre-wrap; color: #b00020; }
 }

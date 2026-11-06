@@ -1,0 +1,6 @@
+<li class="light-course-version-node">
+  {{#ifValueEquals type "page"}}<h1>{{#if title}}{{title}}{{else}}{{label}}{{/if}}</h1>
+  {{else}}<h3>{{label}} {{_component}} {{title}} {{#if uniqueId}}<small>({{uniqueId}})</small>{{/if}}</h3>{{/ifValueEquals}}
+  <dl class="light-course-tree-fields">{{#each fields}}{{> part_lightCourseTreeField}}{{/each}}</dl>
+  {{#if children}}<ul>{{#each children}}{{> part_lightCourseVersionNode}}{{/each}}</ul>{{/if}}
+</li>

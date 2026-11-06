@@ -14,6 +14,14 @@
       "required": false,
       "default": ""
     },
+    "tags": {
+      "type": "array",
+      "default": [],
+      "inputType": "Tags",
+      "title": "Tags",
+      "editorOnly": true,
+      "items": { "type": "objectid", "ref": "tag", "editorOnly": true }
+    },
     "revision": {
       "type": "number",
       "required": true,
