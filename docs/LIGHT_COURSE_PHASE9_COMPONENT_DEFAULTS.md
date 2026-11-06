@@ -26,14 +26,35 @@ A new, parallel CRUD list/editor pair, admin-only (same wildcard-only `featurePe
 
 ## Frontend: Light Course Editor integration
 
-Scoped entirely to [lightCourseEditor/views/lightCourseTreeView.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/lightCourseEditor/views/lightCourseTreeView.js) - the full/legacy course editor is untouched. When the component-type `<select>` built by `renderComponentPicker` changes (including the very first selection on a brand new node), a new `renderPresetPicker` fetches that type's presets (`GET api/content/lightcomponentdefault?componentType=<type>`) and renders a small adjacent preset `<select>` (a "-- none --" option, plus one per preset, next to the type picker):
+Preset selection is scoped to [lightCourseEditor/views/lightCourseTreeView.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/lightCourseEditor/views/lightCourseTreeView.js), shared by light courses and course templates. The full/legacy course editor does not use this picker. When the component-type `<select>` built by `renderComponentPicker` changes (including the very first selection on a brand new node), a new `renderPresetPicker` fetches that type's presets (`GET api/content/lightcomponentdefault?componentType=<type>`) and renders a small adjacent preset `<select>` (a "-- none --" option, plus one per preset, next to the type picker):
 
 - If the node had no `_component` before this change (a brand new node's very first type choice) and a preset is flagged default for the new type, that preset is pre-selected and its `values` are applied immediately (`Object.assign`'d onto the node, then the field-value form is re-rendered).
-- At any other time - including re-opening an already-placed component, or changing a brand new node's type a second time - the preset dropdown starts at "-- none --"; nothing is auto-applied.
+- The selected preset ID is stored on the component as `_componentPresetId`, alongside the applied field values. Reopening the component restores that selection without reapplying the preset over manual edits. Course templates and new courses created from them retain both the selection and the values; only content-node IDs are regenerated.
+- Changing an existing component's type clears its preset selection and does not automatically apply another default. Choosing "-- none --" clears the preset selection but keeps the current field values. If a saved preset has been removed, the dropdown shows "Saved preset unavailable" and the component retains its saved values.
 - Changing the preset dropdown's selection, at any time, immediately re-applies that preset's `values` onto the node and re-renders the form, overwriting current field values - an explicit, deliberate action per the product requirement, never triggered silently (e.g. by typing in a field).
 
 New i18n keys added to [lightCourseEditor/lang/en.json](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/lightCourseEditor/lang/en.json): `app.lightcoursecomponentpreset`, `app.lightcoursecomponentpresetnone`.
 
+The shared rich-text editor lifecycle handles reading/removing fields before CKEditor finishes
+initializing. Removed fields are not initialized later, pending editor instances are destroyed
+when they become ready, and an early save reads the textarea's current value. This prevents
+applying a preset immediately after choosing a component type from breaking the field form.
+Preset requests are ignored after switching components/types or closing the editor.
+
+Previously saved components without `_componentPresetId` keep their field values but have no
+recoverable preset selection. Select the intended preset once and save to retain it.
+
 ## Tests
+
+### Populated fields in the tree
+
+Course and template editors share a recursive preview of every populated node field, including
+instructions, graphic/developer notes, nested item values, and stored settings.
+Component Unique ID appears once beside the title in small grey text, not in the expanded field
+list. Unique ID and audio values remain visible even when their extensions are disabled.
+Empty strings/objects/lists and internal IDs, node types, schema snapshots, and preset IDs are
+omitted; numeric zero and boolean false remain visible. Schema titles are used as labels where
+available, with readable field-name labels otherwise. Rich-text fields retain their formatting,
+while other values are escaped and preserve line breaks.
 
 [test/lib.lightcomponentdefault.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcomponentdefault.js), modelled on [test/lib.lightcourseadmin.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcourseadmin.js)'s `adminAgent`/Light-Editor-role `editorAgent` setup. Covers: admin create/update/delete; Light Editor read access; Light Editor rejected on create/update/delete (asserted as "not a 200, `success: false`" rather than a literal 403 - confirmed `lib/contentmanager.js`'s generic content POST/PUT/DELETE routes only special-case `ContentTypeError`/`ContentConflictError`, mapping every other error including a denied `ContentPermissionError` to a flat 500; only the separate `/content/:type/query` GET route special-cases `ContentPermissionError` to 403 - a pre-existing, framework-wide REST-layer behaviour affecting every content type's create/update/delete permission denials, out of scope to change here); the single-default-per-`componentType` enforcement on both create and update; and that different `componentType` values each keep an independent default unaffected by one another.

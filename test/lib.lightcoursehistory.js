@@ -112,6 +112,9 @@ function createHarness() {
     '../../../lib/usermanager': usermanager,
     '../../../lib/logger': { log: function() {} },
     '../../../lib/rest': rest,
+    '../../../lib/lightcoursewordcount': {},
+    '../../../lib/lightcourse/versionDiff': {},
+    '../../../lib/lightcourse/iconClasses': {},
     '../../../': function() { return app; },
     formidable: {
       IncomingForm: function() {
@@ -139,13 +142,14 @@ function createHarness() {
       }
     }
   };
-  ['auditlog', 'lightcomponentdefault', 'lightcoursetemplate', 'lightcourseconfig', 'lightcourseasset'].forEach(function(type) {
+  ['auditlog', 'lightcomponentdefault', 'lightcoursetemplate', 'lightcourseconfig', 'lightcourseasset', 'lightcourse'].forEach(function(type) {
     var Plugin = loadCommonJS('plugins/content/' + type + '/index.js', mocks);
     app.contentmanager._contentTypes[type] = new Plugin();
   });
   app.emit('serverStarted');
   return {
     manager: app.contentmanager,
+    db: db,
     permissions: permissions,
     records: records,
     routes: routes,
@@ -286,6 +290,213 @@ describe('light editor timestamps and item audit history (isolated)', function()
       params: { contentType: 'lightcomponentdefault', contentId: first._id }
     });
     assert.deepStrictEqual(logs.map(function(log) { return log.action; }), ['create', 'delete']);
+  });
+});
+
+describe('new template starting settings (isolated)', function() {
+  var harness;
+  var config;
+  var selections = { menu: 'tileMenu', theme: 'aleido', extensions: ['help', 'menuButton'] };
+  var icons = { menuButton: 'menu', help: 'question' };
+  var Backbone = loadCommonJS('frontend/src/libraries/backbone.js', { underscore: _ });
+  var Model = loadAMD('frontend/src/modules/lightCourseAdmin/models/lightCourseTemplateModel.js', { backbone: Backbone });
+
+  beforeEach(async function() {
+    harness = createHarness();
+    config = await harness.create('lightcourseconfig', {
+      defaultPluginSelections: selections, iconDefaults: icons
+    });
+  });
+
+  it('copies the current tenant settings once and audits the seeded snapshot', async function() {
+    harness.records.lightcourseconfig.unshift({
+      _id: 'other-config', _tenantId: 'other-tenant',
+      defaultPluginSelections: { menu: 'other-menu' }, iconDefaults: { help: 'info' }
+    });
+    var template = await harness.create('lightcoursetemplate', { name: 'New template' });
+    assert.deepStrictEqual(template.contentSnapshot.pluginSelections, selections);
+    assert.deepStrictEqual(template.contentSnapshot.headerData.iconChoices, icons);
+    var log = harness.records.auditlog.find(function(log) { return log.contentId === template._id; });
+    assert.deepStrictEqual(log.snapshot.contentSnapshot, template.contentSnapshot);
+    await harness.update('lightcourseconfig', { _id: config._id }, {
+      defaultPluginSelections: { menu: 'changed-menu' }, iconDefaults: { help: 'info' }
+    });
+    assert.deepStrictEqual(harness.records.lightcoursetemplate[0].contentSnapshot, template.contentSnapshot);
+    template.contentSnapshot.pluginSelections.extensions.push('edited');
+    assert.deepStrictEqual(harness.records.lightcourseconfig.find(function(item) { return item._id === config._id; }).defaultPluginSelections, { menu: 'changed-menu' });
+  });
+
+  it('preserves explicitly empty configured selections', async function() {
+    await harness.update('lightcourseconfig', { _id: config._id }, {
+      defaultPluginSelections: { menu: '', theme: '', extensions: [] }, iconDefaults: {}
+    });
+    var template = await harness.create('lightcoursetemplate', { name: 'No plugins' });
+    assert.deepStrictEqual(template.contentSnapshot.pluginSelections, { menu: '', theme: '', extensions: [] });
+    assert.deepStrictEqual(template.contentSnapshot.headerData.iconChoices, {});
+  });
+
+  it('starts with empty settings when the tenant has no config record', async function() {
+    harness.records.lightcourseconfig = [];
+    var template = await harness.create('lightcoursetemplate', { name: 'No settings yet' });
+    assert.deepStrictEqual(template.contentSnapshot, { pluginSelections: {}, headerData: { iconChoices: {} } });
+    assert.strictEqual(harness.records.lightcourseconfig.length, 0);
+  });
+
+  [{}, { pluginSelections: { menu: '', theme: '', extensions: [] }, headerData: { iconChoices: {} } }].forEach(function(snapshot) {
+    it('does not seed an explicitly supplied snapshot: ' + JSON.stringify(snapshot), async function() {
+      var template = await harness.create('lightcoursetemplate', { name: 'Explicit template', contentSnapshot: copy(snapshot) });
+      assert.deepStrictEqual(template.contentSnapshot, snapshot);
+    });
+  });
+
+  it('preserves copied icons and plugin selections across editor save, clone, and new course creation', async function() {
+    var template = await harness.create('lightcoursetemplate', { name: 'Starting template' });
+    var model = new Model(template, { parse: true });
+    assert.deepStrictEqual(copy(model.get('headerData').iconChoices), icons);
+    model.set({ name: 'Edited template', contentTree: { children: [] } });
+    await harness.update('lightcoursetemplate', { _id: template._id }, copy(model.toJSON()));
+    await harness.update('lightcourseconfig', { _id: config._id }, {
+      defaultPluginSelections: { extensions: ['reflection'] }, iconDefaults: { help: 'info' }
+    });
+    var clone = await harness.create('lightcoursetemplate', Object.assign(
+      {}, copy(_.omit(model.toJSON(), '_id', 'createdAt', 'updatedAt')), { name: 'Clone' }
+    ));
+    assert.deepStrictEqual(clone.contentSnapshot.pluginSelections, selections);
+    assert.deepStrictEqual(clone.contentSnapshot.headerData.iconChoices, icons);
+    var course = await harness.create('lightcourse', { title: 'From template', _templateId: clone._id });
+    assert.deepStrictEqual(course.pluginSelections, selections);
+    assert.deepStrictEqual(course.headerData.iconChoices, icons);
+  });
+
+  it('uses the copied settings when creating a course directly from a new blank template', async function() {
+    var template = await harness.create('lightcoursetemplate', { name: 'Blank template' });
+    var course = await harness.create('lightcourse', { title: 'New course', _templateId: template._id });
+    assert.deepStrictEqual(course.pluginSelections, selections);
+    assert.deepStrictEqual(course.headerData.iconChoices, icons);
+  });
+
+  it('does not seed templates promoted from a version with current settings', async function() {
+    var sourceSnapshot = { pluginSelections: { menu: 'source-menu', extensions: [] } };
+    harness.records.lightcourseversion = [{ _id: 'version', versionNumber: 1, contentSnapshot: sourceSnapshot }];
+    var template = await callRoute(harness, 'post /content/lightcoursetemplate/from-version/:versionId', {
+      params: { versionId: 'version' }, body: { name: 'Promoted template' }
+    });
+    assert.deepStrictEqual(template.contentSnapshot.pluginSelections, sourceSnapshot.pluginSelections);
+    assert.strictEqual(template.contentSnapshot.headerData, undefined);
+  });
+
+  it('reports settings read failures instead of silently creating an unseeded template', async function() {
+    harness.db.retrieve = function(type, search, options, next) { next(new Error('Settings read failed')); };
+    await assert.rejects(harness.create('lightcoursetemplate', { name: 'Should not be saved' }), /Settings read failed/);
+    assert.strictEqual(harness.records.lightcoursetemplate, undefined);
+  });
+
+  it('sends only name and description from the blank-template create modal', function() {
+    var modalOptions;
+    var origin = {
+      trigger: function(event, View, options) { modalOptions = options; },
+      l10n: { t: function(key) { return key; } }
+    };
+    var view = loadAMD('frontend/src/modules/lightCourseAdmin/views/lightCourseTemplateListView.js', {
+      'core/origin': origin,
+      'core/views/originView': { extend: function(proto) { return proto; } },
+      '../models/lightCourseTemplateModel': Model
+    });
+    var request;
+    var originalAjax = Backbone.ajax;
+    Backbone.ajax = function(options) { request = options; return {}; };
+    try {
+      view.onCreateClicked();
+      modalOptions.onUpdate({ name: 'New template', description: 'Description' });
+    } finally {
+      Backbone.ajax = originalAjax;
+    }
+    assert.strictEqual(request.type, 'POST');
+    assert.deepStrictEqual(JSON.parse(request.data), { name: 'New template', description: 'Description' });
+  });
+});
+
+describe('saving templates without leaving the editor (isolated)', function() {
+  function harness() {
+    var Backbone = loadCommonJS('frontend/src/libraries/backbone.js', { underscore: _ });
+    var Model = loadAMD('frontend/src/modules/lightCourseAdmin/models/lightCourseTemplateModel.js', { backbone: Backbone });
+    var alerts = [];
+    var navigations = [];
+    var requests = [];
+    var proto = loadAMD('frontend/src/modules/lightCourseAdmin/views/lightCourseTemplateEditorView.js', {
+      'core/origin': {
+        l10n: { t: function(key) { return key; } },
+        Notify: { alert: function(data) { alerts.push(data); } },
+        router: { navigateTo: function(route) { navigations.push(route); } }
+      },
+      'core/views/originView': { extend: function(proto) { return proto; } },
+      '../itemHistory': function() { return function() {}; }
+    });
+    var tree = { children: [{ _id: 'page', type: 'page', title: 'Page title', children: [] }] };
+    var model = new Model({
+      _id: 'template', name: 'Original',
+      contentTree: tree,
+      pluginSelections: { menu: 'menu', theme: 'theme', extensions: ['help'] },
+      headerData: { iconChoices: { help: 'fa-question' } },
+      glossaryItems: [{ _id: 'term', term: 'Word' }],
+      resourceItems: [{ _id: 'resource', title: 'Reference' }],
+      helpContent: { popup: { title: 'Help' } }
+    });
+    model.sync = function(method, model, options) {
+      requests.push({ method: method, data: copy(model.toJSON()), options: options });
+      return {};
+    };
+    var fields = {
+      '.light-course-template-editor-name': 'Edited template',
+      '.light-course-template-editor-description': 'Description',
+      '.light-course-template-editor-menu-title': 'Menu title',
+      '.light-course-template-editor-menu-body': 'Menu body'
+    };
+    var view = Object.assign(Object.create(proto), {
+      model: model,
+      treeView: { getContentTree: function() { return tree; } },
+      $: function(selector) { return { val: function() { return fields[selector]; } }; }
+    });
+    return { view: view, model: model, fields: fields, alerts: alerts, navigations: navigations, requests: requests };
+  }
+
+  it('stays in the editor and preserves content and settings across two acknowledged saves', function() {
+    var h = harness();
+    h.view.onSaveClicked();
+    assert.strictEqual(h.requests[0].method, 'update');
+    h.requests[0].options.success({ success: true });
+    assert.strictEqual(h.model.get('name'), 'Edited template');
+    assert.strictEqual(h.navigations.length, 0);
+    assert.strictEqual(h.alerts[0].type, 'success');
+    h.fields['.light-course-template-editor-name'] = 'Second edit';
+    h.view.onSaveClicked();
+    assert.deepStrictEqual(h.requests[1].data.contentSnapshot, h.requests[0].data.contentSnapshot);
+    h.requests[1].options.success({ success: true });
+    assert.strictEqual(h.model.get('name'), 'Second edit');
+    assert.strictEqual(h.model.get('headerData').iconChoices.help, 'fa-question');
+    assert.strictEqual(h.model.get('pluginSelections').theme, 'theme');
+    assert.strictEqual(h.navigations.length, 0);
+    assert.strictEqual(h.alerts.length, 2);
+  });
+
+  it('keeps explicit Back to list navigation', function() {
+    var h = harness();
+    h.view.onBackToListClicked();
+    assert.deepStrictEqual(h.navigations, ['lightCourseTemplates']);
+  });
+
+  it('continues to report validation and server errors without navigating', function() {
+    var h = harness();
+    h.fields['.light-course-template-editor-name'] = ' ';
+    h.view.onSaveClicked();
+    assert.strictEqual(h.requests.length, 0);
+    assert.strictEqual(h.alerts[0].text, 'app.lightcoursetemplatenamerequired');
+    h.fields['.light-course-template-editor-name'] = 'Template';
+    h.view.onSaveClicked();
+    h.requests[0].options.error({ responseJSON: { message: 'Save failed' } });
+    assert.strictEqual(h.alerts[1].type, 'error');
+    assert.strictEqual(h.alerts[1].text, 'Save failed');
+    assert.strictEqual(h.navigations.length, 0);
   });
 });
 

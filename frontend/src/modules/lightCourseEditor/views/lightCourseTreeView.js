@@ -4,6 +4,7 @@ define(function(require) {
   var OriginView = require('core/views/originView');
   var LightCourseComponentFormView = require('./lightCourseComponentFormView');
   var WordCount = require('../wordCount');
+  var FieldPreview = require('../fieldPreview');
 
   var HIERARCHY = { page: 'article', article: 'block', block: 'component' };
   var MAX_COMPONENTS_PER_BLOCK = 2;
@@ -13,6 +14,12 @@ define(function(require) {
     // server re-mints its own IDs on save for anything missing one, so a collision-resistant
     // client-side placeholder is enough here.
     return 'node-' + Date.now().toString(16) + '-' + Math.random().toString(16).slice(2, 10);
+  }
+
+  function regenerateNodeIds(node) {
+    node._id = generateStableId();
+    (node.children || []).forEach(regenerateNodeIds);
+    return node;
   }
 
   function emptyNodeData(type) {
@@ -45,7 +52,14 @@ define(function(require) {
       'click .light-course-tree-move-up': 'onMoveUpClicked',
       'click .light-course-tree-move-down': 'onMoveDownClicked',
       'click .light-course-tree-edit': 'onEditClicked',
-      'click .light-course-tree-component-editor-close': 'onCloseEditorClicked'
+      'click .light-course-tree-copy': 'onCopyClicked',
+      'click .light-course-tree-paste': 'onPasteClicked',
+      'click .light-course-tree-paste-page': 'onPastePageClicked',
+      'click .light-course-tree-cancel-copy': 'onCancelCopyClicked',
+      'change .light-course-tree-page-title-input': 'onPageTitleChanged',
+      'click .light-course-tree-component-editor-close': 'onCloseEditorClicked',
+      'click .light-course-tree-component-editor-cancel': 'onCancelEditorClicked',
+      'keydown .light-course-tree-component-editor': 'onEditorKeydown'
     },
 
     preRender: function() {
@@ -54,22 +68,23 @@ define(function(require) {
         this.tree.children = [];
       }
       this.openComponentNodeId = null;
+      this.openComponentDraft = null;
+      this.clipboardNode = null;
     },
 
     postRender: function() {
       this.renderTree();
+      this.clipboardEventNamespace = '.lightCourseClipboard' + this.cid;
+      $(document).off(this.clipboardEventNamespace).on(
+        'click' + this.clipboardEventNamespace + ' change' + this.clipboardEventNamespace,
+        _.bind(this.onOtherActionSelected, this));
       this.setViewToReady();
     },
 
     renderTree: function() {
-      var extensions = (this.model.get('pluginSelections') && this.model.get('pluginSelections').extensions) || [];
       var html = Handlebars.templates['lightCourseTreeRootNodes']({
         children: this.tree.children,
-        // Shown next to a component's title in its tree label (part_lightCourseTreeNode.hbs, via
-        // @root) only when the course actually has the Unique ID extension selected - per direct
-        // user request, matching the same isExtensionSelected() gate every other extension-
-        // dependent bit of UI already uses elsewhere in this editor.
-        uniqueIdEnabled: extensions.indexOf('uniqueId') !== -1,
+        clipboardType: this.clipboardNode && this.clipboardNode.type,
         // Per-node computed display data (component type display name, body HTML, live word
         // count) - looked up via `{{lookup @root.nodeMeta _id}}` in part_lightCourseTreeNode.hbs.
         // Computed here rather than inline in the template since it needs this.componentTypes
@@ -77,11 +92,14 @@ define(function(require) {
         nodeMeta: this.buildNodeMeta(this.tree.children)
       });
       this.$('.light-course-tree-root').html(html);
+      this.$('.light-course-tree-copy-status').toggleClass('display-none', !this.clipboardNode);
+      this.$('.light-course-tree-copy-status-label').text(this.clipboardNode ?
+        Origin.l10n.t('app.lightcourse' + this.clipboardNode.type + 'copied') : '');
     },
 
     /**
-     * Flat map of nodeId -> { componentTypeDisplayName, wordCount } for every component node in
-     * the tree, built fresh on every render so it always reflects the live in-memory tree
+     * Flat map of nodeId -> display metadata and populated fields for every node in the tree,
+     * built fresh on every render so it always reflects the live in-memory tree
      * (including a component whose form was just edited but not yet saved).
      */
     buildNodeMeta: function(nodes, out) {
@@ -90,25 +108,21 @@ define(function(require) {
         if (!node) {
           return;
         }
-        if (node.type === 'component') {
-          var componentType = _.findWhere(this.componentTypes || [], { component: node._component });
-          out[node._id] = {
-            componentTypeDisplayName: (componentType && componentType.displayName) || node._component || '',
-            wordCount: WordCount.countComponentWords(node)
-          };
-          return;
-        }
+        var componentType = _.findWhere(this.componentTypes || [], { component: node._component });
+        out[node._id] = {
+          componentTypeDisplayName: (componentType && componentType.displayName) || node._component || '',
+          wordCount: node.type === 'component' ? WordCount.countComponentWords(node) : 0,
+          fields: FieldPreview(node)
+        };
         this.buildNodeMeta(node.children, out);
       }, this);
       return out;
     },
 
     /**
-     * Returns the current contentTree, flushing any currently-open component form's values back
-     * into the corresponding node first. Called by the editor shell when assembling a save.
+     * Returns the committed contentTree. Open component edits stay in a separate draft until Save.
      */
     getContentTree: function() {
-      this.flushOpenComponentForm();
       return this.tree;
     },
 
@@ -134,13 +148,37 @@ define(function(require) {
 
     onAddPageClicked: function(event) {
       event && event.preventDefault();
-      this.tree.children.push(emptyNodeData('page'));
+      this.clearClipboard();
+      var page = emptyNodeData('page');
+      var article = emptyNodeData('article');
+      article.children.push(emptyNodeData('block'));
+      page.children.push(article);
+      this.tree.children.push(page);
       this.renderTree();
+      Origin.trigger('lightCourseEditor:autosave');
+    },
+
+    onPageTitleChanged: function(event) {
+      var $input = $(event.currentTarget);
+      var found = this.findNode(this.getNodeIdFromEvent(event));
+      if (!found || found.node.type !== 'page') {
+        return;
+      }
+      this.clearClipboard();
+      var title = $input.val().trim();
+      $input.val(title);
+      $input.closest('.light-course-tree-node').find('.light-course-tree-page-heading')
+        .text(title || Origin.l10n.t('app.lightcoursepage'));
+      if ((found.node.title || '') === title) {
+        return;
+      }
+      found.node.title = title;
       Origin.trigger('lightCourseEditor:autosave');
     },
 
     onAddChildClicked: function(event) {
       event && event.preventDefault();
+      this.clearClipboard();
       var nodeId = this.getNodeIdFromEvent(event);
       var found = this.findNode(nodeId);
       if (!found) {
@@ -157,6 +195,7 @@ define(function(require) {
 
     onRemoveClicked: function(event) {
       event && event.preventDefault();
+      this.clearClipboard();
       var nodeId = this.getNodeIdFromEvent(event);
       var self = this;
       Origin.Notify.confirm({
@@ -179,6 +218,78 @@ define(function(require) {
       });
     },
 
+    onCopyClicked: function(event) {
+      event && event.preventDefault();
+      var found = this.findNode(this.getNodeIdFromEvent(event));
+      if (!found || ['page', 'block', 'component'].indexOf(found.node.type) === -1) {
+        return;
+      }
+      this.clipboardNode = JSON.parse(JSON.stringify(found.node));
+      this.renderTree();
+    },
+
+    onPasteClicked: function(event) {
+      event && event.preventDefault();
+      var found = this.findNode(this.getNodeIdFromEvent(event));
+      if (!found || !this.clipboardNode || HIERARCHY[found.node.type] !== this.clipboardNode.type) {
+        return;
+      }
+      if (found.node.type === 'block' && found.node.children.length >= MAX_COMPONENTS_PER_BLOCK) {
+        return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursemaxcomponents') });
+      }
+      this.pasteClipboardAt(found.node.children, found.node.children.length);
+    },
+
+    onPastePageClicked: function(event) {
+      event && event.preventDefault();
+      if (!this.clipboardNode || this.clipboardNode.type !== 'page') {
+        return;
+      }
+      var afterNodeId = $(event.currentTarget).attr('data-after-node-id');
+      var index = 0;
+      if (afterNodeId) {
+        var anchor = this.findNode(afterNodeId);
+        if (!anchor || anchor.siblings !== this.tree.children) {
+          return;
+        }
+        index = anchor.index + 1;
+      }
+      this.pasteClipboardAt(this.tree.children, index);
+    },
+
+    pasteClipboardAt: function(nodes, index) {
+      var pasted = regenerateNodeIds(JSON.parse(JSON.stringify(this.clipboardNode)));
+      nodes.splice(index, 0, pasted);
+      this.clipboardNode = null;
+      this.renderTree();
+      Origin.trigger('lightCourseEditor:autosave');
+    },
+
+    onCancelCopyClicked: function(event) {
+      event && event.preventDefault();
+      this.clearClipboard();
+    },
+
+    clearClipboard: function() {
+      if (!this.clipboardNode) {
+        return;
+      }
+      this.clipboardNode = null;
+      this.$('.light-course-tree-paste').remove();
+      this.$('.light-course-tree-page-paste-zone').remove();
+      this.$('.light-course-tree-copy-status').toggleClass('display-none', true);
+      this.$('.light-course-tree-copy-status-label').text('');
+    },
+
+    onOtherActionSelected: function(event) {
+      if (!this.clipboardNode ||
+          !$(event.target).closest('button, a, input, select, textarea, summary, [role="button"]').length ||
+          $(event.target).closest('.light-course-tree-copy, .light-course-tree-paste, .light-course-tree-paste-page, .light-course-tree-cancel-copy').length) {
+        return;
+      }
+      this.clearClipboard();
+    },
+
     onMoveUpClicked: function(event) {
       event && event.preventDefault();
       this.moveNode(this.getNodeIdFromEvent(event), -1);
@@ -190,6 +301,7 @@ define(function(require) {
     },
 
     moveNode: function(nodeId, direction) {
+      this.clearClipboard();
       var found = this.findNode(nodeId);
       if (!found) {
         return;
@@ -211,22 +323,47 @@ define(function(require) {
     },
 
     openComponentEditor: function(nodeId) {
-      this.flushOpenComponentForm();
+      this.clearClipboard();
       var found = this.findNode(nodeId);
       if (!found) {
         return;
       }
+      if (this.openComponentNodeId) {
+        this.closeComponentEditor();
+        found = this.findNode(nodeId);
+      }
       this.openComponentNodeId = nodeId;
+      this.openComponentDraft = JSON.parse(JSON.stringify(found.node));
 
       var $editor = this.$('.light-course-tree-component-editor');
       $editor.removeClass('display-none');
 
-      this.renderComponentPicker(found.node);
-      this.renderComponentForm(found.node);
-      // not a first-time type choice - this node (new or already-placed) already has whatever
-      // _component it has as the editor opens, so the preset dropdown only ever starts blank
-      // here; see the type-select change handler below for the actual "brand new node" case.
-      this.renderPresetPicker(found.node, false);
+      this.renderComponentPicker(this.openComponentDraft);
+      this.renderComponentForm(this.openComponentDraft);
+      // Restore the saved selection without reapplying values over the author's edits.
+      this.renderPresetPicker(this.openComponentDraft, false);
+      $editor.trigger('focus');
+    },
+
+    onEditorKeydown: function(event) {
+      if (event.key !== 'Tab' || $(event.target).closest('.scaffold-items-modal').length) {
+        return;
+      }
+      var $editor = this.$('.light-course-tree-component-editor');
+      var $focusable = $editor.find('button, input, select, textarea, a[href], [tabindex]')
+        .filter(':visible:not(:disabled)').filter(function() { return this.tabIndex >= 0; });
+      var first = $focusable[0];
+      var last = $focusable[$focusable.length - 1];
+      if (!first) {
+        event.preventDefault();
+        $editor.trigger('focus');
+      } else if (event.shiftKey && (event.target === first || event.target === $editor[0])) {
+        event.preventDefault();
+        $(last).trigger('focus');
+      } else if (!event.shiftKey && (event.target === last || event.target === $editor[0])) {
+        event.preventDefault();
+        $(first).trigger('focus');
+      }
     },
 
     renderComponentPicker: function(node) {
@@ -248,10 +385,10 @@ define(function(require) {
         // a future editing session) no longer auto-applies a default preset, per the product
         // requirement that re-applying a preset is always an explicit, deliberate action.
         var isFirstTimeChoice = !node._component;
+        delete node._componentPresetId;
         node._component = $select.val();
         this.renderComponentForm(node);
         this.renderPresetPicker(node, isFirstTimeChoice);
-        Origin.trigger('lightCourseEditor:autosave');
       }, this));
       $picker.append($label).append($select);
     },
@@ -272,11 +409,14 @@ define(function(require) {
         return;
       }
       var self = this;
+      var requestId = this.presetRequestId = (this.presetRequestId || 0) + 1;
       $.get('api/content/lightcomponentdefault', { componentType: componentType }).done(function(presets) {
-        // the node may have moved on to a different componentType (or the editor closed)
-        // by the time this resolves - only render against the node's still-current type.
-        if (node._component === componentType) {
+        if (self.presetRequestId === requestId && self.openComponentNodeId === node._id && node._component === componentType) {
           self.renderPresetSelect(node, presets || [], applyDefaultIfAvailable);
+        }
+      }).fail(function() {
+        if (self.presetRequestId === requestId && self.openComponentNodeId === node._id && node._component === componentType) {
+          Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcoursecomponentpresets') });
         }
       });
     },
@@ -284,7 +424,7 @@ define(function(require) {
     renderPresetSelect: function(node, presets, applyDefaultIfAvailable) {
       var $presetPicker = this.$('.light-course-tree-component-editor-preset-picker');
       $presetPicker.empty();
-      if (!presets.length) {
+      if (!presets.length && !node._componentPresetId) {
         return;
       }
       var $label = $('<label>').text(Origin.l10n.t('app.lightcoursecomponentpreset'));
@@ -299,10 +439,19 @@ define(function(require) {
           defaultPreset = preset;
         }
       });
+      if (node._componentPresetId) {
+        if (!_.findWhere(presets, { _id: node._componentPresetId })) {
+          $select.append($('<option></option>').attr('value', node._componentPresetId)
+            .text(Origin.l10n.t('app.lightcoursecomponentpresetunavailable')).prop('disabled', true));
+        }
+        $select.val(node._componentPresetId);
+      }
       $select.on('change', _.bind(function() {
         var preset = _.findWhere(presets, { _id: $select.val() });
         if (preset) {
           this.applyPresetValues(node, preset);
+        } else if (!$select.val()) {
+          delete node._componentPresetId;
         }
       }, this));
       $presetPicker.append($label).append($select);
@@ -314,9 +463,10 @@ define(function(require) {
     },
 
     applyPresetValues: function(node, preset) {
-      Object.assign(node, preset.values || {});
+      var values = _.omit(preset.values || {}, '_id', 'type', 'children', '_component', '_componentPresetId');
+      Object.assign(node, JSON.parse(JSON.stringify(values)));
+      node._componentPresetId = preset._id;
       this.renderComponentForm(node);
-      Origin.trigger('lightCourseEditor:autosave');
     },
 
     renderComponentForm: function(node) {
@@ -357,15 +507,10 @@ define(function(require) {
     },
 
     flushOpenComponentForm: function() {
-      if (!this.openComponentNodeId || !this.componentFormView) {
+      if (!this.openComponentDraft || !this.componentFormView) {
         return;
       }
-      var found = this.findNode(this.openComponentNodeId);
-      if (found) {
-        var formData = this.componentFormView.getFormData();
-        Object.assign(found.node, formData);
-        Origin.trigger('lightCourseEditor:autosave');
-      }
+      Object.assign(this.openComponentDraft, this.componentFormView.getFormData());
     },
 
     onCloseEditorClicked: function(event) {
@@ -373,15 +518,34 @@ define(function(require) {
       this.closeComponentEditor();
     },
 
-    closeComponentEditor: function() {
-      this.flushOpenComponentForm();
+    onCancelEditorClicked: function(event) {
+      event && event.preventDefault();
+      this.closeComponentEditor(false);
+    },
+
+    closeComponentEditor: function(saveChanges) {
+      var nodeId = this.openComponentNodeId;
+      var found = nodeId && this.findNode(nodeId);
+      var shouldSave = saveChanges !== false && !!found && !!this.openComponentDraft;
+      if (shouldSave) {
+        this.flushOpenComponentForm();
+        found.siblings[found.index] = this.openComponentDraft;
+      }
+      this.presetRequestId = (this.presetRequestId || 0) + 1;
       this.openComponentNodeId = null;
+      this.openComponentDraft = null;
       if (this.componentFormView) {
         this.componentFormView.remove();
         this.componentFormView = null;
       }
       this.$('.light-course-tree-component-editor').addClass('display-none');
       this.renderTree();
+      this.$('.light-course-tree-edit').filter(function() {
+        return $(this).closest('.light-course-tree-node').data('node-id') === nodeId;
+      }).first().trigger('focus');
+      if (shouldSave) {
+        Origin.trigger('lightCourseEditor:autosave');
+      }
     },
 
     setComponentTypes: function(componentTypes) {
@@ -397,6 +561,10 @@ define(function(require) {
     },
 
     remove: function() {
+      if (this.clipboardEventNamespace) {
+        $(document).off(this.clipboardEventNamespace);
+      }
+      this.presetRequestId = (this.presetRequestId || 0) + 1;
       if (this.componentFormView) {
         this.componentFormView.remove();
       }

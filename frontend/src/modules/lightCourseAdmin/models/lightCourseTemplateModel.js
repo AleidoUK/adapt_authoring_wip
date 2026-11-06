@@ -22,6 +22,7 @@ define(function(require) {
       body: '',
       contentTree: {},
       pluginSelections: {},
+      headerData: {},
       glossaryItems: [],
       resourceItems: [],
       helpContent: {}
@@ -31,12 +32,19 @@ define(function(require) {
       if (!response) {
         return response;
       }
+      // Content updates return an acknowledgement, not a replacement snapshot.
+      if (response.success === true && response.contentSnapshot === undefined) {
+        var acknowledgement = Object.assign({}, response);
+        delete acknowledgement.success;
+        return acknowledgement;
+      }
       var snapshot = response.contentSnapshot || {};
       var flattened = Object.assign({}, response, {
         title: snapshot.title || '',
         body: snapshot.body || '',
         contentTree: snapshot.contentTree || {},
         pluginSelections: snapshot.pluginSelections || {},
+        headerData: snapshot.headerData || {},
         glossaryItems: snapshot.glossaryItems || [],
         resourceItems: snapshot.resourceItems || [],
         helpContent: snapshot.helpContent || {}
@@ -66,6 +74,7 @@ define(function(require) {
           body: attrs.body,
           contentTree: attrs.contentTree,
           pluginSelections: attrs.pluginSelections,
+          headerData: attrs.headerData,
           glossaryItems: attrs.glossaryItems,
           resourceItems: attrs.resourceItems,
           helpContent: attrs.helpContent

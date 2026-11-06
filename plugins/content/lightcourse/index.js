@@ -237,6 +237,9 @@ LightCourseContent.prototype.create = function (data, next) {
       var snapshot = idRegeneration.regenerateSnapshotIds(template.contentSnapshot) || {};
       data.contentTree = snapshot.contentTree || {};
       data.pluginSelections = snapshot.pluginSelections || {};
+      if (snapshot.headerData) {
+        data.headerData = snapshot.headerData;
+      }
       data.glossaryItems = snapshot.glossaryItems || [];
       data.resourceItems = snapshot.resourceItems || [];
       data.helpContent = snapshot.helpContent || {};

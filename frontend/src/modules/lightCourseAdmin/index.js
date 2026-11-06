@@ -39,7 +39,16 @@ define(function(require) {
       return;
     }
 
+    var parent = Origin.l10n.t('app.lightcourseadministration');
     Origin.globalMenu.addItem({
+      location: 'global',
+      text: parent,
+      icon: 'fa-cogs',
+      sortOrder: 4
+    });
+
+    Origin.globalMenu.addSubItem({
+      parent: parent,
       location: 'global',
       text: Origin.l10n.t('app.lightcourseconfig'),
       icon: 'fa-sliders',
@@ -47,7 +56,8 @@ define(function(require) {
       sortOrder: 4
     });
 
-    Origin.globalMenu.addItem({
+    Origin.globalMenu.addSubItem({
+      parent: parent,
       location: 'global',
       text: Origin.l10n.t('app.lightcourseassets'),
       icon: 'fa-picture-o',
@@ -55,7 +65,8 @@ define(function(require) {
       sortOrder: 5
     });
 
-    Origin.globalMenu.addItem({
+    Origin.globalMenu.addSubItem({
+      parent: parent,
       location: 'global',
       text: Origin.l10n.t('app.lightcoursetemplates'),
       icon: 'fa-clone',
@@ -63,7 +74,8 @@ define(function(require) {
       sortOrder: 6
     });
 
-    Origin.globalMenu.addItem({
+    Origin.globalMenu.addSubItem({
+      parent: parent,
       location: 'global',
       text: Origin.l10n.t('app.lightcoursecomponentdefaults'),
       icon: 'fa-puzzle-piece',

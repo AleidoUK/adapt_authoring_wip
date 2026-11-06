@@ -16,12 +16,34 @@ Validated via the full backend suite (175 passing / the same 14 pre-existing unr
 
 ## New backend routes
 
+### Starting settings for new templates
+
+New blank templates copy the tenant's current `defaultPluginSelections` (menu, theme, extensions)
+and `iconDefaults` into their saved snapshot when created. This is a one-time copy: changing
+Light Course Settings later does not change existing templates. Explicit empty selections are
+preserved. If no settings record exists, the template starts with empty settings.
+
+The blank-template create request sends only its name and description, omitting `contentSnapshot`.
+A supplied snapshot, even an empty one, is treated as explicit content and is not seeded. Clones,
+imports, and templates promoted from versions therefore retain their source settings.
+The template model preserves `headerData` when reopening, saving, and cloning; courses created
+from a template inherit its saved plugin selections and icon choices, not the current settings.
+Saving an existing template keeps the user in its editor and shows the saved confirmation.
+Use Back to list to leave explicitly. Update acknowledgements preserve the in-memory snapshot
+so subsequent edits and saves retain all settings and content.
+
 - `GET /api/lightcourseconfig/mine` (already existed from the preceding session of work) - get-or-create the tenant's singleton `lightcourseconfig` record.
 - `GET /api/lightcourseconfig/requireddefaultschema` (new, [plugins/content/lightcourseconfig/index.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/plugins/content/lightcourseconfig/index.js)) - walks every installed `componenttype` (merged with the shared `plugins/content/component/model.schema` fields, the same way `lib/lightcoursewordcount.js#resolveComponentSchema` does) and `extensiontype`'s schema via `schemaWalker.walkSchema()`, returning `{ components: [...], extensions: [...] }`, each entry `{ key, displayName, requiredTranslatablePaths, requiredAssetPaths }` - only included if it actually has at least one qualifying field, so the admin isn't shown a long list of nothing-configurable types.
 - `lightcourseconfig`'s `create()`/`update()` now validate `defaultPluginSelections`/`iconDefaults` (reusing [lib/lightcourse/validation.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/lib/lightcourse/validation.js)'s existing per-field checks against a reshaped payload) before this phase, these two fields could be set to anything via the generic content PUT route and would only ever fail later, confusingly, when a course tried to use them.
 - `lightcourse`'s blank-course `create()` now also merges `iconDefaults` into a new course's `headerData.iconChoices` (same pattern as the existing `defaultPluginSelections` wiring).
 
 ## New frontend module: `frontend/src/modules/lightCourseAdmin/`
+
+The admin links now live in a **Light Course Administration** submenu: Light Course Settings,
+Light Course Placeholder Assets, Light Course Templates, and Component Defaults. Its parent
+button expands/collapses inline, supports keyboard activation, and exposes its expanded state
+to assistive technology. Selecting a child opens the same existing route and closes the menu.
+The existing admin-only permission checks are unchanged.
 
 A separate top-level module (not nested in `lightCourseEditor`), gated the same wildcard-only way [userManagement](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/userManagement/index.js)/[frameworkImport](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/frontend/src/modules/frameworkImport/index.js) are (`["*/*:create","*/*:read","*/*:update","*/*:delete"]` - only a Super Admin-style role satisfies this; a Light Editor never sees either nav item). Two global nav items: **Light Course Templates** and **Light Course Settings**.
 

@@ -179,12 +179,10 @@ define(function(require) {
       if (!name) {
         return Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcoursetemplatenamerequired') });
       }
-      var self = this;
       this.model.save(this.assembleSaveData(), {
         wait: true,
         success: function() {
           Origin.Notify.alert({ type: 'success', text: Origin.l10n.t('app.lightcoursetemplatesaved') });
-          Origin.router.navigateTo('lightCourseTemplates');
         },
         error: function(model, response) {
           var message = (response && response.responseJSON && response.responseJSON.message) || Origin.l10n.t('app.errorgeneric');

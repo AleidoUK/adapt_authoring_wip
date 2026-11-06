@@ -1,5 +1,47 @@
 @import 'colours';
 
+.light-course-editor-tree-container, .light-course-template-editor-tree-container {
+  margin-bottom: 1rem;
+}
+
+.light-course-config-toolbar, .light-course-component-default-editor-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: white;
+    padding: 10px 0;
+}
+
+.light-course-tree-fields {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid @aleido-grey-3;
+  .light-course-tree-field {
+    margin-bottom: 10px;
+  }
+  dt {
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    img, video {
+      max-width: 100%;
+    }
+    p {
+      margin: 0 0 4px;
+    }
+  }
+  .light-course-tree-field-children {
+    padding-left: 12px;
+    border-left: 2px solid @aleido-grey-3;
+  }
+  .light-course-tree-field-value {
+    white-space: pre-wrap;
+  }
+}
+
 .light-course-list {
   padding: 20px;
 
@@ -149,9 +191,38 @@
   }
 }
 
-.light-course-asset-list {
+.light-course-asset-list, .light-course-tree {
   padding: 18px 20px;
   border: 1px solid #aaa;
+
+  .light-course-tree-component-editor {
+    label {
+      // border-bottom: 1px solid @aleido-green;
+      width: 100%;
+      display: inline-block;
+      font-size: 15px;
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+
+    select {
+      border: 1px solid @aleido-green;
+    }
+
+    .field-row {
+      background-color: white;
+      padding: 1rem;
+
+      label {
+        margin-bottom: 15px;
+        font-size: 110%;
+      }
+    }
+
+    fieldset {
+      margin-left: 0;
+    }
+  }
 
   .light-course-asset-list-upload-form {
     margin-bottom: 25px;
@@ -212,6 +283,22 @@
 
 
 .light-course-editor {
+  .light-course-editor-settings {
+    margin-top: 20px;
+    border: 1px solid #aaa;
+
+    > summary {
+      cursor: pointer;
+      padding: 12px 16px;
+      font-weight: @font-weight-bold;
+      background-color: @aleido-extra-light-green;
+    }
+  }
+
+  .light-course-editor-settings-content {
+    padding: 20px;
+  }
+
   .light-course-editor-toolbar {
     display: flex;
     justify-content: space-between;
@@ -409,6 +496,39 @@
     margin-bottom: 15px;
   }
 
+  .light-course-tree-toolbar,
+  .light-course-tree-copy-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .light-course-tree-page-paste-zone {
+    text-align: center;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    border: 1px dashed @primary-color;
+    border-radius: 3px;
+  }
+
+  .light-course-tree-page-heading {
+    margin: 0;
+    overflow-wrap: break-word;
+  }
+
+  .light-course-tree-page-title-editor {
+    display: block;
+    margin: 8px 0;
+
+    input {
+      display: block;
+      width: 100%;
+      max-width: 600px;
+      margin-top: 4px;
+    }
+  }
+
   .light-course-tree-root,
   .light-course-tree-node-children {
     list-style: none;
@@ -490,14 +610,50 @@
   }
 
   .light-course-tree-component-editor {
-    border-top: 2px solid #333;
-    margin-top: 20px;
-    padding-top: 15px;
+    position: fixed;
+    top: 61px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 499;
+    background: rgba(0, 0, 0, 0.35);
+    padding: 20px;
+    box-sizing: border-box;
+
+    .light-course-tree-component-editor-panel {
+      display: flex;
+      flex-direction: column;
+      max-width: 1100px;
+      height: 100%;
+      margin: 0 auto;
+      background: @white;
+      border-radius: 3px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
 
     .light-course-tree-component-editor-header {
       display: flex;
-      justify-content: flex-end; //space-between;
+      justify-content: flex-end;
       align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-bottom: 1px solid #ddd;
+      flex-shrink: 0;
+    }
+
+    .light-course-tree-component-editor-body {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 20px;
+    }
+
+    @media (max-width: 600px) {
+      padding: 8px;
+
+      .light-course-tree-component-editor-body {
+        padding: 12px;
+      }
     }
   }
 }
@@ -710,4 +866,3 @@
     color: #777;
   }
 }
-

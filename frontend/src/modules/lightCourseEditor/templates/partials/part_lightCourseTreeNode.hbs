@@ -4,7 +4,7 @@
 <li class="light-course-tree-node light-course-tree-node-{{type}}" data-node-id="{{_id}}" data-node-type="{{type}}">
   <div class="light-course-tree-node-row">
     {{#ifValueEquals type "page"}}
-      <span class="light-course-tree-node-label">{{t 'app.lightcoursepage'}}</span>
+      <h1 class="light-course-tree-node-label light-course-tree-page-heading">{{#if title}}{{title}}{{else}}{{t 'app.lightcoursepage'}}{{/if}}</h1>
     {{else}}{{#ifValueEquals type "article"}}
       <span class="light-course-tree-node-label">{{t 'app.lightcoursearticle'}}</span>
     {{else}}{{#ifValueEquals type "block"}}
@@ -14,7 +14,7 @@
         <span class="light-course-tree-node-label light-course-tree-component-label">
           <span class="light-course-tree-component-type">{{componentTypeDisplayName}}</span>
           <span class="light-course-tree-component-title">{{#if ../displayTitle}}{{../displayTitle}}{{else}}{{../title}}{{/if}}</span>
-          {{#if @root.uniqueIdEnabled}}{{#if ../uniqueId}}<span class="light-course-tree-component-uniqueid">({{t 'app.lightcourseuniqueid'}}: {{../uniqueId}})</span>{{/if}}{{/if}}
+          {{#if ../uniqueId}}<span class="light-course-tree-component-uniqueid">({{t 'app.lightcourseuniqueid'}}: {{../uniqueId}})</span>{{/if}}
           <span class="light-course-tree-component-wordcount">{{wordCount}} {{t 'app.lightcoursewords'}}</span>
         </span>
       {{/with}}
@@ -23,6 +23,10 @@
     <span class="light-course-tree-node-actions">
       <button class="btn-icon light-course-tree-move-up" title="{{t 'app.lightcoursemoveup'}}"><i class="fa fa-arrow-up"></i></button>
       <button class="btn-icon light-course-tree-move-down" title="{{t 'app.lightcoursemovedown'}}"><i class="fa fa-arrow-down"></i></button>
+      {{#ifValueEquals type "article"}}
+      {{else}}
+        <button type="button" class="btn-icon light-course-tree-copy" title="{{t 'app.lightcoursecopy'}}" aria-label="{{t 'app.lightcoursecopy'}}"><i class="fa fa-copy"></i></button>
+      {{/ifValueEquals}}
       {{#ifValueEquals type "component"}}
         <button class="btn-icon light-course-tree-edit" title="{{t 'app.edit'}}"><i class="fa fa-pencil"></i></button>
       {{else}}{{#ifValueEquals type "page"}}
@@ -32,14 +36,37 @@
       {{else}}
         <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddcomponent'}}</button>
       {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
+      {{#ifValueEquals @root.clipboardType "block"}}
+        {{#ifValueEquals type "article"}}
+          <button type="button" class="btn secondary-hollow light-course-tree-paste"><i class="fa fa-paste"></i> {{t 'app.lightcoursepasteblock'}}</button>
+        {{/ifValueEquals}}
+      {{else}}{{#ifValueEquals @root.clipboardType "component"}}
+        {{#ifValueEquals type "block"}}
+          <button type="button" class="btn secondary-hollow light-course-tree-paste"><i class="fa fa-paste"></i> {{t 'app.lightcoursepastecomponent'}}</button>
+        {{/ifValueEquals}}
+      {{/ifValueEquals}}{{/ifValueEquals}}
       <button class="btn-icon light-course-tree-remove" title="{{t 'app.remove'}}"><i class="fa fa-trash-o"></i></button>
     </span>
   </div>
 
-  {{#ifValueEquals type "component"}}
-    {{#if body}}
-      <div class="light-course-tree-component-body">{{{body}}}</div>
+  {{#ifValueEquals type "page"}}
+    <label class="light-course-tree-page-title-editor">
+      {{t 'app.lightcoursepagetitle'}}
+      <input type="text" class="light-course-tree-page-title-input" value="{{title}}">
+    </label>
+  {{/ifValueEquals}}
+
+  {{#with (lookup @root.nodeMeta _id)}}
+    {{#if fields}}
+      <dl class="light-course-tree-fields">
+        {{#each fields}}
+          {{> part_lightCourseTreeField}}
+        {{/each}}
+      </dl>
     {{/if}}
+  {{/with}}
+
+  {{#ifValueEquals type "component"}}
   {{else}}
     <ul class="light-course-tree-node-children light-course-tree-node-children-{{type}}">
       {{#each children}}

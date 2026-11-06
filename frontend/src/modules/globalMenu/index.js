@@ -33,7 +33,7 @@ define(function(require) {
     // Method for adding a sub item to the global menu
     GlobalMenu.addSubItem = function(subItemObject) {
         // Return if subItemObject doesn't have all arguments
-        if (_.size(subItemObject) !== 5) {
+        if (_.size(subItemObject) < 5) {
             return console.log('Cannot add Sub Menu item', subItemObject.text);
         }
 
@@ -46,6 +46,12 @@ define(function(require) {
         }
 
         subItemObject._isSubMenuItem = true;
+        if (!subItemObject.hasOwnProperty('sortOrder')) {
+            subItemObject.sortOrder = 99;
+        }
+        if (GlobalMenuStore.findWhere({parent: subItemObject.parent, text: subItemObject.text})) {
+            return;
+        }
         // Push item to GlobalMenuStore
         GlobalMenuStore.add(subItemObject);
     }

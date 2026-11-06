@@ -24,37 +24,6 @@
     </div>
   </div>
 
-  <div class="light-course-editor-header-container"></div>
-
-  <section class="light-course-editor-section light-course-editor-menu-section">
-    <h1>{{t 'app.lightcoursemenusection'}}</h1>
-    <p>{{t 'app.lightcoursemenusectionhelp'}}</p>
-    <div class="field-row column">
-      <label>{{t 'app.lightcoursemenutitle'}}</label>
-      <input type="text" class="light-course-editor-menu-title" value="{{title}}">
-    </div>
-    <div class="field-row column">
-      <label>{{t 'app.lightcoursemenubody'}}</label>
-      <textarea class="light-course-editor-menu-body">{{body}}</textarea>
-    </div>
-  </section>
-
-  <section class="light-course-editor-section light-course-editor-plugins">
-    <h1>{{t 'app.lightcoursepluginselections'}}</h1>
-    <div class="field-row column">
-      <label>{{t 'app.lightcoursemenu'}}</label>
-      <select class="light-course-editor-menu-select"></select>
-    </div>
-    <div class="field-row column">
-      <label>{{t 'app.lightcoursetheme'}}</label>
-      <select class="light-course-editor-theme-select"></select>
-    </div>
-    <div class="field-row column">
-      <label>{{t 'app.lightcourseextensions'}}</label>
-      <div class="light-course-editor-extensions-list"></div>
-    </div>
-  </section>
-
   <div class="light-course-editor-tree-container"></div>
 
   <section class="light-course-editor-section light-course-editor-glossary">
@@ -71,4 +40,40 @@
     <h1>{{t 'app.lightcoursehelp'}}</h1>
     <div class="light-course-editor-help-container"></div>
   </section>
+
+  <details class="light-course-editor-settings">
+    <summary>{{t 'app.lightcourseeditorsettings'}}</summary>
+    <div class="light-course-editor-settings-content">
+      <div class="light-course-editor-header-container"></div>
+
+      <section class="light-course-editor-section light-course-editor-menu-section">
+        <h1>{{t 'app.lightcoursemenusection'}}</h1>
+        <p>{{t 'app.lightcoursemenusectionhelp'}}</p>
+        <div class="field-row column">
+          <label>{{t 'app.lightcoursemenutitle'}}</label>
+          <input type="text" class="light-course-editor-menu-title" value="{{title}}">
+        </div>
+        <div class="field-row column">
+          <label>{{t 'app.lightcoursemenubody'}}</label>
+          <textarea class="light-course-editor-menu-body">{{body}}</textarea>
+        </div>
+      </section>
+
+      <section class="light-course-editor-section light-course-editor-plugins">
+        <h1>{{t 'app.lightcoursepluginselections'}}</h1>
+        <div class="field-row column">
+          <label>{{t 'app.lightcoursemenu'}}</label>
+          <select class="light-course-editor-menu-select"></select>
+        </div>
+        <div class="field-row column">
+          <label>{{t 'app.lightcoursetheme'}}</label>
+          <select class="light-course-editor-theme-select"></select>
+        </div>
+        <div class="field-row column">
+          <label>{{t 'app.lightcourseextensions'}}</label>
+          <div class="light-course-editor-extensions-list"></div>
+        </div>
+      </section>
+    </div>
+  </details>
 </div>

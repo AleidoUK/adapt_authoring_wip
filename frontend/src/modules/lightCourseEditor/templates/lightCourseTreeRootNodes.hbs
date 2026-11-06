@@ -1,3 +1,13 @@
+{{#ifValueEquals clipboardType "page"}}
+  <li class="light-course-tree-page-paste-zone">
+    <button type="button" class="btn secondary-hollow light-course-tree-paste-page" data-after-node-id=""><i class="fa fa-paste"></i> {{t 'app.lightcoursepastepage'}}</button>
+  </li>
+{{/ifValueEquals}}
 {{#each children}}
   {{> part_lightCourseTreeNode}}
+  {{#ifValueEquals @root.clipboardType "page"}}
+    <li class="light-course-tree-page-paste-zone">
+      <button type="button" class="btn secondary-hollow light-course-tree-paste-page" data-after-node-id="{{_id}}"><i class="fa fa-paste"></i> {{t 'app.lightcoursepastepage'}}</button>
+    </li>
+  {{/ifValueEquals}}
 {{/each}}

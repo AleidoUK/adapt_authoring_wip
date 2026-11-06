@@ -92,11 +92,35 @@ LightCourseTemplateContent.prototype.getModelName = function () {
  * can write arbitrary content directly.
  */
 LightCourseTemplateContent.prototype.create = function (data, next) {
-  var validationError = validateContentSnapshot(data.contentSnapshot);
-  if (validationError) {
-    return next(new Error(validationError));
+  var self = this;
+  function save() {
+    var validationError = validateContentSnapshot(data.contentSnapshot);
+    if (validationError) {
+      return next(new Error(validationError));
+    }
+    ContentPlugin.prototype.create.call(self, data, next);
   }
-  ContentPlugin.prototype.create.call(this, data, next);
+  // A supplied snapshot (including an intentionally empty one) belongs to a clone/import.
+  if (data.contentSnapshot !== undefined) {
+    return save();
+  }
+  var user = usermanager.getCurrentUser();
+  database.getDatabase(function(error, db) {
+    if (error) {
+      return next(error);
+    }
+    db.retrieve('lightcourseconfig', { _tenantId: user.tenant._id }, { jsonOnly: true }, function(error, results) {
+      if (error) {
+        return next(error);
+      }
+      var config = (results && results[0]) || {};
+      data.contentSnapshot = {
+        pluginSelections: JSON.parse(JSON.stringify(config.defaultPluginSelections || {})),
+        headerData: { iconChoices: JSON.parse(JSON.stringify(config.iconDefaults || {})) }
+      };
+      save();
+    });
+  });
 };
 
 /**

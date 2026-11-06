@@ -1,3 +1,10 @@
+{{#if hasChildren}}
+<button type="button" class="global-menu-item-inner global-menu-item-toggle" aria-expanded="false" aria-controls="{{submenuId}}">
+    <span class="global-menu-item-text-inner"><i class="fa {{icon}} fa-fw" aria-hidden="true"></i>&nbsp; {{text}}</span>
+    <i class="fa fa-chevron-down global-menu-submenu-indicator" aria-hidden="true"></i>
+</button>
+<div id="{{submenuId}}" class="global-menu-item-children" hidden></div>
+{{else}}
 <a href="#" class="global-menu-item-inner">
     <div class="global-menu-item-icon">
         <span class="icon"></span>
@@ -8,3 +15,4 @@
         </div>
     </div>
 </a>
+{{/if}}

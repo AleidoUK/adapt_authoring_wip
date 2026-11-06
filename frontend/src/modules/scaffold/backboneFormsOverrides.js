@@ -10,7 +10,18 @@ define([
   var initialize = Backbone.Form.editors.Base.prototype.initialize;
   var textInitialize = Backbone.Form.editors.Text.prototype.initialize;
   var textAreaRender = Backbone.Form.editors.TextArea.prototype.render;
+  var textAreaGetValue = Backbone.Form.editors.TextArea.prototype.getValue;
   var textAreaSetValue = Backbone.Form.editors.TextArea.prototype.setValue;
+  var textAreaRemove = Backbone.Form.editors.TextArea.prototype.remove;
+
+  function destroyTextEditor(editor) {
+    if (CKEDITOR.instances && CKEDITOR.instances[editor.id] === editor) {
+      delete CKEDITOR.instances[editor.id];
+    }
+    return editor.destroy().catch(function(error) {
+      console.error('Failed to destroy rich-text editor:', error);
+    });
+  }
 
   Backbone.Form.prototype.constructor.template = templates.form;
   Backbone.Form.Fieldset.prototype.template = templates.fieldset;
@@ -99,7 +110,11 @@ define([
       return arr.map((value, index) => processEntry([index, value])[1])
     }
 
-    until(isAttached(this.$el)).then(() => {
+    var isElementAttached = isAttached(this.$el);
+    until(() => this.isRemoved || isElementAttached()).then(() => {
+      if (this.isRemoved) {
+        return;
+      }
       var lightCourseRefs = this.schema && this.schema.lightCourseRefs;
       var plugins = window.CKEDITOR.pluginsConfig;
       var toolbarItems = [
@@ -187,20 +202,30 @@ define([
           shouldNotGroupWhenFull: true
         }
       }).then(editor => {
+        if (this.isRemoved) {
+          return destroyTextEditor(editor);
+        }
         this.editor = editor
+        if (this.pendingEditorValue !== undefined) {
+          this.editor.setData(this.pendingEditorValue);
+          delete this.pendingEditorValue;
+        }
         CKEDITOR.instances = CKEDITOR.instances || []
         CKEDITOR.instances.length = CKEDITOR.instances.length || 0;
         this.editor.id = CKEDITOR.instances.length
         CKEDITOR.instances.length++;
         CKEDITOR.instances[this.editor.id] = this.editor
       })
+    }).catch(function(error) {
+      console.error('Failed to initialize rich-text editor:', error);
+      Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgeneric') });
     });
     return this;
   };
 
   // get data from ckeditor in textarea
   Backbone.Form.editors.TextArea.prototype.getValue = function() {
-    return this.editor.getData();
+    return this.editor ? this.editor.getData() : textAreaGetValue.call(this);
   };
 
   // set value in ckeditor
@@ -209,13 +234,22 @@ define([
 
     if (this.editor) {
       this.editor.setData(value);
+    } else {
+      this.pendingEditorValue = value;
     }
   };
 
   // ckeditor removal
   Backbone.Form.editors.TextArea.prototype.remove = function() {
-    this.editor.stopListening()
-    delete CKEDITOR.instances[this.editor.id]
+    if (this.isRemoved) {
+      return this;
+    }
+    this.isRemoved = true;
+    if (this.editor) {
+      destroyTextEditor(this.editor);
+      this.editor = null;
+    }
+    return textAreaRemove.call(this);
   };
 
   // add override to allow prevention of validation

@@ -64,6 +64,22 @@ Example: `#/editor/507f1f77bcf86cd799439011/auditlog`
 - Back button returns to menu or page (context-aware)
 
 ## Features Available
+
+### Light editor item history
+
+Component defaults, course templates, course/page defaults (the tenant configuration), and
+placeholder assets have **Change history** buttons. Templates and component defaults expose
+the button in both the list and editor. History opens in a read-only modal without navigating
+away from unsaved edits and is scoped to that item's content type and ID.
+
+Metadata saves, cloning, deletion, template promotion from a version, initial config creation,
+asset uploads, and automatic clearing of a previous component default use the content-manager
+audit hooks. Automatic default switching records the change against the old preset as well as
+the new one. Updated timestamps are server-generated on saves; list dates include the time.
+Templates retain their timestamps for display, but clones get new IDs and timestamps.
+
+Only changes made after audit logging was enabled (and after these write paths were wired)
+are available; existing missing history cannot be reconstructed.
 - ✅ View all changes for the current course
 - ✅ Filter by action (create/update/delete)
 - ✅ Filter by user

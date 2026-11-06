@@ -34,6 +34,9 @@ define(function(require) {
     },
 
     postRender: function() {
+      if (this.isRemoved) {
+        return;
+      }
       var component = this.model.get('_component');
       var rawSchema = Origin.schemas.get(component);
       var isMissingPlugin = !rawSchema;
@@ -73,9 +76,13 @@ define(function(require) {
       filteredSchema.developerNotes = { type: 'string', inputType: 'TextArea', title: Origin.l10n.t('app.lightcoursedevelopernotes'), lightCourseRefs: this.lightCourseRefs };
 
       var schema = Origin.scaffold.buildSchema(filteredSchema);
+      var fields = Object.keys(schema);
+      if (fields.indexOf('uniqueId') !== -1) {
+        fields = ['uniqueId'].concat(_.without(fields, 'uniqueId'));
+      }
 
       this.model.schema = schema;
-      this.form = new Backbone.Form({ model: this.model, schema: schema }).render();
+      this.form = new Backbone.Form({ model: this.model, schema: schema, fields: fields }).render();
       this.$('.light-course-component-form-inner').append(this.form.el);
 
       if (isMissingPlugin) {
@@ -96,9 +103,7 @@ define(function(require) {
     },
 
     remove: function() {
-      if (this.form) {
-        this.form.remove();
-      }
+      this.isRemoved = true;
       OriginView.prototype.remove.apply(this, arguments);
     }
   }, {

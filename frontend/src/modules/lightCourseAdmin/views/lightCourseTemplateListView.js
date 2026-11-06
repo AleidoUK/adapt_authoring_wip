@@ -48,6 +48,7 @@ define(function(require) {
             return Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcoursetemplatenamerequired') });
           }
           new LightCourseTemplateModel().save(data, {
+            attrs: data,
             success: function(model) {
               Origin.router.navigateTo('lightCourseTemplates/' + model.get('_id'));
             },

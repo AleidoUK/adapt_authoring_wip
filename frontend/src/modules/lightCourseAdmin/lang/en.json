@@ -1,5 +1,6 @@
 {
   "app": {
+    "lightcourseadministration": "Light Course Administration",
     "lightcoursetemplates": "Light Course Templates",
     "lightcoursetemplatesbacktolist": "Back to templates",
     "lightcoursetemplatenew": "New template",

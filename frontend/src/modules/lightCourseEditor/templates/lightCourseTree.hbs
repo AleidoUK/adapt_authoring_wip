@@ -1,17 +1,25 @@
 <div class="light-course-tree-inner">
   <div class="light-course-tree-toolbar">
     <button class="btn secondary-hollow light-course-tree-add-page">{{t 'app.lightcourseaddpage'}}</button>
+    <div class="light-course-tree-copy-status display-none">
+      <span class="light-course-tree-copy-status-label" role="status"></span>
+      <button type="button" class="btn secondary-hollow light-course-tree-cancel-copy">{{t 'app.lightcoursecancelcopy'}}</button>
+    </div>
   </div>
 
   <ul class="light-course-tree-root light-course-tree-node-children-root"></ul>
 
-  <div class="light-course-tree-component-editor display-none">
-    <div class="light-course-tree-component-editor-header">
-      <h3>{{t 'app.lightcoursecomponenteditor'}}</h3>
-      <button class="btn primary light-course-tree-component-editor-close">{{t 'app.lightcoursecomponenteditorsave'}}</button>
+  <div class="light-course-tree-component-editor display-none" role="dialog" aria-modal="true" aria-label="{{t 'app.lightcoursecomponenteditor'}}" tabindex="-1">
+    <div class="light-course-tree-component-editor-panel">
+      <div class="light-course-tree-component-editor-header">
+        <button type="button" class="btn secondary-hollow light-course-tree-component-editor-cancel">{{t 'app.cancel'}}</button>
+        <button type="button" class="btn primary light-course-tree-component-editor-close">{{t 'app.lightcoursecomponenteditorsave'}}</button>
+      </div>
+      <div class="light-course-tree-component-editor-body">
+        <div class="light-course-tree-component-editor-component-picker"></div>
+        <div class="light-course-tree-component-editor-preset-picker"></div>
+        <div class="light-course-tree-component-editor-form"></div>
+      </div>
     </div>
-    <div class="light-course-tree-component-editor-component-picker"></div>
-    <div class="light-course-tree-component-editor-preset-picker"></div>
-    <div class="light-course-tree-component-editor-form"></div>
   </div>
 </div>

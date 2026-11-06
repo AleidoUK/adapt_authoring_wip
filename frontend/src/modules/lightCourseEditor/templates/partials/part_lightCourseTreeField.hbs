@@ -1,0 +1,14 @@
+<div class="light-course-tree-field">
+  <dt>{{label}}</dt>
+  <dd>
+    {{#if children}}
+      <dl class="light-course-tree-field-children">
+        {{#each children}}
+          {{> part_lightCourseTreeField}}
+        {{/each}}
+      </dl>
+    {{else}}
+      {{#if isHtml}}{{{value}}}{{else}}<span class="light-course-tree-field-value">{{value}}</span>{{/if}}
+    {{/if}}
+  </dd>
+</div>
