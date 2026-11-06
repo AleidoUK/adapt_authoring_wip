@@ -1,24 +1,28 @@
 // LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
 /**
- * One-off/maintenance script: adds any role definition under lib/role/ that doesn't yet exist in
- * the running instance's `role` collection, without touching roles that already exist.
+ * One-off/maintenance script: brings the running instance's `role` collection fully in line with
+ * whatever's currently on disk under lib/role/ - both roles that don't exist yet (created from
+ * scratch) AND roles that already exist but have had their `statement` (permissions) edited since
+ * the instance was first installed (their `version`/`statement` are updated to match the file).
  *
  * Why this is needed: lib/rolemanager.js's `installDefaultRoles()` only ever runs once, on the
- * `tenant:mastercreated` event (i.e. at fresh install) - and `syncDefaultRoles()` (which runs on
- * every server start) only *updates* roles that already exist by name; it does nothing for a
- * brand new role file added to an already-installed instance (confirmed by reading both
- * functions - `syncDefaultRoles` uses `db.update({name: role.name}, ...)`, which simply matches
- * zero documents and logs a warning if the name doesn't exist yet). So adding a new file under
- * lib/role/ (e.g. LightEditor.json) to an already-running instance needs this script run once -
- * a plain server restart is not enough.
+ * `tenant:mastercreated` event (i.e. at fresh install), and `syncDefaultRoles()` only runs
+ * automatically on the one-time `create:masterdatabase` event - NOT on every server start/restart
+ * (a common misconception, since the name suggests otherwise). So neither:
+ *   - adding a brand new file under lib/role/ (e.g. a whole new role), nor
+ *   - editing the `statement` of an EXISTING role file (e.g. adding a permission line to
+ *     LightEditor.json for a newly-added content type)
+ * ...to an already-installed instance is picked up by a plain server restart - this script needs
+ * to be run once, manually, after deploying such a change.
  *
  * Usage: `node sync-roles.js` - run it from the repo root, on whichever machine/environment is
  * running the instance you want to update (it reads the same conf/config.json that server.js
  * does, so the exact same command works unmodified on a local dev instance or the live server).
- * Safe to run at any time, including repeatedly - roles that already exist are left completely
- * untouched (not even their `version`/`statement` are updated - edit directly in the database or
- * extend this script if you need existing roles updated too). Does not start an HTTP server or
- * bind any port, so it's safe to run alongside an already-running instance.
+ * Safe to run at any time, including repeatedly and alongside an already-running instance (it
+ * doesn't start an HTTP server or bind any port) - roles already matching the file on disk are
+ * simply re-written to the same values. If updating one existing role fails (e.g. a database-level
+ * conflict on that specific document), the script logs it and carries on with the rest rather
+ * than aborting - check the "Failed" section of the output and investigate/re-run if non-empty.
  */
 
 var fs = require('fs');
@@ -45,7 +49,7 @@ app.once('modulesReady', function () {
 
       var jsonFiles = files.filter(function (file) { return '.json' === path.extname(file); });
       var created = [];
-      var skipped = [];
+      var updated = [];
       var failed = [];
 
       async.eachSeries(jsonFiles, function (file, next) {
@@ -62,23 +66,33 @@ app.once('modulesReady', function () {
             failed.push({ file: file, error: error.message });
             return next();
           }
-          if (existing && existing.length) {
-            skipped.push(roleDef.name);
-            return next();
+          if (!existing || !existing.length) {
+            return db.create('role', roleDef, function (error) {
+              if (error) {
+                failed.push({ file: file, error: error.message });
+                return next();
+              }
+              created.push(roleDef.name);
+              next();
+            });
           }
-          db.create('role', roleDef, function (error) {
+          // Already exists - bring its version/statement (the only fields that actually change
+          // between deploys) in line with the file, same fields lib/rolemanager.js's own
+          // syncDefaultRoles() applies, just invoked here on every run rather than only on the
+          // one-time create:masterdatabase event.
+          db.update('role', { name: roleDef.name }, { version: roleDef.version, statement: roleDef.statement }, function (error) {
             if (error) {
               failed.push({ file: file, error: error.message });
               return next();
             }
-            created.push(roleDef.name);
+            updated.push(roleDef.name);
             next();
           });
         });
       }, function () {
         console.log('');
         console.log('Created (' + created.length + '): ' + (created.join(', ') || 'none'));
-        console.log('Already existed, left untouched (' + skipped.length + '): ' + (skipped.join(', ') || 'none'));
+        console.log('Updated, already existed (' + updated.length + '): ' + (updated.join(', ') || 'none'));
         if (failed.length) {
           console.log('Failed (' + failed.length + '):');
           failed.forEach(function (f) { console.log('  - ' + f.file + ': ' + f.error); });
