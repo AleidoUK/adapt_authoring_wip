@@ -8,6 +8,7 @@ define(function(require) {
   var LightCourseHelpView = require('./lightCourseHelpView');
   var LightCourseVersionNotesView = require('./lightCourseVersionNotesView');
   var LightCourseWordView = require('./lightCourseWordView');
+  var LightCourseReadView = require('./lightCourseReadView');
   var TagEditor = require('../tagEditor');
 
   // Real installed extension identifiers (extensiontype.extension field), confirmed against the
@@ -38,6 +39,7 @@ define(function(require) {
       'click .light-course-editor-back-to-list': 'onBackToListClicked',
       'click .light-course-editor-auditlog': 'onAuditLogClicked',
       'click .light-course-editor-word': 'onWordClicked',
+      'click .light-course-editor-read': 'onReadClicked',
       'click .light-course-editor-versions': 'onVersionsClicked',
       'click .light-course-editor-edit-current-entry': 'onEditCurrentEntryClicked',
       'click .light-course-editor-create-minor-version': 'onCreateMinorVersionClicked',
@@ -74,6 +76,20 @@ define(function(require) {
       var self = this;
       this.afterPendingSave(function(error) {
         if (!error && !self._removed) Origin.router.navigateTo('lightCourseEditor/' + self.model.get('_id') + '/auditlog');
+      });
+    },
+
+    onReadClicked: function(event) {
+      event.preventDefault();
+      var self = this;
+      Origin.trigger('modal:open', LightCourseReadView, {
+        title: Origin.l10n.t('app.lightcourseread'),
+        model: this.model,
+        _shouldShowDoneButton: false,
+        prepare: function(callback) {
+          if (self.model.isLocked()) return self.afterPendingSave(callback);
+          self.autosave(callback);
+        }
       });
     },
 

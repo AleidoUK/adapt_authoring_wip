@@ -97,6 +97,48 @@ Both Markdown and Word documents exported from a light course can be edited and 
 
 Documents are for editing **text**, not rearranging the course. Their headings, identifiers and order must stay the same. Reordering blocks or components is done in the tool. If the document structure has changed, import will explain what is wrong rather than guess where content belongs or partially import it. Common supported formatting, such as paragraphs, headings, lists, emphasis and links, will be preserved where both document types can represent it. Unsupported styling will be reported, not silently promised as a perfect match.
 
+## Content preview, content-only Word and PDF
+
+Select **Content preview** in the light-course editor for a content-only overlay. Course,
+page, component and item titles use bold headings of different sizes. The pane
+shows each component's type in small text above its title (also included when
+printing); the content-only Word export remains free of these type labels. It
+includes learner-facing text and enabled glossary, resources and help content,
+without field labels, IDs, layout labels, review notes, accessibility settings
+or discussions. Empty fields and disabled associated fields are omitted.
+
+**Show images** controls content images, while **Show screenshots** independently
+controls component screenshots. Images are on initially; screenshots are off. These settings apply to
+the pane, **Export content to Word** and **Print / PDF**. Included images keep
+their proportions and the half-text-width limit; unavailable images produce a
+visible notice.
+
+The separate content-only Word document is for reading/auditing and cannot be
+imported. The existing storyboard Word export/import remains unchanged.
+**Print / PDF** prints only the reading content, not the editor or its controls.
+Choose **Save as PDF** in the browser's print dialog; browsers do not allow the
+tool to set the printer/PDF destination.
+
+Content preview uses the saved course content, saving committed editor changes first;
+unfinished component dialogs must still be saved separately. Content preview is also
+available for locked courses. If another user changes the course after opening
+Content preview, close it and reload the editor before exporting.
+
+### Full courses
+
+Full-course editors have a **Content Preview** sidebar button directly beneath
+**Export storyboard**. It opens the same overlay, with images shown by default,
+screenshots hidden by default, component-type captions, content-only Word export
+and Print / PDF. Page, article, block, component and item headings retain their
+hierarchy; learner-facing text and enabled glossary, resources and help are
+included without review notes, IDs or accessibility settings. Images come only
+from the current tenant's asset library and retain the half-page-width limit.
+
+The full-course preview reads saved content across the whole course, not just
+the current page. Save any open editing forms before opening it. Neither this
+preview nor its Word export changes course data or supports Word import. The
+existing storyboard export remains unchanged.
+
 ## Component comments
 
 Light courses have a **Comments** section in each component editor. Add a plain-text

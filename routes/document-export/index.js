@@ -33,9 +33,30 @@ function sendWord(res, output, filename) {
 }
 
 server.get('/document-export/:tenant/:id/storyboard.docx', function(req, res) {
+  exportFullCourse(req, res, false);
+});
+
+server.get('/document-export/:tenant/:id/content-preview', function(req, res) {
+  exportFullCourse(req, res, true);
+});
+
+function validReadOptions(query) {
+  return (query.format === undefined || ['json', 'docx'].includes(query.format)) &&
+    ['images', 'screenshots'].every(function(option) {
+      return query[option] === undefined || ['true', 'false'].includes(query[option]);
+    });
+}
+
+function exportFullCourse(req, res, read) {
   var tenantId = req.params.tenant, id = req.params.id, user = usermanager.getCurrentUser();
+  var query = req.query || {};
+  var format = query.format === 'docx' ? 'docx' : 'json';
   if (!user || !user.tenant || String(user.tenant._id) !== tenantId) {
     return res.status(401).json({ success: false, message: 'You are not permitted to do that' });
+  }
+  if (read && !validReadOptions(query)) {
+    return res.status(400).json({ success: false,
+      message: 'Choose json or docx format and true or false for images and screenshots.' });
   }
   var resource = permissions.buildResourceString(tenantId, '/api/content/course/' + id);
   permissions.hasPermission(String(user._id), 'read', resource, function(error, allowed) {
@@ -54,19 +75,25 @@ server.get('/document-export/:tenant/:id/storyboard.docx', function(req, res) {
             if (!allowed) return res.status(403).json({ success: false, message: 'You are not permitted to do that' });
             database.getDatabase(function(error, schemaDb) {
               if (error) return handleError(res, 500, error);
-              storyboard.generate(course, db, schemaDb, origin().contentmanager._contentSchemas, function(error, output) {
+              var generate = read ? format === 'docx' ? storyboard.generateReadDocx : storyboard.generateRead : storyboard.generate;
+              generate(course, db, schemaDb, origin().contentmanager._contentSchemas, function(error, output) {
                 if (error) return handleError(res, 500, error);
+                if (read && format === 'json') {
+                  res.setHeader('Cache-Control', 'no-store');
+                  return res.json(output);
+                }
                 var filename = (course.tags || []).map(function(tag) { return tag.title || ''; }).filter(Boolean)
-                  .concat(course.title || 'course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() + '_storyboard.docx';
+                  .concat(course.title || 'course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() +
+                    (read ? '_content-preview.docx' : '_storyboard.docx');
                 sendWord(res, output, filename);
-              });
+              }, { images: query.images === 'true', screenshots: query.screenshots === 'true' });
             }, configuration.getConfig('dbName'));
           });
         });
       });
     }, tenantId);
   });
-});
+}
 
 /**
  * Resolves either a `lightcourse` draft or a `lightcourseversion` by ID - an export can target
@@ -141,14 +168,26 @@ function buildGeneratorData(source) {
   };
 }
 
-server.get('/document-export/:tenant/:id', function (req, res) {
+server.get('/document-export/:tenant/:id/read', function(req, res) {
+  exportLightCourse(req, res, true);
+});
+
+server.get('/document-export/:tenant/:id', function(req, res) {
+  exportLightCourse(req, res, false);
+});
+
+function exportLightCourse(req, res, read) {
   var tenantId = req.params.tenant;
   var id = req.params.id;
-  var format = req.query.format === 'docx' ? 'docx' : 'markdown';
+  var format = req.query.format === 'docx' ? 'docx' : read ? 'json' : 'markdown';
   var currentUser = usermanager.getCurrentUser();
 
-  if (!currentUser || currentUser.tenant._id.toString() !== tenantId) {
+  if (!currentUser || !currentUser.tenant || currentUser.tenant._id.toString() !== tenantId) {
     return res.status(401).json({ success: false, message: 'You are not permitted to do that' });
+  }
+  if (read && !validReadOptions(req.query)) {
+    return res.status(400).json({ success: false,
+      message: 'Choose json or docx format and true or false for images and screenshots.' });
   }
 
   database.getDatabase(function (error, db) {
@@ -174,13 +213,23 @@ server.get('/document-export/:tenant/:id', function (req, res) {
           if (!isAllowed) {
             return res.status(403).json({ success: false, message: 'You are not permitted to do that' });
           }
+          if (read && source.isDraft && req.query.revision !== undefined &&
+              String(source.record.revision) !== req.query.revision) {
+            return res.status(409).json({ success: false,
+              message: 'The course has changed. Close Content preview, reload the course and open Content preview again.' });
+          }
 
           var data = buildGeneratorData(source);
-          var generate = format === 'docx' ? documentGenerator.generateDocx : documentGenerator.generateMarkdown;
+          var generate = read ? format === 'docx' ? documentGenerator.generateReadDocx : documentGenerator.generateRead :
+            format === 'docx' ? documentGenerator.generateDocx : documentGenerator.generateMarkdown;
 
           generate(data, db, function (err, output) {
             if (err) {
               return handleError(res, 500, err);
+            }
+            if (read && format === 'json') {
+              res.setHeader('Cache-Control', 'no-store');
+              return res.json(output);
             }
 
             persistExport(db, data, format, output, currentUser, function (persistError) {
@@ -193,19 +242,19 @@ server.get('/document-export/:tenant/:id', function (req, res) {
                   return tag && typeof tag.title === 'string' ? tag.title.trim() : '';
                 }).filter(Boolean);
                 var filename = tags.concat(data.title || 'light-course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() +
-                  '_v' + (data.versionNumber || 'draft').replace(/[^a-zA-Z0-9.-]/g, '-') + '.docx';
+                  '_v' + (data.versionNumber || 'draft').replace(/[^a-zA-Z0-9.-]/g, '-') + (read ? '_read' : '') + '.docx';
                 return sendWord(res, output, filename);
               }
               res.setHeader('Content-Type', 'text/markdown');
               res.setHeader('Content-Disposition', 'attachment; filename="' + slugify(data.title) + '.md"');
               return res.send(output);
             });
-          });
+          }, { images: req.query.images === 'true', screenshots: req.query.screenshots === 'true' });
         });
       });
     });
   }, tenantId);
-});
+}
 
 /**
  * Point-in-time copy persistence (Phase 2's `lightcourseexport` collection): "exporting a

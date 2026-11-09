@@ -6,6 +6,7 @@ define(function(require) {
   var SidebarFieldsetFilterView = require('./sidebarFieldsetFilterView');
   var Backbone = require('backbone');
   var Helpers = require('core/helpers');
+  var ContentPreviewView = require('modules/lightCourseEditor/views/lightCourseReadView');
 
   var SidebarItemView = OriginView.extend({
 
@@ -24,6 +25,7 @@ define(function(require) {
       'click button.editor-common-sidebar-preview-force': 'forcePreviewProject',
       'click button.editor-common-sidebar-export': 'exportProject',
       'click button.editor-common-sidebar-storyboard': 'exportStoryboard',
+      'click button.editor-common-sidebar-content-preview': 'showContentPreview',
       'click button.editor-common-sidebar-close': 'closeProject',
       'click .editor-common-sidebar-preview-wrapper .dropdown button': 'toggleDropdown'
     },
@@ -156,6 +158,18 @@ define(function(require) {
 
     exportStoryboard: function() {
       Origin.trigger('editorCommon:storyboard');
+    },
+
+    showContentPreview: function() {
+      var course = Origin.editor.data.course;
+      Origin.trigger('modal:open', ContentPreviewView, {
+        title: Origin.l10n.t('app.contentpreview'),
+        model: course,
+        _shouldShowDoneButton: false,
+        sourceUrl: 'document-export/' + encodeURIComponent(Origin.sessionModel.get('tenantId')) + '/' +
+          encodeURIComponent(course.get('_id')) + '/content-preview',
+        prepare: function(callback) { callback(); }
+      });
     },
 
     closeProject: function() {

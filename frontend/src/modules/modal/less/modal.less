@@ -31,10 +31,19 @@
     width:100%;
     height:100%;
     z-index:4000;
-    overflow-y: scroll;
+    overflow: hidden;
     .modal-popup {
         background-color: @ui-content-color;
         height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-popup-inner {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        box-sizing: border-box;
     }
 
     i {
@@ -42,6 +51,7 @@
     }
 
     .modal-popup-toolbar {
+        flex-shrink: 0;
         background-color: @tertiary-color;
         text-align:right;
         color: @white;
@@ -96,7 +106,8 @@
 
 
 .module-lightCourseTemplates, .module-lightCourseComponentDefaults, .module-lightCourseAssets,
-.module-lightCourseConfig, .module-lightCourseEditor {
+.module-lightCourseConfig, .module-lightCourseEditor,
+.module-editor {
     .modal-popup {
         background-color: #f7fcfa;
     }
@@ -125,5 +136,4 @@
         font-weight: bold;
     }
 }
-
 

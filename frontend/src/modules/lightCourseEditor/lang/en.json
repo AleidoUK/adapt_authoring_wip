@@ -1,5 +1,14 @@
 {
   "app": {
+    "contentpreview": "Content preview",
+    "lightcourseread": "Content preview",
+    "lightcoursereadimages": "Show images",
+    "lightcoursereadscreenshots": "Show screenshots",
+    "lightcoursereadexport": "Export content to Word",
+    "lightcoursereadprint": "Print / PDF",
+    "lightcoursereadloading": "Loading content...",
+    "lightcoursereadhelp": "Content-only view and export; Word import is not supported. Show images controls content images, shown by default; Show screenshots controls component screenshots, hidden by default. To create a PDF, choose Save as PDF in your browser's print dialog.",
+    "lightcoursereadprintfailed": "Printing could not be prepared. Check that the images have loaded and that your browser allows printing, then try again.",
     "lightcoursecomments": "Comments",
     "lightcoursecommentsallresolved": "Comments: all threads resolved",
     "lightcoursecommentsunresolved": "Comments: unresolved threads",

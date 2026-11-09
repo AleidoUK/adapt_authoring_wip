@@ -1,0 +1,15 @@
+<div class="light-course-read-toolbar">
+  <label for="light-course-read-images-{{_id}}">
+    <input id="light-course-read-images-{{_id}}" type="checkbox" class="light-course-read-images" checked>
+    {{t 'app.lightcoursereadimages'}}
+  </label>
+  <label for="light-course-read-screenshots-{{_id}}">
+    <input id="light-course-read-screenshots-{{_id}}" type="checkbox" class="light-course-read-screenshots">
+    {{t 'app.lightcoursereadscreenshots'}}
+  </label>
+  <button class="btn secondary light-course-read-export" disabled>{{t 'app.lightcoursereadexport'}}</button>
+  <button class="btn secondary-hollow light-course-read-print" disabled>{{t 'app.lightcoursereadprint'}}</button>
+</div>
+<p class="light-course-read-help">{{t 'app.lightcoursereadhelp'}}</p>
+<p class="light-course-read-status" role="status" aria-live="polite" hidden></p>
+<div class="light-course-read-output"></div>

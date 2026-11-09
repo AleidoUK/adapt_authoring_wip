@@ -97,6 +97,137 @@ function generate(h, implementation) {
   });
 }
 
+function preview(h, options, word) {
+  return new Promise(function(resolve, reject) {
+    storyboard[word ? 'generateReadDocx' : 'generateRead'](h.course, h.db, h.schemaDb, h.schemas, function(error, result) {
+      if (error) reject(error); else resolve(result);
+    }, options);
+  });
+}
+
+describe('full-course content preview', function() {
+  it('includes the whole saved course with structural hierarchy and component types, without metadata or mutations', async function() {
+    var h = fixture();
+    h.records.component[1].graphicsNotes = 'Review graphics notes';
+    h.records.component[1].developerNotes = 'Review developer notes';
+    var source = JSON.stringify([h.course, h.records, h.plugins, h.schemas]);
+    var content = await preview(h), values = content.entries.map(function(entry) { return entry.text; });
+    assert.strictEqual(content.title, 'Bicycle training');
+    ['Course introduction', 'Page text', 'Article body', 'Block body', 'Left body', 'Right body', 'Item body', 'Help text']
+      .forEach(function(value) { assert(values.includes(value), value); });
+    var headings = content.entries.filter(function(entry) { return entry.type === 'heading'; });
+    assert(headings.findIndex(function(entry) { return entry.text === 'Nested page'; }) <
+      headings.findIndex(function(entry) { return entry.text === 'First page'; }));
+    [
+      ['First page', 1], ['Article title', 2], ['Block title', 3], ['Left component', 4], ['Item title', 5], ['Last page', 1]
+    ].forEach(function(expected) {
+      assert(headings.some(function(entry) { return entry.text === expected[0] && entry.level === expected[1]; }), expected[0]);
+    });
+    var index = content.entries.findIndex(function(entry) { return entry.text === 'Left component'; });
+    assert.deepStrictEqual(content.entries[index - 1], { type: 'componentType', text: 'Text' });
+    ['c-01', 'Review graphics notes', 'Review developer notes', 'Do not export disabled text']
+      .forEach(function(value) { assert(!values.includes(value), value); });
+    assert.strictEqual(JSON.stringify([h.course, h.records, h.plugins, h.schemas]), source);
+  });
+
+  it('filters empty, disabled and accessibility fields using actual selected schemas', async function() {
+    var h = fixture(), node = h.records.component[1];
+    h.schemas.component.properties._popup = { type: 'object', properties: {
+      _isEnabled: { type: 'boolean', default: false }, title: text, body: text, _graphic: graphic
+    } };
+    h.schemas.component.properties.ariaLabel = text;
+    node.ariaLabel = 'Accessibility-only label';
+    node._popup = { title: 'Disabled popup', body: 'Disabled popup body', _graphic: { src: IMAGE } };
+    var content = JSON.stringify(await preview(h, { images: false }));
+    assert(!content.includes('Disabled popup'));
+    assert(!content.includes('Accessibility-only label'));
+    assert(!content.includes('Image unavailable'));
+    node._popup._isEnabled = true;
+    assert(JSON.stringify(await preview(h)).includes('Disabled popup body'));
+  });
+
+  it('includes only enabled glossary, resource and help content, with nested enablement respected', async function() {
+    var h = fixture(), config = h.records.config[0], help = h.course._extensions._help;
+    config._enabledExtensions.resources = { targetAttribute: '_resources' };
+    config._enabledExtensions.glossary = { targetAttribute: '_glossary' };
+    h.course._extensions._resources = { title: 'Useful resources',
+      _resourcesItems: [{ title: 'Resource title', description: 'Resource description', _link: 'https://example.com' }] };
+    h.course._extensions._glossary = { _glossaryItems: [{ term: 'Torque', description: 'Turning force' }] };
+    Object.assign(h.plugins.extensiontype[0].properties.pluginLocations.properties.course.properties._help.properties, {
+      _popup: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', default: false }, title: text, body: text, instruction: text
+      } },
+      _items: { type: 'array', items: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', default: true }, title: text, body: text
+      } } }
+    });
+    help._popup = { title: 'Help popup', body: 'Help popup body', instruction: 'Help instruction' };
+    help._items = [{ title: 'Help item', body: 'Help item body' },
+      { _isEnabled: false, title: 'Hidden help item', body: 'Hidden help content' }];
+    var content = JSON.stringify(await preview(h));
+    ['Useful resources', 'Resource description', 'https://example.com', 'Torque', 'Turning force', 'Help item body']
+      .forEach(function(value) { assert(content.includes(value), value); });
+    assert(!content.includes('Help popup'));
+    assert(!content.includes('Hidden help'));
+    help._popup._isEnabled = true;
+    assert(JSON.stringify(await preview(h)).includes('Help instruction'));
+    h.course._extensions._resources._isEnabled = false;
+    delete config._enabledExtensions.glossary;
+    help._isEnabled = false;
+    content = JSON.stringify(await preview(h));
+    ['Useful resources', 'Torque', 'Help item body', 'Help text'].forEach(function(value) { assert(!content.includes(value), value); });
+  });
+
+  it('shares independently selected tenant images and screenshots with the Word export', async function() {
+    var h = fixture(), getStorage = filestorage.getStorage, reads = 0;
+    h.records.component[1].properties.screenshotAssetId = IMAGE;
+    filestorage.getStorage = function(repository, callback) {
+      assert.strictEqual(repository, 'test'); reads++;
+      callback(null, { getFileContents: function(file, callback) {
+        assert.strictEqual(file, 'stored/image.png'); callback(null, png);
+      } });
+    };
+    try {
+      for (var settings of [
+        { images: false, screenshots: false, count: 0 },
+        { images: true, screenshots: false, count: 3 },
+        { images: false, screenshots: true, count: 1 },
+        { images: true, screenshots: true, count: 4 }
+      ]) {
+        reads = 0;
+        var content = await preview(h, settings);
+        var images = content.entries.filter(function(entry) { return entry.type === 'image'; });
+        assert.strictEqual(images.length, settings.count);
+        assert.strictEqual(reads, Number(settings.images) + Number(settings.screenshots));
+        assert.strictEqual(images.some(function(entry) { return entry.alt === 'Component screenshot'; }), settings.screenshots);
+        assert(!content.entries.some(function(entry) { return entry.type === 'notice'; }));
+        images.forEach(function(entry) { assert.strictEqual(entry.src, 'data:image/png;base64,' + png.toString('base64')); });
+        var buffer = await preview(h, settings, true), zip = await unzipper.Open.buffer(buffer);
+        var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+        assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, settings.count);
+        assert(!xml.includes('Total word count'));
+        assert(!xml.includes('bookmarkStart'));
+        assert(!xml.includes('commentReference'));
+        var parsed = await new Promise(function(resolve, reject) {
+          generator.parseDocx(buffer, function(error, value) { if (error) reject(error); else resolve(value); });
+        });
+        assert(parsed.errors.length > 0);
+      }
+    } finally { filestorage.getStorage = getStorage; }
+  });
+
+  it('reports incomplete course structures and schema/database failures explicitly', async function() {
+    for (var change of [
+      function(h) { h.records.component[0]._parentId = 'missing'; },
+      function(h) { h.plugins.componenttype = []; },
+      function(h) { h.readError = 'component'; }
+    ]) {
+      var h = fixture(); change(h);
+      await assert.rejects(preview(h), /detached|schema|Read failed/);
+    }
+  });
+});
+
 describe('full-course storyboard generation', function() {
   it('preserves course order and nested fields while omitting article/block information and course settings without modifying stored content', async function() {
     var h = fixture(), before = JSON.stringify([h.course, h.records, h.plugins, h.schemas]);
@@ -524,6 +655,14 @@ function routeHarness() {
       h.generated++;
       assert.strictEqual(actualDb, db); assert.strictEqual(actualSchemaDb, schemaDb);
       callback(h.generateError, Buffer.from('storyboard'));
+    }, generateRead: function(course, actualDb, actualSchemaDb, schemas, callback, options) {
+      h.generated++; h.options = options;
+      assert.strictEqual(actualDb, db); assert.strictEqual(actualSchemaDb, schemaDb);
+      callback(h.generateError, { title: 'E-bikes', entries: [] });
+    }, generateReadDocx: function(course, actualDb, actualSchemaDb, schemas, callback, options) {
+      h.generated++; h.options = options;
+      assert.strictEqual(actualDb, db); assert.strictEqual(actualSchemaDb, schemaDb);
+      callback(h.generateError, Buffer.from('content-only'));
     } },
     '../../': function() { return { contentmanager: {
       _contentSchemas: {}, getContentPlugin: function(type, callback) {
@@ -533,17 +672,20 @@ function routeHarness() {
       create: function() { assert.fail('Full storyboard exports must not create light-course records'); }
     } }; }
   });
-  h.request = function(tenant) {
+  h.request = function(tenant, query, preview) {
     return new Promise(function(resolve) {
       var res = { code: 200, headers: {},
         status: function(code) { this.code = code; return this; },
         setHeader: function(key, value) { this.headers[key] = value; },
         send: function(output) { resolve({ status: this.code, output: output, headers: this.headers }); },
-        json: function(body) { resolve({ status: this.code, body: body }); }
+        json: function(body) { resolve({ status: this.code, body: body, headers: this.headers }); }
       };
-      h.routes['/document-export/:tenant/:id/storyboard.docx']({ params: { tenant: tenant || 'tenant', id: 'course' } }, res);
+      h.routes['/document-export/:tenant/:id/' + (preview ? 'content-preview' : 'storyboard.docx')]({
+        params: { tenant: tenant || 'tenant', id: 'course' }, query: query || {}
+      }, res);
     });
   };
+  h.requestPreview = function(query) { return h.request('tenant', query, true); };
   return h;
 }
 
@@ -574,7 +716,72 @@ describe('full-course storyboard route', function() {
   });
 });
 
+describe('full-course content preview route', function() {
+  it('uses the existing course permissions for uncached JSON and content-only Word downloads', async function() {
+    var h = routeHarness(), result = await h.requestPreview({ images: 'true', screenshots: 'false' });
+    assert.strictEqual(result.status, 200);
+    assert.strictEqual(result.body.title, 'E-bikes');
+    assert.strictEqual(result.headers['Cache-Control'], 'no-store');
+    assert.deepStrictEqual(copy(h.options), { images: true, screenshots: false });
+    result = await h.requestPreview({ format: 'docx', images: 'false', screenshots: 'true' });
+    assert.strictEqual(result.status, 200);
+    assert.strictEqual(result.output.toString(), 'content-only');
+    assert(result.headers['Content-Disposition'].includes('Training_E-bikes_content-preview.docx'));
+    assert.deepStrictEqual(copy(h.options), { images: false, screenshots: true });
+  });
+
+  it('rejects anonymous, cross-tenant and denied access without generating preview content', async function() {
+    var h = routeHarness();
+    h.user = null; assert.strictEqual((await h.requestPreview()).status, 401);
+    h.user = { _id: 'user', tenant: { _id: 'other' } }; assert.strictEqual((await h.requestPreview()).status, 401);
+    h.user.tenant._id = 'tenant'; h.roleAllowed = false; assert.strictEqual((await h.requestPreview()).status, 403);
+    assert.strictEqual(h.reads, 0);
+    h.roleAllowed = true; h.courseAllowed = false; assert.strictEqual((await h.requestPreview()).status, 403);
+    assert.strictEqual(h.generated, 0);
+  });
+
+  it('rejects malformed options and explicitly reports missing courses and failed generation', async function() {
+    var h = routeHarness();
+    for (var query of [{ format: 'html' }, { images: 'yes' }, { screenshots: ['true', 'false'] }]) {
+      assert.strictEqual((await h.requestPreview(query)).status, 400);
+    }
+    assert.strictEqual(h.reads, 0);
+    h.course = null; assert.strictEqual((await h.requestPreview()).status, 404);
+    h = routeHarness(); h.generateError = new Error('Cannot build content preview');
+    var result = await h.requestPreview();
+    assert.strictEqual(result.status, 500);
+    assert.strictEqual(result.body.message, 'Cannot build content preview');
+  });
+});
+
 describe('full-course storyboard sidebar (isolated)', function() {
+  it('places Content Preview beneath Export storyboard and opens the shared overlay for the full course', function() {
+    var template = fs.readFileSync(path.join(ROOT, 'frontend/src/modules/editor/global/templates/partials/part_editorCommon.hbs'), 'utf8');
+    assert(template.indexOf('editor-common-sidebar-content-preview') > template.indexOf('editor-common-sidebar-storyboard'));
+    assert(template.indexOf('editor-common-sidebar-content-preview') < template.indexOf('class="separator"'));
+    assert(template.includes("app.contentpreview"));
+    var opened, modalView = {}, course = new Backbone.Model({ _id: 'course' });
+    var proto = load('frontend/src/modules/sidebar/views/sidebarItemView.js', {
+      'core/origin': {
+        editor: { data: { course: course } }, sessionModel: { get: function() { return 'tenant'; } },
+        l10n: { t: function(key) { return key; } },
+        trigger: function(event, view, options) { opened = { event: event, view: view, options: options }; }
+      },
+      'core/views/originView': { extend: function(proto) { return proto; } },
+      './sidebarFieldsetFilterView': {}, backbone: {}, 'core/helpers': {},
+      'modules/lightCourseEditor/views/lightCourseReadView': modalView
+    });
+    proto[proto.events['click button.editor-common-sidebar-content-preview']]();
+    assert.strictEqual(opened.event, 'modal:open');
+    assert.strictEqual(opened.view, modalView);
+    assert.strictEqual(opened.options.model, course);
+    assert.strictEqual(opened.options.sourceUrl, 'document-export/tenant/course/content-preview');
+    assert.strictEqual(opened.options._shouldShowDoneButton, false);
+    var prepared = false;
+    opened.options.prepare(function() { prepared = true; });
+    assert(prepared);
+  });
+
   it('places the translated export-only button immediately after source export and wires its sidebar event', function() {
     var template = fs.readFileSync(path.join(ROOT, 'frontend/src/modules/editor/global/templates/partials/part_editorCommon.hbs'), 'utf8');
     assert(template.indexOf('editor-common-sidebar-storyboard') > template.indexOf('editor-common-sidebar-export'));
@@ -584,7 +791,8 @@ describe('full-course storyboard sidebar (isolated)', function() {
     var proto = load('frontend/src/modules/sidebar/views/sidebarItemView.js', {
       'core/origin': { trigger: function(name) { event = name; } },
       'core/views/originView': { extend: function(proto) { return proto; } },
-      './sidebarFieldsetFilterView': {}, backbone: {}, 'core/helpers': {}
+      './sidebarFieldsetFilterView': {}, backbone: {}, 'core/helpers': {},
+      'modules/lightCourseEditor/views/lightCourseReadView': {}
     });
     proto[proto.events['click button.editor-common-sidebar-storyboard']]();
     assert.strictEqual(event, 'editorCommon:storyboard');

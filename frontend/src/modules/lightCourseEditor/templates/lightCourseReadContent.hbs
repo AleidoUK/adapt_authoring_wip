@@ -1,0 +1,14 @@
+{{#if title}}<h1>{{title}}</h1>{{/if}}
+{{#each entries}}
+  {{#ifValueEquals type "componentType"}}<p class="light-course-read-component-type">{{text}}</p>{{/ifValueEquals}}
+  {{#ifValueEquals type "heading"}}
+    {{#ifValueEquals level 1}}<h2>{{text}}</h2>{{/ifValueEquals}}
+    {{#ifValueEquals level 2}}<h3>{{text}}</h3>{{/ifValueEquals}}
+    {{#ifValueEquals level 3}}<h4>{{text}}</h4>{{/ifValueEquals}}
+    {{#ifValueEquals level 4}}<h5>{{text}}</h5>{{/ifValueEquals}}
+    {{#ifValueEquals level 5}}<h6>{{text}}</h6>{{/ifValueEquals}}
+  {{/ifValueEquals}}
+  {{#ifValueEquals type "text"}}<p>{{text}}</p>{{/ifValueEquals}}
+  {{#ifValueEquals type "notice"}}<p class="light-course-read-notice">{{text}}</p>{{/ifValueEquals}}
+  {{#ifValueEquals type "image"}}<p><img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}"></p>{{/ifValueEquals}}
+{{/each}}
