@@ -1,0 +1,12 @@
+{{#if count}}
+  <details class="light-course-asset-uses">
+    <summary>{{count}}</summary>
+    <ul>
+      {{#each uses}}
+        <li title="{{paths}}">{{typeLabel}}: <a href="{{href}}">{{title}}</a> ({{count}})</li>
+      {{/each}}
+    </ul>
+  </details>
+{{else}}
+  <span>0</span>
+{{/if}}

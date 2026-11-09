@@ -38,6 +38,7 @@ var origin = {
   l10n: { t: function(key) {
     return {
       'app.lightcoursefielduniqueid': 'Unique ID',
+      'app.lightcoursecomponentscreenshot': 'Component screenshot',
       'app.lightcoursegraphicsnotes': 'Graphics Notes',
       'app.lightcoursedevelopernotes': 'Developer Notes'
     }[key] || key;
@@ -55,6 +56,25 @@ function flatten(fields) {
 }
 
 describe('populated light course tree fields (isolated)', function() {
+  it('shows the component screenshot below the title and before body content without exposing its asset ID as text', function() {
+    var node = { type: 'component', _component: 'text', body: '<p>Body</p>',
+      screenshotAssetId: '1234567890abcdef12345678', title: 'Title' };
+    var original = JSON.stringify(node);
+    var fields = preview(node);
+    assert.deepStrictEqual(copy(fields.map(function(field) { return field.label; })), ['Title', 'Component screenshot', 'Body']);
+    assert.strictEqual(fields[1].isImage, true);
+    assert.strictEqual(fields[1].imageSrc, 'api/content/lightcourseasset/1234567890abcdef12345678/serve');
+    var template = Handlebars.compile(fs.readFileSync(path.join(ROOT,
+      'frontend/src/modules/lightCourseEditor/templates/partials/part_lightCourseTreeField.hbs'), 'utf8'));
+    var html = template(fields[1]);
+    assert(html.includes('<img class="light-course-component-screenshot"'));
+    assert(html.includes('alt="Component screenshot"'));
+    assert(!html.includes('light-course-tree-field-value'));
+    assert.strictEqual(JSON.stringify(node), original);
+    node.screenshotAssetId = '';
+    assert(!preview(node).some(function(field) { return field.isImage; }));
+  });
+
   it('keeps populated fields but leaves the component unique ID for the title row', function() {
     var fields = preview({
       _id: 'internal', type: 'component', _component: 'text', uniqueId: 'c-01', title: 'Title',

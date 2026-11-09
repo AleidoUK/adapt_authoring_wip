@@ -6,6 +6,7 @@ define(function(require) {
   function label(key, descriptor) {
     var translations = {
       uniqueId: 'app.lightcoursefielduniqueid',
+      screenshotAssetId: 'app.lightcoursecomponentscreenshot',
       graphicsNotes: 'app.lightcoursegraphicsnotes',
       developerNotes: 'app.lightcoursedevelopernotes',
       _componentPresetId: 'app.lightcoursecomponentpreset',

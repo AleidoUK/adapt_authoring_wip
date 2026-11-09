@@ -5,6 +5,7 @@ define(function(require) {
   var INTERNAL_FIELDS = ['_id', 'type', '_component', 'children', '_componentSchemaSnapshot', '_componentPresetId'];
 
   function fieldLabel(key, field) {
+    if (key === 'screenshotAssetId') return Origin.l10n.t('app.lightcoursecomponentscreenshot');
     if (key === 'graphicsNotes') return Origin.l10n.t('app.lightcoursegraphicsnotes');
     if (key === 'developerNotes') return Origin.l10n.t('app.lightcoursedevelopernotes');
     if (key === 'uniqueId') return Origin.l10n.t('app.lightcoursefielduniqueid');
@@ -28,6 +29,11 @@ define(function(require) {
     }
     result.value = String(value);
     if (!result.value.trim()) return null;
+    if (key === 'screenshotAssetId') {
+      result.isImage = true;
+      result.imageSrc = 'api/content/lightcourseasset/' + encodeURIComponent(result.value) + '/serve';
+      return result;
+    }
     result.isHtml = !!(field && field.inputType === 'TextArea') || key === 'body' || key === 'instruction';
     if (result.isHtml && !/<(?:img|video|audio|iframe|svg|hr|table)\b/i.test(result.value) &&
       !result.value.replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;/g, ' ').trim()) {
@@ -37,7 +43,12 @@ define(function(require) {
   }
 
   function previewFields(data, fields, isNode) {
-    return Object.keys(data || {}).filter(function(key) {
+    var keys = Object.keys(data || {});
+    if (isNode && data.type === 'component' && keys.indexOf('screenshotAssetId') !== -1) {
+      keys = ['title', 'screenshotAssetId'].filter(function(key) { return keys.indexOf(key) !== -1; })
+        .concat(keys.filter(function(key) { return key !== 'title' && key !== 'screenshotAssetId'; }));
+    }
+    return keys.filter(function(key) {
       if (isNode && data.type === 'component' && key === 'uniqueId') return false;
       if (isNode && data.type === 'page' && key === 'title') return false;
       return (isNode ? INTERNAL_FIELDS : ['_id', '_componentSchemaSnapshot', '_componentPresetId']).indexOf(key) === -1;

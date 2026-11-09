@@ -70,6 +70,13 @@ Earlier versions can be opened for review, compared and exported, but not change
 
 ## Word counts and documents
 
+Components have an optional **Component screenshot** image below their title in
+the component editor, including template and component-default editors. Choose
+or upload it through the light-course image bank. It is also shown in course
+previews and below the component title in Word exports. Other component images
+appear below the title in Word, while item images follow their item's content.
+Word imports update text only and leave screenshots and other images unchanged.
+
 The light editor will show a word count for each component and a total for the course. Counts use translatable content only; the Graphics Notes and Developer Notes fields and the document header sections are not counted. Full-course editors will also have component and course word counts for full courses; the Light Editor role alone will not be able to see those full courses.
 
 Courses can be exported as either a Markdown document or a Word document, chosen from an export menu. The documents will include word-count information. Full-course editors will get these document exports for full courses too. These are additional ways to review and work on content: they do not replace the existing Adapt course ZIP export.

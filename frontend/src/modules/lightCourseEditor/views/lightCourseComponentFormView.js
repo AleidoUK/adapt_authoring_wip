@@ -61,6 +61,8 @@ define(function(require) {
       }
 
       var filteredSchema = SchemaFilter.filterComponentSchema(rawSchema, { includeAudio: this.includeAudio, lightCourseRefs: this.lightCourseRefs });
+      filteredSchema.screenshotAssetId = { type: 'string', inputType: 'LightCourseAsset:image',
+        title: Origin.l10n.t('app.lightcoursecomponentscreenshot') };
 
       // Light-editor-only fields, per the main plan - never part of the real component schema,
       // merged in here at the form-building level only (Phase 3's "Generic component-field
@@ -77,9 +79,8 @@ define(function(require) {
 
       var schema = Origin.scaffold.buildSchema(filteredSchema);
       var fields = Object.keys(schema);
-      if (fields.indexOf('uniqueId') !== -1) {
-        fields = ['uniqueId'].concat(_.without(fields, 'uniqueId'));
-      }
+      fields = ['uniqueId', 'title', 'screenshotAssetId'].filter(function(key) { return fields.indexOf(key) !== -1; })
+        .concat(_.without(fields, 'uniqueId', 'title', 'screenshotAssetId'));
 
       this.model.schema = schema;
       this.form = new Backbone.Form({ model: this.model, schema: schema, fields: fields }).render();

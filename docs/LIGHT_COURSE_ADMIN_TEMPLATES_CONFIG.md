@@ -16,6 +16,22 @@ Validated via the full backend suite (175 passing / the same 14 pre-existing unr
 
 ## New backend routes
 
+### Placeholder asset uses
+
+The **Light Course Placeholder Assets** list has a **Uses** column. Expand a
+non-zero count to see linked courses, templates and component defaults, with a
+per-editor count; hover over an entry for its saved field paths. Each distinct
+field referencing the asset counts once, including component screenshots,
+nested item images/audio and managed asset links in rich text.
+
+Counts are computed from current saved editor content, not the bank's historical
+selection records. Clearing/replacing an asset and saving removes that use.
+Unsaved edits, immutable saved versions, exports and retired tenant-wide
+placeholder settings are not included. Usage is loaded once per list refresh
+through the tenant-scoped, asset-administrator-only
+`GET /api/content/lightcourseasset/uses/all` endpoint. Loading failures are shown
+explicitly rather than as zero uses. Asset deletion behavior is unchanged.
+
 ### Starting settings for new templates
 
 New blank templates copy the tenant's current `defaultPluginSelections` (menu, theme, extensions)

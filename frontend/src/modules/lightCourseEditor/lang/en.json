@@ -83,6 +83,7 @@
     "lightcourserefpickernoresources": "No resources to reference yet - add some in the Resources section first",
     "errorgettinglightcourse": "Error getting that light course - try refreshing your page",
     "lightcoursecomponent": "Component",
+    "lightcoursecomponentscreenshot": "Component screenshot",
     "lightcourseuniqueid": "ID",
     "lightcoursefielduniqueid": "Unique ID",
     "lightcoursepage": "Page",

@@ -67,6 +67,21 @@ Unsafe filename characters are replaced, and Unicode names are preserved. An
 unpublished course without a version uses `vdraft`.
 Word-count rules are unchanged.
 
+Word exports embed managed light-course images from component graphic fields
+(including nested items), help graphics and rich-text image references as
+read-only previews beside their content. PNG, JPEG, GIF and BMP are supported;
+large images are scaled proportionally to fit the page. Unavailable, external
+or unsupported images have a visible notice with their source instead.
+Image previews are not imported, and Word edits never replace course assets.
+The exported binary snapshot contains the embedded image bytes.
+Non-item previews appear directly below the editable title, before the body.
+Item previews follow that item's title/content, before the next item.
+Each component also has an optional **Component screenshot** asset field below
+its title in the light-course, template and component-default editors. This uses
+the existing light-course image bank and appears below the title in tree/saved
+version previews and Word exports. The screenshot reference is retained in
+drafts, templates and saved versions; Word import never changes it.
+
 New Word exports have Track Changes enabled by default. Import automatically
 accepts tracked revisions in the imported text: insertions and move destinations
 are retained; deletions and move sources are removed. Deleted paragraph marks

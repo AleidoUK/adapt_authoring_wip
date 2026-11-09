@@ -526,6 +526,7 @@ describe('component popup field order (isolated)', function() {
     function Form(formOptions) { options = formOptions; }
     Form.prototype.render = function() { return this; };
     Form.prototype.$ = function() { return new Element(); };
+    Form.prototype.getValue = function() { return options.model.pick(options.fields); };
     var filter = load('frontend/src/modules/lightCourseEditor/schemaFilter.js', {});
     var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseComponentFormView.js', {
       'core/origin': {
@@ -538,7 +539,7 @@ describe('component popup field order (isolated)', function() {
       '../lightCourseAssetContext': {}
     }, { Backbone: Object.assign({}, Backbone, { Form: Form }) });
     var model = new Backbone.Model({
-      _component: 'text', title: 'Original title', uniqueId: 'c-01',
+      _component: 'text', title: 'Original title', uniqueId: 'c-01', screenshotAssetId: '1234567890abcdef12345678',
       _componentSchemaSnapshot: useSnapshot ? schema : undefined
     });
     var view = Object.assign(Object.create(proto), {
@@ -547,6 +548,7 @@ describe('component popup field order (isolated)', function() {
       setViewToReady: function() {}
     });
     view.postRender();
+    options.getFormData = function() { return view.getFormData(); };
     return options;
   }
 
@@ -554,16 +556,21 @@ describe('component popup field order (isolated)', function() {
     it('places unique ID before title and preserves other fields for ' +
       (useSnapshot ? 'a missing plugin snapshot' : 'an installed component'), function() {
       var options = render(rawSchema, useSnapshot);
-      assert.deepStrictEqual(copy(options.fields), ['uniqueId', 'title', 'body', 'graphicsNotes', 'developerNotes']);
+      assert.deepStrictEqual(copy(options.fields), ['uniqueId', 'title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
       assert.strictEqual(options.schema.uniqueId.title, 'Unique ID');
       assert.strictEqual(options.model.get('uniqueId'), 'c-01');
       assert.strictEqual(options.model.get('title'), 'Original title');
+      assert.strictEqual(options.schema.screenshotAssetId.inputType, 'LightCourseAsset:image');
+      assert.strictEqual(options.schema.screenshotAssetId.translatable, undefined);
+      assert.strictEqual(options.getFormData().screenshotAssetId, '1234567890abcdef12345678');
+      options.model.set('screenshotAssetId', '');
+      assert.strictEqual(options.getFormData().screenshotAssetId, '');
     });
   });
 
   it('preserves field order without adding an unavailable unique ID field', function() {
     var options = render(_.omit(rawSchema, '_extensions'), false);
-    assert.deepStrictEqual(copy(options.fields), ['title', 'body', 'graphicsNotes', 'developerNotes']);
+    assert.deepStrictEqual(copy(options.fields), ['title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
     assert.strictEqual(options.schema.uniqueId, undefined);
   });
 });
@@ -662,6 +669,7 @@ describe('component preset selection and template copying (isolated)', function(
 
   it('retains the saved preset and values through template serialization and real course creation', function(done) {
     var h = treeHarness();
+    h.node.screenshotAssetId = '1234567890abcdef12345678';
     h.tree.applyPresetValues(h.node, PRESET);
     var Model = load('frontend/src/modules/lightCourseAdmin/models/lightCourseTemplateModel.js', { backbone: Backbone });
     var model = new Model({ name: 'Template', contentTree: { children: [
@@ -696,6 +704,7 @@ describe('component preset selection and template copying (isolated)', function(
       assert.strictEqual(component._componentPresetId, PRESET._id);
       assert.strictEqual(component._component, 'text');
       assert.strictEqual(component.body, PRESET.values.body);
+      assert.strictEqual(component.screenshotAssetId, h.node.screenshotAssetId);
       h.tree.renderPresetSelect(component, [PRESET], false);
       assert.strictEqual(h.containers[PRESET_PICKER].children[1].val(), PRESET._id);
       done();

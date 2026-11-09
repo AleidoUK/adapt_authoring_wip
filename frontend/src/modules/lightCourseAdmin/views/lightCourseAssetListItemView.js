@@ -15,9 +15,30 @@ define(function(require) {
       'click .light-course-asset-list-item-delete': 'onDeleteClicked'
     },
 
+    preRender: function(options) {
+      this.usage = options.usage;
+      this.usageState = options.usageState;
+    },
+
     postRender: function() {
       this.$('.light-course-asset-list-item-type').text(this.getTypeLabel());
       this.$('.light-course-asset-list-item-size').text(this.getSizeLabel());
+      var $uses = this.$('.light-course-asset-list-item-uses');
+      if (this.usageState === 'loading') return $uses.text(Origin.l10n.t('app.lightcourseassetusesloading'));
+      if (this.usageState !== 'ready' || !this.usage) return $uses.text(Origin.l10n.t('app.lightcourseassetuseserror'));
+      var routes = { lightcourse: 'lightCourseEditor/', lightcoursetemplate: 'lightCourseTemplates/',
+        lightcomponentdefault: 'lightCourseComponentDefaults/' };
+      $uses.html(Handlebars.templates.lightCourseAssetUses({
+        count: this.usage.count,
+        uses: this.usage.uses.map(function(use) {
+          return {
+            title: use.title || Origin.l10n.t('app.lightcourseassetusetype' + use.type),
+            typeLabel: Origin.l10n.t('app.lightcourseassetusetype' + use.type),
+            href: '#' + routes[use.type] + encodeURIComponent(use.id),
+            count: use.paths.length, paths: use.paths.join('\n')
+          };
+        })
+      }));
     },
 
     getTypeLabel: function() {

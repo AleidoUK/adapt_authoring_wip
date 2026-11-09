@@ -8,7 +8,11 @@
         {{/each}}
       </dl>
     {{else}}
-      {{#if isHtml}}{{{value}}}{{else}}<span class="light-course-tree-field-value">{{value}}</span>{{/if}}
+      {{#if isImage}}
+        <img class="light-course-component-screenshot" src="{{imageSrc}}" alt="{{label}}">
+      {{else}}
+        {{#if isHtml}}{{{value}}}{{else}}<span class="light-course-tree-field-value">{{value}}</span>{{/if}}
+      {{/if}}
     {{/if}}
   </dd>
 </div>

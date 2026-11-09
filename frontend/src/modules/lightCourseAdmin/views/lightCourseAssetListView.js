@@ -20,17 +20,46 @@ define(function(require) {
     },
 
     preRender: function() {
-      this.listenTo(this.collection, 'sync', this.renderItems);
+      this.itemViews = [];
+      this.usageState = 'loading';
+      this.listenTo(this.collection, 'sync', this.loadUsage);
       this.listenTo(this.collection, 'remove', this.renderItems);
     },
 
     postRender: function() {
       this.collection.fetch({
-        success: this.setViewToReady.bind(this)
+        success: this.setViewToReady.bind(this),
+        error: function() {
+          Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcourseassets') });
+          this.setViewToReady();
+        }.bind(this)
+      });
+    },
+
+    loadUsage: function() {
+      if (this.disposed) return;
+      var self = this;
+      var requestId = this.usageRequestId = (this.usageRequestId || 0) + 1;
+      if (this.usageRequest) this.usageRequest.abort();
+      this.usageState = 'loading';
+      this.renderItems();
+      this.usageRequest = $.get('api/content/lightcourseasset/uses/all').done(function(usage) {
+        if (self.disposed || self.usageRequestId !== requestId) return;
+        self.usage = usage;
+        self.usageState = 'ready';
+        self.renderItems();
+      }).fail(function(response, status) {
+        if (self.disposed || self.usageRequestId !== requestId || status === 'abort') return;
+        self.usageState = 'error';
+        self.renderItems();
+        Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcourseassetuseserror') });
       });
     },
 
     renderItems: function() {
+      if (this.disposed) return;
+      this.itemViews.forEach(function(view) { view.remove(); });
+      this.itemViews = [];
       var $container = this.$('.light-course-asset-list-items');
       $container.empty();
       if (!this.collection.length) {
@@ -39,8 +68,11 @@ define(function(require) {
       }
       this.$('.light-course-asset-list-empty').addClass('display-none');
       this.collection.each(function(model) {
-        $container.append(new LightCourseAssetListItemView({ model: model }).$el);
-      });
+        var view = new LightCourseAssetListItemView({ model: model, usageState: this.usageState,
+          usage: this.usage && this.usage[model.id] });
+        this.itemViews.push(view);
+        $container.append(view.$el);
+      }, this);
     },
 
     onUploadClicked: function(event) {
@@ -76,6 +108,13 @@ define(function(require) {
       }).always(function() {
         $submit.prop('disabled', false);
       });
+    },
+
+    remove: function() {
+      this.disposed = true;
+      if (this.usageRequest) this.usageRequest.abort();
+      this.itemViews.forEach(function(view) { view.remove(); });
+      OriginView.prototype.remove.apply(this, arguments);
     }
   }, {
     template: 'lightCourseAssetList'

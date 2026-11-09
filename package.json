@@ -56,6 +56,7 @@
     "handlebars-form-helpers": "^0.1.4",
     "hbs": "^4.2.0",
     "htmlparser2": "^6.1.0",
+    "image-size": "^0.5.5",
     "inquirer": "^8.2.2",
     "jshint-stylish": "^2.2.1",
     "json-schema-mapper": "0.0.2",
