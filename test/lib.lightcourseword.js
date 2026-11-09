@@ -1562,10 +1562,11 @@ describe('mapped Word text round-trip', function() {
     });
   });
 
-  function importRoute(fields, parsed) {
+  function importRoute(fields, parsed, options) {
+    options = options || {};
     fields = Object.assign({ bump: 'minor' }, fields);
     return new Promise(function(resolve) {
-      var state = { cleaned: [], updates: [], imports: [] };
+      var state = { cleaned: [], updates: [], imports: [], userQueries: [] };
       var draft = Object.assign(fixture(), { revision: 7 });
       var route;
       var app = { contentmanager: {
@@ -1595,7 +1596,13 @@ describe('mapped Word text round-trip', function() {
         '../../lib/permissions': { ignoreRoute: function() {} },
         '../../lib/configuration': { getMaxFileUploadSize: function() { return 1024; } },
         '../../lib/logger': { log: function() {} },
-        '../../lib/usermanager': { getCurrentUser: function() { return { _id: 'user', tenant: { _id: 'tenant-1' } }; } },
+        '../../lib/usermanager': {
+          getCurrentUser: function() { return { _id: 'user', tenant: { _id: 'tenant-1' } }; },
+          retrieveUsers: function(query, settings, callback) {
+            state.userQueries.push(query);
+            callback(options.userError || null, options.users || []);
+          }
+        },
         '../../lib/database': { getDatabase: function(callback) {
           callback(null, { retrieve: function(type, search, options, next) { next(null, type === 'lightcourse' ? [draft] : []); } });
         } },
@@ -1604,9 +1611,11 @@ describe('mapped Word text round-trip', function() {
         '../../lib/lightcourse/documentGenerator': { parseDocx: function(buffer, callback) { callback(null, parsed); } },
         '../../lib/lightcourse/documentImport': { importDocument: function(value, snapshot, db, callback) {
           component(snapshot).body = '<p>Imported component text</p>';
+          if (parsed.comments) component(snapshot)._comments = JSON.parse(JSON.stringify(parsed.comments));
           callback(null, { success: true, snapshot: snapshot });
         } },
-        '../../lib/lightcourse/versionDiff': {}
+        '../../lib/lightcourse/versionDiff': {},
+        '../../lib/lightcourse/comments': require('../lib/lightcourse/comments')
       };
       vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../routes/document-import/index.js'), 'utf8'), {
         module: { exports: {} }, require: function(name) { assert(name in mocks, name); return mocks[name]; }, Buffer: Buffer
@@ -1619,6 +1628,29 @@ describe('mapped Word text round-trip', function() {
   }
 
   describe('Word import route (isolated)', function() {
+    it('matches imported reviewers within the current tenant and retains external names', async function() {
+      var result = await importRoute({ format: 'docx', revision: '7', confirmed: 'true' },
+        { formatVersion: 2, sourceId: 'course-1', comments: [
+          { source: 'word', authorId: null, authorName: 'Known Reviewer' },
+          { source: 'word', authorId: null, authorName: 'Outside Reviewer' }
+        ] }, { users: [{ _id: 'reviewer', firstName: 'Known', lastName: 'Reviewer' }] });
+      assert.strictEqual(result.status, 200);
+      assert.strictEqual(result.userQueries[0]._tenantId, 'tenant-1');
+      var imported = component(result.imports[0].snapshot)._comments;
+      assert.strictEqual(imported[0].authorId, 'reviewer');
+      assert.strictEqual(imported[1].authorId, null);
+      assert.strictEqual(imported[1].authorName, 'Outside Reviewer');
+    });
+
+    it('does not save a version if reviewer lookup fails', async function() {
+      var result = await importRoute({ format: 'docx', revision: '7', confirmed: 'true' },
+        { formatVersion: 2, sourceId: 'course-1', comments: [{ source: 'word', authorId: null, authorName: 'Reviewer' }] },
+        { userError: new Error('Reviewer lookup failed') });
+      assert.strictEqual(result.status, 500);
+      assert.strictEqual(result.imports.length, 0);
+      assert.strictEqual(result.cleaned.length, 1);
+    });
+
     it('rejects stale revisions and wrong-course mappings before updating, and cleans both uploads', async function() {
       var stale = await importRoute({ format: 'docx', revision: '6', confirmed: 'true' }, { formatVersion: 2, sourceId: 'course-1' });
       assert.strictEqual(stale.status, 409);

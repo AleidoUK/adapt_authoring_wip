@@ -24,6 +24,7 @@ var contentmanager = require('../../../lib/contentmanager'),
     wordcount = require('../../../lib/lightcoursewordcount'),
     versionDiff = require('../../../lib/lightcourse/versionDiff'),
     iconClasses = require('../../../lib/lightcourse/iconClasses');
+var componentComments = require('../../../lib/lightcourse/comments');
 
 function LightCourseContent () {
 }
@@ -167,6 +168,8 @@ LightCourseContent.prototype.create = function (data, next) {
     }
 
     function proceed() {
+      var commentError = componentComments.prepareChanges({}, data.contentTree, user);
+      if (commentError) return next(new Error(commentError));
       assignMissingItemIds(data.glossaryItems);
       assignMissingItemIds(data.resourceItems);
       assignMissingItemIds(data.helpContent && data.helpContent.items);
@@ -335,6 +338,10 @@ LightCourseContent.prototype.update = function (search, delta, next) {
           return next(new ContentPermissionError());
         }
 
+        if (delta.contentTree) {
+          var commentError = componentComments.prepareChanges(existing.contentTree, delta.contentTree, user);
+          if (commentError) return next(new Error(commentError));
+        }
         validatePayload(db, Object.assign({}, existing, delta), user.tenant._id.toString(), function (validationError) {
           if (validationError) {
             return next(new Error(validationError));

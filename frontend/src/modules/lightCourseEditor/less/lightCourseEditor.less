@@ -1,5 +1,22 @@
 @import 'colours';
 
+.light-course-tree-component-comments {
+  color: #000;
+  &.is-resolved { color: @aleido-blue-1; }
+}
+
+.light-course-comments {
+  border-top: 1px solid @aleido-grey-3;
+  margin-top: 24px;
+  padding-top: 16px;
+  textarea { display: block; width: 100%; min-height: 90px; box-sizing: border-box; margin: 8px 0; }
+  .light-course-comment { border-left: 3px solid @aleido-green; padding: 10px 12px; margin-bottom: 12px; }
+  .light-course-comment[hidden] { display: none; }
+  .light-course-comment.is-resolved { color: @aleido-blue-1; }
+  .light-course-comment-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+  .light-course-comment-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+}
+
 .light-course-versions, .light-course-auditlog {
   .light-course-versions-error, .light-course-auditlog-error { color: #b00020; }
 }

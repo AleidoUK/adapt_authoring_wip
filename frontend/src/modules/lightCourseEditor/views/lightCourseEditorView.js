@@ -92,7 +92,7 @@ define(function(require) {
           self.headerView.remove();
           self.treeView.remove();
           self.headerView = new LightCourseHeaderView({ model: self.model });
-          self.treeView = new LightCourseTreeView({ model: self.model });
+          self.treeView = new LightCourseTreeView({ model: self.model, enableComments: true });
           self.$('.light-course-editor-header-container').empty().append(self.headerView.$el);
           self.$('.light-course-editor-tree-container').empty().append(self.treeView.$el);
           self.$('.light-course-editor-menu-title').val(self.model.get('title'));
@@ -121,7 +121,7 @@ define(function(require) {
       this.headerView = new LightCourseHeaderView({ model: this.model });
       this.$('.light-course-editor-header-container').append(this.headerView.$el);
 
-      this.treeView = new LightCourseTreeView({ model: this.model });
+      this.treeView = new LightCourseTreeView({ model: this.model, enableComments: true });
       this.$('.light-course-editor-tree-container').append(this.treeView.$el);
 
       this.renderGlossaryResourcesHelp();

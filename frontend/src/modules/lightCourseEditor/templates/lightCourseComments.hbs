@@ -1,0 +1,27 @@
+<h1>{{t 'app.lightcoursecomments'}}</h1>
+<p>{{t 'app.lightcoursecommentssavehelp'}}</p>
+{{#unless rows}}<p>{{t 'app.lightcoursecommentsnone'}}</p>{{/unless}}
+{{#each rows}}
+  <article id="{{commentId}}" class="light-course-comment{{#if threadResolved}} is-resolved{{/if}}" data-comment-id="{{_id}}" style="margin-left: {{indent}}px;" {{#if hidden}}hidden{{/if}}>
+    <header>
+      <strong>{{authorName}}</strong>
+      <time datetime="{{createdAt}}">{{momentFormat createdAt "Do MMMM YYYY HH:mm"}}</time>
+      {{#if threadResolved}}<span>{{t 'app.lightcoursecommentresolved'}}</span>{{/if}}
+    </header>
+    <div class="light-course-comment-text">{{text}}</div>
+    <div class="light-course-comment-actions">
+      {{#if replyCount}}<button id="{{toggleId}}" type="button" class="btn secondary-hollow light-course-comment-toggle" aria-expanded="{{#if expanded}}true{{else}}false{{/if}}" aria-controls="{{replyIds}}">{{#if expanded}}{{t 'app.lightcoursecommenthidereplies'}}{{else}}{{t 'app.lightcoursecommentshowreplies'}}{{/if}} ({{replyCount}})</button>{{/if}}
+      {{#if canReply}}<button type="button" class="btn secondary-hollow light-course-comment-reply">{{t 'app.lightcoursecommentreply'}}</button>{{/if}}
+      {{#if canEdit}}<button type="button" class="btn secondary-hollow light-course-comment-edit">{{t 'app.edit'}}</button>{{/if}}
+      {{#if canDelete}}<button type="button" class="btn alert light-course-comment-delete">{{t 'app.delete'}}</button>{{/if}}
+      {{#if canResolve}}<button type="button" class="btn secondary-hollow light-course-comment-resolve">{{#if resolved}}{{t 'app.lightcoursecommentreopen'}}{{else}}{{t 'app.lightcoursecommentresolve'}}{{/if}}</button>{{/if}}
+    </div>
+  </article>
+{{/each}}
+{{#unless readOnly}}
+  <label for="{{composerId}}">{{#if editing}}{{t 'app.lightcoursecommentedit'}}{{else}}{{#if replying}}{{t 'app.lightcoursecommentreply'}}{{else}}{{t 'app.lightcoursecommentnew'}}{{/if}}{{/if}}</label>
+  <textarea id="{{composerId}}" class="light-course-comments-text">{{composerText}}</textarea>
+  {{#if composerDisabled}}<p>{{t 'app.lightcoursecommentclosed'}}</p>{{/if}}
+  <button type="button" class="btn primary light-course-comments-save" {{#if composerDisabled}}disabled{{/if}}>{{#if editing}}{{t 'app.lightcoursecommentsave'}}{{else}}{{t 'app.lightcoursecommentadd'}}{{/if}}</button>
+  {{#if editing}}<button type="button" class="btn secondary-hollow light-course-comments-cancel">{{t 'app.cancel'}}</button>{{else}}{{#if replying}}<button type="button" class="btn secondary-hollow light-course-comments-cancel">{{t 'app.cancel'}}</button>{{/if}}{{/if}}
+{{/unless}}

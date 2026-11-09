@@ -206,9 +206,77 @@ describe('Word image previews', function() {
     await module.exports.load(images, { retrieve: function(type, query, options, callback) {
       callback(null, [{ mimeType: 'image/png' }]);
     } });
-    assert.strictEqual(images[0].options.transformation.width, 600);
-    assert.strictEqual(images[0].options.transformation.height, 400);
+    assert.strictEqual(images[0].options.transformation.width, 300);
+    assert.strictEqual(images[0].options.transformation.height, 200);
     assert.strictEqual(reads, 1);
+  });
+
+  it('retains the height limit, does not upscale small images and caps wide images at half the usable page width', async function() {
+    var filename = path.join(__dirname, '../lib/lightcourse/wordImages.js');
+    for (var dimensions of [
+      { width: 400, height: 1600, expectedWidth: 150, expectedHeight: 600 },
+      { width: 80, height: 40, expectedWidth: 80, expectedHeight: 40 },
+      { width: 1200, height: 200, expectedWidth: 300, expectedHeight: 50 }
+    ]) {
+      var module = { exports: {} };
+      vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module: module, require: function(name) {
+        if (name === 'image-size') return function() { return Object.assign({ type: 'png' }, dimensions); };
+        if (name === '../filestorage') return { getStorage: function(repository, callback) {
+          callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
+        } };
+        return require(name);
+      } }, { filename: filename });
+      var images = [{ src: assetId }];
+      await module.exports.load(images, { retrieve: function(type, query, options, callback) {
+        callback(null, [{ mimeType: 'image/png' }]);
+      } });
+      assert.strictEqual(images[0].options.transformation.width, dimensions.expectedWidth);
+      assert.strictEqual(images[0].options.transformation.height, dimensions.expectedHeight);
+    }
+  });
+
+  it('writes screenshots, component, item and inline images no wider than half the actual Word text area', async function() {
+    var width = 1200, height = 800, stride = Math.ceil(width * 3 / 4) * 4;
+    var bitmap = Buffer.alloc(54 + stride * height);
+    bitmap.write('BM');
+    bitmap.writeUInt32LE(bitmap.length, 2);
+    bitmap.writeUInt32LE(54, 10);
+    bitmap.writeUInt32LE(40, 14);
+    bitmap.writeInt32LE(width, 18);
+    bitmap.writeInt32LE(height, 22);
+    bitmap.writeUInt16LE(1, 26);
+    bitmap.writeUInt16LE(24, 28);
+    bitmap.writeUInt32LE(stride * height, 34);
+    var node = { _id: 'component', _component: 'text', title: 'Images', screenshotAssetId: assetId,
+      body: '<p><img src="/api/content/lightcourseasset/' + assetId + '/serve"></p>',
+      _graphic: { src: assetId },
+      _items: [{ title: 'Item', _graphic: { src: assetId } }]
+    };
+    var data = { _lightCourseId: 'course', title: 'Images', contentTree: { children: [
+      { _id: 'page', children: [{ _id: 'article', children: [{ _id: 'block', children: [node] }] }] }
+    ] } };
+    var db = { retrieve: function(type, query, options, callback) {
+      callback(null, type === 'componenttype' ? [{ displayName: 'Text', properties: schema.properties }] :
+        [{ mimeType: 'image/bmp', repository: 'test', path: 'image.bmp' }]);
+    } };
+    var getStorage = filestorage.getStorage;
+    filestorage.getStorage = function(repository, callback) {
+      callback(null, { getFileContents: function(file, callback) { callback(null, bitmap); } });
+    };
+    try {
+      var zip = await unzipper.Open.buffer(await call(generator.generateDocx, [data, db]));
+      var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      var body = new XMLParser({ ignoreAttributes: false }).parse(xml)['w:document']['w:body'];
+      var section = body['w:sectPr'], page = section['w:pgSz'], margins = section['w:pgMar'];
+      var halfWidthEmu = (Number(page['@_w:w']) - Number(margins['@_w:left']) - Number(margins['@_w:right'])) * 635 / 2;
+      var extents = Array.from(xml.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"\/>/g));
+      assert.strictEqual(extents.length, 4);
+      extents.forEach(function(match) {
+        assert(Number(match[1]) <= halfWidthEmu);
+        assert.strictEqual(Number(match[1]), 300 * 9525);
+        assert.strictEqual(Number(match[2]), 200 * 9525);
+      });
+    } finally { filestorage.getStorage = getStorage; }
   });
 
   it('reports external sources, missing assets and unsupported formats explicitly without reading arbitrary files', async function() {

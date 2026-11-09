@@ -19,6 +19,7 @@
           {{#if ../uniqueId}}<span class="light-course-tree-component-uniqueid">({{t 'app.lightcourseuniqueid'}}: {{../uniqueId}})</span>{{/if}}
           <span class="light-course-tree-component-wordcount">{{wordCount}} {{t 'app.lightcoursewords'}}</span>
           <span class="light-course-tree-component-layout">{{layout}}</span>
+          {{#if hasComments}}<span class="light-course-tree-component-comments{{#if allCommentsResolved}} is-resolved{{/if}}" role="img" aria-label="{{#if allCommentsResolved}}{{t 'app.lightcoursecommentsallresolved'}}{{else}}{{t 'app.lightcoursecommentsunresolved'}}{{/if}}" title="{{#if allCommentsResolved}}{{t 'app.lightcoursecommentsallresolved'}}{{else}}{{t 'app.lightcoursecommentsunresolved'}}{{/if}}"><i class="fa fa-comments" aria-hidden="true"></i></span>{{/if}}
         </span>
       {{/with}}
     {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}

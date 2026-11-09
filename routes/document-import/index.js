@@ -34,6 +34,7 @@ var contentmanager = require('../../lib/contentmanager');
 var documentGenerator = require('../../lib/lightcourse/documentGenerator');
 var documentImport = require('../../lib/lightcourse/documentImport');
 var versionDiff = require('../../lib/lightcourse/versionDiff');
+var comments = require('../../lib/lightcourse/comments');
 
 permissions.ignoreRoute(/^\/document-import\/?.*$/);
 
@@ -210,13 +211,21 @@ server.post('/document-import/:tenant/:lightCourseId', function (req, res) {
                       return res.status(422).json({ success: false, title: origin().polyglot.t('app.documentimportstructuretitle'), errors: result.errors });
                     }
                     if (format === 'docx') {
-                      return plugin.importVersion(db, draft, snapshot, fields.bump, function(versionError, version) {
-                        if (versionError) {
-                          logger.log('error', versionError);
-                          return res.status(versionError instanceof contentmanager.errors.ContentConflictError ? 409 : 500)
-                            .json({ success: false, message: versionError.message, version: versionError.version });
-                        }
-                        res.status(200).json({ success: true, version: version, message: origin().polyglot.t('app.documentimportsuccess') });
+                      function saveVersion() {
+                        plugin.importVersion(db, draft, snapshot, fields.bump, function(versionError, version) {
+                          if (versionError) {
+                            logger.log('error', versionError);
+                            return res.status(versionError instanceof contentmanager.errors.ContentConflictError ? 409 : 500)
+                              .json({ success: false, message: versionError.message, version: versionError.version });
+                          }
+                          res.status(200).json({ success: true, version: version, message: origin().polyglot.t('app.documentimportsuccess') });
+                        });
+                      }
+                      if (!(parsedResult.comments || []).length) return saveVersion();
+                      return usermanager.retrieveUsers({ _tenantId: currentUser.tenant._id }, { jsonOnly: true }, function(error, users) {
+                        if (error) return handleError(res, 500, error);
+                        comments.resolveAuthors(snapshot.contentTree, users);
+                        saveVersion();
                       });
                     }
 

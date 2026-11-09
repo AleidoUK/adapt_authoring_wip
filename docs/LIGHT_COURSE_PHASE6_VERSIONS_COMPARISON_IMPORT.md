@@ -4,6 +4,26 @@ Part of the [Light Course Editor implementation plan](LIGHT_COURSE_IMPLEMENTATIO
 
 ## Word import workflow
 
+Light-course component discussions also round-trip as native Word comments.
+Stable tool IDs, durable Word IDs, comment paragraph IDs and saved import identities
+deduplicate repeated imports. Export snapshots provide an unambiguous fallback
+when Word rewrites identities. Older exports can match unchanged comments against
+their exported component discussion IDs. Known duplicates from the same Word
+import are merged, replies reparented and hidden redirects retained; unrelated or
+ambiguous comments are not silently combined. Every reply has its own document
+reference in addition to the native thread metadata. Definitions and document
+references are emitted in parent-first thread order, including nested replies,
+rather than reversing references when closing overlapping comment ranges.
+Existing comment text and supplied resolved status can change through
+Word import, including another author's review edits; ordinary editor saves
+still enforce author-only text edits/deletions. Parent reassignment is rejected.
+Deleted editor comments retain hidden tombstones to prevent resurrection, and
+removing a Word comment does not delete its editor counterpart. Comment and field
+changes are planned together and applied only after every validation succeeds.
+Imported external names are retained and matched only to unambiguous users within
+the current tenant; no accounts are created. Missing Word thread/status metadata
+cannot supply nesting/status changes. Templates and full courses do not participate.
+
 The light course editor's **Word export / import** dialog accepts `.docx` files
 exported from that same course. It saves pending committed changes before the
 operation, waits for the refreshed revision and asks for confirmation before

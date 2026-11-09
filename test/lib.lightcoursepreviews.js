@@ -167,6 +167,19 @@ describe('populated light course tree fields (isolated)', function() {
     assert(html.includes('Block details'));
     assert(html.includes('&lt;script&gt;plain text&lt;/script&gt;'));
     assert(!html.includes('<script>'));
+    assert(!html.includes('fa-comments'));
+    [false, true].forEach(function(resolved) {
+      var indicator = template({
+        children: [component],
+        nodeMeta: { component: { componentTypeDisplayName: 'Text', wordCount: 3, layout: 'full',
+          hasComments: true, allCommentsResolved: resolved, fields: [] } }
+      });
+      assert(indicator.indexOf('light-course-tree-component-comments') > indicator.indexOf('light-course-tree-component-layout'));
+      assert(indicator.includes('role="img"'));
+      assert(indicator.includes('<i class="fa fa-comments" aria-hidden="true"></i>'));
+      assert(indicator.includes('aria-label="app.lightcoursecomments' + (resolved ? 'allresolved' : 'unresolved') + '"'));
+      assert.strictEqual(indicator.includes('light-course-tree-component-comments is-resolved'), resolved);
+    });
     assert.strictEqual((html.match(/class="btn-icon light-course-tree-copy"/g) || []).length, 2);
     assert(!html.includes('light-course-tree-paste'));
     var emptyParents = template({

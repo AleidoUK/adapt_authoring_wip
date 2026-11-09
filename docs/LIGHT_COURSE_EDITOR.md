@@ -85,7 +85,9 @@ the component editor, including template and component-default editors. Choose
 or upload it through the light-course image bank. It is also shown in course
 previews and below the component title in Word exports. Other component images
 appear below the title in Word, while item images follow their item's content.
-Word imports update text only and leave screenshots and other images unchanged.
+Images in both light- and full-course Word exports are limited to half the usable
+page width, keeping their proportions without enlarging smaller images.
+Word imports update text and component discussions, leaving screenshots and other images unchanged.
 
 The light editor will show a word count for each component and a total for the course. Counts use translatable content only; the Graphics Notes and Developer Notes fields and the document header sections are not counted. Full-course editors will also have component and course word counts for full courses; the Light Editor role alone will not be able to see those full courses.
 
@@ -94,6 +96,44 @@ Courses can be exported as either a Markdown document or a Word document, chosen
 Both Markdown and Word documents exported from a light course can be edited and re-imported. Import updates text and supported formatting in a new draft based on the latest version; the user can review it and explicitly create the next minor or major version. It will not change an older saved version.
 
 Documents are for editing **text**, not rearranging the course. Their headings, identifiers and order must stay the same. Reordering blocks or components is done in the tool. If the document structure has changed, import will explain what is wrong rather than guess where content belongs or partially import it. Common supported formatting, such as paragraphs, headings, lists, emphasis and links, will be preserved where both document types can represent it. Unsupported styling will be reported, not silently promised as a perfect match.
+
+## Component comments
+
+Light courses have a **Comments** section in each component editor. Add a plain-text
+comment or reply, including replies to replies. Use the component's **Save** action
+to keep discussion changes; **Cancel** discards them along with other component edits.
+Replies start collapsed. Use **Show replies** or **Hide replies** on a comment to
+expand or collapse its replies, including nested discussions. Adding a reply
+expands its thread automatically. Resolved discussions use the Aleido blue text colour.
+A comment icon follows the component's full/left/right label when it has active
+comments: black while any thread is unresolved, or the same blue when all threads
+are resolved. Deleted comments do not contribute to the indicator.
+Authors may edit or delete only their own comments. Delete replies before deleting
+their parent. Any course editor may resolve or reopen a thread; reopen it before
+adding more replies. Converted courses remain read-only.
+
+Word exports include native Word comments anchored to the component heading.
+Every reply is referenced in the document so Word can display the whole thread.
+Component headings use **Heading 2**; older Heading 4 exports remain importable.
+Import adds new comments and replies, updates existing comment text, and restores
+resolved/reopened status when the Word processor supplies it. Re-importing the
+same reviewed document does not duplicate its comments. Removing a comment from
+Word does not delete it from the tool, and previously tool-deleted comments are
+not resurrected by an older document.
+If an earlier import created an identifiable duplicate Word thread, re-importing
+the reviewed document combines it with the original and keeps both sets of replies.
+Ambiguous matches are reported rather than merging separate discussions.
+
+Add Word comments within a single component's heading or content, not across
+components or on page/course headings. Keep existing replies in their original
+threads. Only text comments are supported. Reviewer names are retained; a unique
+matching tool user's name or email links the author, otherwise the name stays as
+external reviewer text without creating an account. Reply/status support depends
+on the Word processor retaining modern threaded-comment metadata.
+
+Discussions are not copied with components or into templates, are excluded from
+word counts, and are not available in templates, component defaults or full courses.
+Markdown exports/imports do not transfer discussions.
 
 ## Turning a light course into a full course
 

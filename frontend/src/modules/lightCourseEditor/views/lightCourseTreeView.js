@@ -6,6 +6,7 @@ define(function(require) {
   var WordCount = require('../wordCount');
   var FieldPreview = require('../fieldPreview');
   var ComponentLayout = require('../componentLayout');
+  var LightCourseCommentsView = require('./lightCourseCommentsView');
 
   var HIERARCHY = { page: 'article', article: 'block', block: 'component' };
   var MAX_COMPONENTS_PER_BLOCK = 2;
@@ -19,6 +20,7 @@ define(function(require) {
 
   function regenerateNodeIds(node) {
     node._id = generateStableId();
+    delete node._comments;
     (node.children || []).forEach(regenerateNodeIds);
     return node;
   }
@@ -64,7 +66,8 @@ define(function(require) {
       'keydown .light-course-tree-component-editor': 'onEditorKeydown'
     },
 
-    preRender: function() {
+    preRender: function(options) {
+      this.enableComments = !!(options && options.enableComments);
       this.tree = JSON.parse(JSON.stringify(this.model.get('contentTree') || {}));
       if (!Array.isArray(this.tree.children)) {
         this.tree.children = [];
@@ -112,10 +115,14 @@ define(function(require) {
           return;
         }
         var componentType = _.findWhere(this.componentTypes || [], { component: node._component });
+        var comments = this.enableComments && node.type === 'component' ?
+          (node._comments || []).filter(function(comment) { return !comment.deleted; }) : [];
         out[node._id] = {
           componentTypeDisplayName: (componentType && componentType.displayName) || node._component || '',
           wordCount: node.type === 'component' ? WordCount.countComponentWords(node) : 0,
           layout: node.type === 'component' ? node._layout || 'full' : undefined,
+          hasComments: comments.length > 0,
+          allCommentsResolved: comments.length > 0 && comments.every(function(comment) { return !!comment.parentId || comment.resolved; }),
           fields: FieldPreview(node)
         };
         this.buildNodeMeta(node.children, out);
@@ -517,7 +524,7 @@ define(function(require) {
     },
 
     applyPresetValues: function(node, preset) {
-      var values = _.omit(preset.values || {}, '_id', 'type', 'children', '_component', '_componentPresetId');
+      var values = _.omit(preset.values || {}, '_id', 'type', 'children', '_component', '_componentPresetId', '_comments');
       var found = this.findNode(node._id);
       if (values._layout !== undefined &&
           this.componentLayouts(node, found && found.siblings.length > 1).indexOf(values._layout) === -1) {
@@ -530,6 +537,17 @@ define(function(require) {
     },
 
     renderComponentForm: function(node) {
+      if (!this.commentsView || this.commentsView.node !== node) {
+        if (this.commentsView) this.commentsView.remove();
+        this.commentsView = null;
+        var $comments = this.$('.light-course-tree-component-editor-comments').empty();
+        if (this.enableComments) {
+          this.commentsView = new LightCourseCommentsView({
+            node: node, readOnly: !!(this.model.isLocked && this.model.isLocked())
+          });
+          $comments.append(this.commentsView.$el);
+        }
+      }
       var $formContainer = this.$('.light-course-tree-component-editor-form');
       if (this.componentFormView) {
         this.componentFormView.remove();
@@ -590,6 +608,10 @@ define(function(require) {
       var found = nodeId && this.findNode(nodeId);
       var shouldSave = saveChanges !== false && !!found && !!this.openComponentDraft;
       if (shouldSave) {
+        if (this.commentsView && this.commentsView.composerText && this.commentsView.composerText.trim()) {
+          Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursecommentunfinished') });
+          return false;
+        }
         this.flushOpenComponentForm();
         var updated = found.siblings.slice();
         updated[found.index] = this.openComponentDraft;
@@ -611,6 +633,10 @@ define(function(require) {
       this.presetRequestId = (this.presetRequestId || 0) + 1;
       this.openComponentNodeId = null;
       this.openComponentDraft = null;
+      if (this.commentsView) {
+        this.commentsView.remove();
+        this.commentsView = null;
+      }
       if (this.componentFormView) {
         this.componentFormView.remove();
         this.componentFormView = null;
@@ -638,6 +664,7 @@ define(function(require) {
     },
 
     remove: function() {
+      if (this.commentsView) this.commentsView.remove();
       if (this.clipboardEventNamespace) {
         $(document).off(this.clipboardEventNamespace);
       }

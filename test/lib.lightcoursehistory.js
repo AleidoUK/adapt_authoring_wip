@@ -180,6 +180,39 @@ describe('light editor timestamps and item audit history (isolated)', function()
   var harness;
   beforeEach(function() { harness = createHarness(); });
 
+  it('persists trusted component authors and enforces ownership through ordinary saves', async function() {
+    var id = 'a'.repeat(32);
+    var course = await harness.create('lightcourse', {
+      title: 'Review', revision: 0,
+      contentTree: { children: [{ _id: 'p', type: 'page', children: [
+        { _id: 'a', type: 'article', children: [{ _id: 'b', type: 'block', children: [
+          { _id: 'c', type: 'component', _comments: [
+            { _id: id, text: 'New comment', parentId: null, authorId: 'forged', authorName: 'Forged', resolved: false }
+          ] }
+        ] }] }
+      ] }] }
+    });
+    function discussion(value) { return value.contentTree.children[0].children[0].children[0].children[0]._comments; }
+    assert.strictEqual(discussion(course)[0].authorId, 'admin');
+    assert.strictEqual(discussion(course)[0].authorName, 'admin@example.test');
+    harness.db.getModel = function() { return {
+      populate: function(record) { return Promise.resolve(record); },
+      findOneAndUpdate: function(search, delta, options, next) {
+        harness.db.update('lightcourse', search, Object.assign({}, delta.$set, {
+          revision: course.revision + delta.$inc.revision
+        }), next);
+      }
+    }; };
+    var stored = harness.records.lightcourse[0];
+    discussion(stored)[0].authorId = 'another-author';
+    var edited = copy(stored);
+    discussion(edited)[0].text = 'Not my comment';
+    await assert.rejects(harness.update('lightcourse', { _id: course._id }, {
+      revision: course.revision, contentTree: edited.contentTree
+    }), /own comments/);
+    assert.strictEqual(discussion(harness.records.lightcourse[0])[0].text, 'New comment');
+  });
+
   it('stamps course creation and editing with the active audit version', async function() {
     var course = await harness.create('lightcourse', {
       title: 'Course', currentVersionNumber: '1.2', revision: 0,

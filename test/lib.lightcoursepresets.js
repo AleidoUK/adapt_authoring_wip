@@ -69,6 +69,7 @@ function treeHarness() {
     'core/origin': origin,
     'core/views/originView': { extend: function(proto) { return proto; } },
     './lightCourseComponentFormView': {},
+    './lightCourseCommentsView': {},
     '../wordCount': { countComponentWords: function() { return 0; } },
     '../fieldPreview': function() { return []; }
   }, { $: $, Backbone: Backbone, Handlebars: { templates: {
@@ -88,6 +89,35 @@ function treeHarness() {
 
 var PRESET = { _id: 'text-default', name: 'Text default', isDefault: true, values: { body: 'Default body', items: [{ title: 'Item' }] } };
 var PRESET_PICKER = '.light-course-tree-component-editor-preset-picker';
+
+describe('component comment status indicators (isolated)', function() {
+  it('ignores deleted comments and hides indicators outside course comment-enabled trees', function() {
+    var h = treeHarness();
+    h.tree.enableComments = true;
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.hasComments, false);
+    h.node._comments = [{ _id: 'deleted', parentId: null, deleted: true, resolved: false }];
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.hasComments, false);
+    h.node._comments.push({ _id: 'active', parentId: null, resolved: false });
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.hasComments, true);
+    h.tree.enableComments = false;
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.hasComments, false);
+  });
+  it('tracks root thread status rather than counting unresolved reply flags', function() {
+    var h = treeHarness();
+    h.tree.enableComments = true;
+    h.node._comments = [
+      { _id: 'root', parentId: null, resolved: true },
+      { _id: 'reply', parentId: 'root', resolved: false }
+    ];
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.allCommentsResolved, true);
+    h.node._comments.push({ _id: 'open-root', parentId: null, resolved: false });
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.allCommentsResolved, false);
+    h.node._comments[2].deleted = true;
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.allCommentsResolved, true);
+    h.node._comments[0].resolved = false;
+    assert.strictEqual(h.tree.buildNodeMeta([h.node]).component.allCommentsResolved, false);
+  });
+});
 
 describe('new light course pages (isolated)', function() {
   it('creates exactly one article containing one empty block and saves the full structure once', function() {
@@ -254,6 +284,15 @@ describe('copying and pasting light course pages, blocks and components (isolate
     assert.strictEqual(h.tree.getContentTree().children[0].children[1].children[0].children.length, 1);
     assert.strictEqual(h.events.length, 1);
     assert.strictEqual(h.tree.clipboardNode, null);
+  });
+
+  it('does not duplicate component discussions on copy and paste', function() {
+    var h = setup();
+    h.node._comments = [{ _id: 'discussion', text: 'Keep only on source' }];
+    copyNode(h, h.node._id);
+    pasteNode(h, 'destination-block');
+    assert.strictEqual(h.destination.children[0].children[0]._comments, undefined);
+    assert.strictEqual(h.node._comments[0].text, 'Keep only on source');
   });
 
   it('warns and makes no change when pasting into a full block', function() {
@@ -434,6 +473,37 @@ describe('component editor overlay drafts (isolated)', function() {
     h.tree.openComponentEditor(h.node._id);
     return h.tree.openComponentDraft;
   }
+
+  it('saves discussions with the component and discards them on Cancel', function() {
+    var h = treeHarness(), draft = open(h);
+    draft._comments = [{ _id: 'comment', text: 'New discussion' }];
+    assert.strictEqual(h.tree.getContentTree().children[0]._comments, undefined);
+    h.tree.closeComponentEditor();
+    assert.strictEqual(h.tree.getContentTree().children[0]._comments[0].text, 'New discussion');
+    draft = open(h);
+    draft._comments[0].text = 'Discarded edit';
+    h.tree.closeComponentEditor(false);
+    assert.strictEqual(h.tree.getContentTree().children[0]._comments[0].text, 'New discussion');
+  });
+
+  it('keeps an unfinished discussion composer open instead of discarding it on Save', function() {
+    var h = treeHarness(), draft = open(h);
+    h.tree.commentsView = { composerText: 'Not added yet', remove: function() { assert.fail('Composer should remain open'); } };
+    assert.strictEqual(h.tree.closeComponentEditor(), false);
+    assert.strictEqual(h.tree.openComponentDraft, draft);
+    assert.strictEqual(h.alerts[0].text, 'app.lightcoursecommentunfinished');
+    assert.strictEqual(h.events.length, 0);
+  });
+
+  it('keeps the component discussion when applying preset values', function() {
+    var h = treeHarness(), draft = open(h);
+    draft._comments = [{ _id: 'source', text: 'Original discussion' }];
+    h.tree.applyPresetValues(draft, { _id: 'preset', values: {
+      body: 'Preset body', _comments: [{ _id: 'copied', text: 'Not part of preset values' }]
+    } });
+    assert.strictEqual(draft._comments[0]._id, 'source');
+    assert.strictEqual(draft.body, 'Preset body');
+  });
 
   it('does not include open field or preset edits in background saves', function() {
     var h = treeHarness();

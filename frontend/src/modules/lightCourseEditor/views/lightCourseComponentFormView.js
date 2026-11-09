@@ -108,7 +108,7 @@ define(function(require) {
      */
     getFormData: function() {
       var bookkeeping = this.model.pick('_component', '_componentSchemaSnapshot');
-      return Object.assign({}, bookkeeping, this.form ? this.form.getValue() : this.model.toJSON());
+      return _.omit(Object.assign({}, bookkeeping, this.form ? this.form.getValue() : this.model.toJSON()), '_comments');
     },
 
     remove: function() {
