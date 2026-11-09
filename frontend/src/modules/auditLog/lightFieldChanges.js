@@ -10,7 +10,8 @@ define(function(require) {
       graphicsNotes: 'app.lightcoursegraphicsnotes',
       developerNotes: 'app.lightcoursedevelopernotes',
       _componentPresetId: 'app.lightcoursecomponentpreset',
-      _component: 'app.lightcoursecomponenttype'
+      _component: 'app.lightcoursecomponenttype',
+      _layout: 'app.lightcoursecomponentlayout'
     };
     if (translations[key]) return Origin.l10n.t(translations[key]);
     if (descriptor && descriptor.title) return descriptor.title;

@@ -4,6 +4,7 @@ define(function(require) {
   var OriginView = require('core/views/originView');
   var itemHistory = require('../itemHistory');
   var LightCourseTemplateModel = require('../models/lightCourseTemplateModel');
+  var TagEditor = require('../../lightCourseEditor/tagEditor');
 
   var LightCourseTemplateListItemView = OriginView.extend({
     tagName: 'div',
@@ -15,6 +16,10 @@ define(function(require) {
       'click .light-course-item-history': itemHistory('lightcoursetemplate'),
       'click .light-course-template-list-item-clone': 'onCloneClicked',
       'click .light-course-template-list-item-delete': 'onDeleteClicked'
+    },
+
+    postRender: function() {
+      TagEditor.renderTags.call(this);
     },
 
     onEditClicked: function(event) {

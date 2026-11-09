@@ -14,6 +14,7 @@ var contentmanager = require('../../../lib/contentmanager'),
     async = require('async'),
     permissions = require('../../../lib/permissions'),
     permissionAction = require('../../../lib/lightcourse/permissionAction'),
+    componentLayout = require('../../../frontend/src/modules/lightCourseEditor/componentLayout'),
     usermanager = require('../../../lib/usermanager'),
     util = require('util');
 
@@ -73,6 +74,10 @@ function clearDefaults(search, next) {
  * flagged, without ever leaving two records flagged default for the same componentType.
  */
 LightComponentDefaultContent.prototype.create = function (data, next) {
+  if (data.values && data.values._layout !== undefined) {
+    var error = componentLayout.validate([data.values]);
+    if (error) return next(new Error(error));
+  }
   if (data.isDefault !== true) {
     return ContentPlugin.prototype.create.call(this, data, next);
   }
@@ -98,6 +103,10 @@ LightComponentDefaultContent.prototype.create = function (data, next) {
  * defaults" sweep by its own `_id`.
  */
 LightComponentDefaultContent.prototype.update = function (search, delta, next) {
+  if (delta.values && delta.values._layout !== undefined) {
+    var error = componentLayout.validate([delta.values]);
+    if (error) return next(new Error(error));
+  }
   if (delta.isDefault !== true) {
     return ContentPlugin.prototype.update.call(this, search, delta, next);
   }

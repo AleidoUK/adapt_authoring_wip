@@ -2,6 +2,7 @@ var should = require('should');
 
 var validation = require('../lib/lightcourse/validation');
 var idRegeneration = require('../lib/lightcourse/idRegeneration');
+var componentLayout = require('../frontend/src/modules/lightCourseEditor/componentLayout');
 
 function validPage(id) {
   return {
@@ -80,6 +81,47 @@ describe('idRegeneration', function() {
 describe('icon choices', function() {
   it('should accept a valid icon for a control', function() {
     should(validation.validateIconChoices({ menuButton: 'home' })).be.null();
+  });
+
+  describe('light-course component layouts', function() {
+    [
+      [], ['full'], ['left'], ['right'], ['left', 'right'], ['right', 'left'], [undefined], [undefined, undefined],
+      [undefined, 'left'], ['right', undefined]
+    ].forEach(function(layouts) {
+      it('accepts ' + JSON.stringify(layouts) + ' and preserves legacy layouts without changing stored nodes', function() {
+        var page = validPage();
+        page.children[0].children[0].children = layouts.map(function(layout, index) {
+          return { _id: 'component-' + index, type: 'component', _layout: layout };
+        });
+        var tree = { children: [page] }, before = JSON.stringify(tree);
+        should(validation.validate({ contentTree: tree })).be.null();
+        JSON.stringify(tree).should.equal(before);
+      });
+    });
+    [['full', 'left'], ['full', 'full'], ['left', 'left'], ['right', 'right'], ['full', undefined], ['invalid'], [null]]
+      .forEach(function(layouts) {
+        it('rejects invalid layout combinations ' + JSON.stringify(layouts), function() {
+          var page = validPage();
+          page.children[0].children[0].children = layouts.map(function(layout, index) {
+            return { _id: 'component-' + index, type: 'component', _layout: layout };
+          });
+          validation.validate({ contentTree: { children: [page] } }).should.match(/layout|full component/);
+        });
+      });
+    it('resolves legacy pairs consistently, including a copied block at the root of a subtree', function() {
+      var block = { type: 'block', children: [{ _id: 'first', type: 'component' }, { _id: 'second', type: 'component' }] };
+      componentLayout.normalize(block);
+      block.children.map(function(node) { return node._layout; }).should.eql(['left', 'right']);
+      block.children.map(function(node) { return node._id; }).should.eql(['first', 'second']);
+    });
+    it('honours full-width, half-width and both layout support in flat and wrapped installed schemas', function() {
+      componentLayout.choices({ _supportedLayout: { enum: ['full-width'] } }).should.eql(['full']);
+      componentLayout.choices({ _supportedLayout: { enum: ['half-width'] }, properties: { type: 'object', properties: {} } })
+        .should.eql(['left', 'right']);
+      componentLayout.choices({ properties: { _supportedLayout: { enum: ['half-width'] } } }).should.eql(['left', 'right']);
+      componentLayout.choices({ properties: { properties: { _supportedLayout: { default: 'both' } } } }).should.eql(['full', 'left', 'right']);
+      componentLayout.choices({}).should.eql(['full', 'left', 'right']);
+    });
   });
 
   it('should reject an unsupported icon value with a specific error naming the control and valid options', function() {

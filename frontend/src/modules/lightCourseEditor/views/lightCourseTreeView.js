@@ -5,6 +5,7 @@ define(function(require) {
   var LightCourseComponentFormView = require('./lightCourseComponentFormView');
   var WordCount = require('../wordCount');
   var FieldPreview = require('../fieldPreview');
+  var ComponentLayout = require('../componentLayout');
 
   var HIERARCHY = { page: 'article', article: 'block', block: 'component' };
   var MAX_COMPONENTS_PER_BLOCK = 2;
@@ -27,6 +28,7 @@ define(function(require) {
     if (type === 'component') {
       delete base.children;
       base._component = '';
+      base._layout = 'full';
       base.title = '';
       base.items = [];
       base.graphicsNotes = '';
@@ -67,6 +69,7 @@ define(function(require) {
       if (!Array.isArray(this.tree.children)) {
         this.tree.children = [];
       }
+      ComponentLayout.normalize(this.tree);
       this.openComponentNodeId = null;
       this.openComponentDraft = null;
       this.clipboardNode = null;
@@ -112,6 +115,7 @@ define(function(require) {
         out[node._id] = {
           componentTypeDisplayName: (componentType && componentType.displayName) || node._component || '',
           wordCount: node.type === 'component' ? WordCount.countComponentWords(node) : 0,
+          layout: node.type === 'component' ? node._layout || 'full' : undefined,
           fields: FieldPreview(node)
         };
         this.buildNodeMeta(node.children, out);
@@ -186,6 +190,7 @@ define(function(require) {
       if (found.node.type === 'block' && found.node.children.length >= MAX_COMPONENTS_PER_BLOCK) {
         return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursemaxcomponents') });
       }
+      if (childType === 'component') return this.insertComponent(found.node.children, emptyNodeData(childType));
       found.node.children.push(emptyNodeData(childType));
       this.renderTree();
       Origin.trigger('lightCourseEditor:autosave');
@@ -257,10 +262,47 @@ define(function(require) {
 
     pasteClipboardAt: function(nodes, index) {
       var pasted = regenerateNodeIds(JSON.parse(JSON.stringify(this.clipboardNode)));
+      ComponentLayout.normalize(pasted);
+      if (pasted.type === 'component') return this.insertComponent(nodes, pasted, _.bind(this.clearClipboard, this));
       nodes.splice(index, 0, pasted);
       this.clipboardNode = null;
       this.renderTree();
       Origin.trigger('lightCourseEditor:autosave');
+    },
+
+    componentLayouts: function(node, paired) {
+      var schema = Origin.schemas && Origin.schemas.get(node._component) || node._componentSchemaSnapshot;
+      return ComponentLayout.choices(schema).filter(function(layout) { return !paired || layout !== 'full'; });
+    },
+
+    insertComponent: function(nodes, node, afterInsert) {
+      if (nodes.length >= MAX_COMPONENTS_PER_BLOCK) {
+        return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursemaxcomponents') });
+      }
+      var previous = nodes[0], previousLayout = previous && ComponentLayout.effective(nodes)[0];
+      var layout = previous ? previousLayout === 'right' ? 'left' : 'right' : node._layout || 'full';
+      if (this.componentLayouts(node, !!previous).indexOf(layout) === -1 ||
+          previous && this.componentLayouts(previous, true).indexOf(previousLayout === 'full' ? 'left' : previousLayout) === -1) {
+        return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcourselayoutunsupported') });
+      }
+      var self = this;
+      function insert() {
+        if (nodes.length !== (previous ? 1 : 0) || previous && nodes[0] !== previous) {
+          return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcourselayoutchanged') });
+        }
+        if (previous) previous._layout = previousLayout === 'full' ? 'left' : previousLayout;
+        node._layout = layout;
+        nodes.push(node);
+        nodes.sort(function(a, b) { return a._layout === 'left' ? -1 : b._layout === 'left' ? 1 : 0; });
+        if (afterInsert) afterInsert();
+        self.renderTree();
+        Origin.trigger('lightCourseEditor:autosave');
+      }
+      if (previousLayout === 'full') {
+        return Origin.Notify.confirm({ type: 'warning', text: Origin.l10n.t('app.lightcourseconfirmsplitlayout'),
+          callback: function(confirmed) { if (confirmed) insert(); } });
+      }
+      insert();
     },
 
     onCancelCopyClicked: function(event) {
@@ -310,6 +352,10 @@ define(function(require) {
       }
       found.siblings.splice(found.index, 1);
       found.siblings.splice(newIndex, 0, found.node);
+      if (found.node.type === 'component' && found.siblings.length === 2) {
+        found.siblings[0]._layout = 'left';
+        found.siblings[1]._layout = 'right';
+      }
       this.renderTree();
       Origin.trigger('lightCourseEditor:autosave');
     },
@@ -327,7 +373,7 @@ define(function(require) {
         return;
       }
       if (this.openComponentNodeId) {
-        this.closeComponentEditor();
+        if (this.closeComponentEditor() === false) return;
         found = this.findNode(nodeId);
       }
       this.openComponentNodeId = nodeId;
@@ -378,13 +424,23 @@ define(function(require) {
         $select.append(option);
       });
       $select.on('change', _.bind(function() {
+        this.flushOpenComponentForm();
+        var type = $select.val();
+        var candidate = Object.assign({}, node, { _component: type });
+        var found = this.findNode(node._id);
+        var layouts = this.componentLayouts(candidate, found && found.siblings.length > 1);
+        if (type && !layouts.length) {
+          $select.val(node._component);
+          return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcourselayoutunsupported') });
+        }
         // "brand new" only ever means "this node has never had a _component before" - once a
         // type's been chosen once, later changing the type again (on the same node, in this or
         // a future editing session) no longer auto-applies a default preset, per the product
         // requirement that re-applying a preset is always an explicit, deliberate action.
         var isFirstTimeChoice = !node._component;
         delete node._componentPresetId;
-        node._component = $select.val();
+        node._component = type;
+        if (layouts.indexOf(node._layout || 'full') === -1) node._layout = layouts[0];
         this.renderComponentForm(node);
         this.renderPresetPicker(node, isFirstTimeChoice);
       }, this));
@@ -462,6 +518,12 @@ define(function(require) {
 
     applyPresetValues: function(node, preset) {
       var values = _.omit(preset.values || {}, '_id', 'type', 'children', '_component', '_componentPresetId');
+      var found = this.findNode(node._id);
+      if (values._layout !== undefined &&
+          this.componentLayouts(node, found && found.siblings.length > 1).indexOf(values._layout) === -1) {
+        values = _.omit(values, '_layout');
+        Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursepresetlayoutkept') });
+      }
       Object.assign(node, JSON.parse(JSON.stringify(values)));
       node._componentPresetId = preset._id;
       this.renderComponentForm(node);
@@ -478,9 +540,11 @@ define(function(require) {
         return;
       }
       var formModel = new Backbone.Model(node);
+      var found = this.findNode(node._id);
       this.componentFormView = new LightCourseComponentFormView({
         model: formModel,
         lightCourseId: this.model.get('_id'),
+        allowedLayouts: found && found.siblings.length > 1 ? ['left', 'right'] : ComponentLayout.values,
         includeAudio: (this.model.get('pluginSelections') && this.model.get('pluginSelections').extensions || []).indexOf('audio') !== -1,
         lightCourseRefs: this.buildLightCourseRefs()
       });
@@ -527,7 +591,22 @@ define(function(require) {
       var shouldSave = saveChanges !== false && !!found && !!this.openComponentDraft;
       if (shouldSave) {
         this.flushOpenComponentForm();
-        found.siblings[found.index] = this.openComponentDraft;
+        var updated = found.siblings.slice();
+        updated[found.index] = this.openComponentDraft;
+        if (updated.length === 2 && ['left', 'right'].indexOf(this.openComponentDraft._layout) !== -1) {
+          updated[1 - found.index] = Object.assign({}, updated[1 - found.index], {
+            _layout: this.openComponentDraft._layout === 'left' ? 'right' : 'left'
+          });
+        }
+        var invalid = ComponentLayout.validate(updated) || updated.some(function(node) {
+          return this.componentLayouts(node, updated.length > 1).indexOf(node._layout || 'full') === -1;
+        }, this);
+        if (invalid) {
+          Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcourselayoutunsupported') });
+          return false;
+        }
+        updated.sort(function(a, b) { return a._layout === 'left' ? -1 : b._layout === 'left' ? 1 : 0; });
+        found.siblings.splice.apply(found.siblings, [0, found.siblings.length].concat(updated));
       }
       this.presetRequestId = (this.presetRequestId || 0) + 1;
       this.openComponentNodeId = null;

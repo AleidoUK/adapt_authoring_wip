@@ -1,6 +1,11 @@
 {
   "app": {
     "lightcourseeditor": "Light Course Editor",
+    "lightcoursecomponentlayout": "Component layout",
+    "lightcourseconfirmsplitlayout": "Add a second component? The existing component will become left and the new component right.",
+    "lightcourselayoutunsupported": "Choose a supported layout: one full component, or up to two components occupying left and right slots. Full-width-only components cannot share a block.",
+    "lightcourselayoutchanged": "This block changed while choosing a layout. Please try adding the component again.",
+    "lightcoursepresetlayoutkept": "The preset layout is not supported in this block. Its content was applied, keeping the component's current layout.",
     "lightcoursesavedversions": "Saved versions",
     "lightcourseviewversion": "View",
     "lightcoursecompareversions": "Compare versions",

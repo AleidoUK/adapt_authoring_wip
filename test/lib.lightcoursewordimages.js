@@ -61,10 +61,43 @@ describe('Word image previews', function() {
     ]), [{ path: 'body', src: 'api/content/lightcourseasset/' + assetId + '/serve', alt: 'A & B' }]);
   });
 
+  it('retains image-only light-course content without empty boxes and preserves it on import', async function() {
+    var node = { _id: 'image-only', _component: 'text', title: '', uniqueId: '',
+      body: '<p><img src="/api/content/lightcourseasset/' + assetId + '/serve" alt="Image-only content"></p>',
+      _graphic: { src: '', alt: 'Unused label' }, _items: [{ title: '', body: '<p>&nbsp;</p>' }] };
+    var data = { _lightCourseId: 'course', title: 'Images', contentTree: { children: [
+      { _id: 'page', title: '', children: [{ _id: 'article', children: [{ _id: 'block', children: [node] }] }] }
+    ] } };
+    var original = JSON.stringify(data), getStorage = filestorage.getStorage;
+    var db = { retrieve: function(type, query, options, callback) {
+      if (type === 'componenttype') return callback(null, [{ displayName: 'Text', properties: schema.properties }]);
+      assert.strictEqual(type, 'lightcourseasset');
+      callback(null, [{ mimeType: 'image/png', repository: 'test', path: 'image.png' }]);
+    } };
+    filestorage.getStorage = function(repository, callback) {
+      callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
+    };
+    try {
+      var buffer = await call(generator.generateDocx, [data, db]), zip = await unzipper.Open.buffer(buffer);
+      var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      assert(xml.includes('>0 words | full<'));
+      assert(xml.includes('descr="Image-only content"'));
+      assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, 1);
+      assert(!xml.includes('Unused label'));
+      assert(!xml.includes('Add body here'));
+      var parsed = await call(generator.parseDocx, [buffer]);
+      assert.deepStrictEqual(parsed.errors, []);
+      assert.deepStrictEqual(parsed.blocks.find(function(block) { return block.id === node._id; }).fields, []);
+      var imported = await call(importer.importDocument, [parsed, data, db]);
+      assert.strictEqual(imported.success, true, JSON.stringify(imported.errors));
+      assert.strictEqual(JSON.stringify(data), original);
+    } finally { filestorage.getStorage = getStorage; }
+  });
+
   it('embeds actual bytes beside components, nested items, help and rich text and preserves Word imports', async function() {
     this.timeout(10000);
     var node = { _id: 'component', _component: 'text', title: 'Title', screenshotAssetId: assetId,
-      instruction: 'Original instruction',
+      instruction: 'Original instruction', graphicsNotes: 'Configured graphics notes',
       body: '<p>Caption<img src="/api/content/lightcourseasset/' + assetId + '/serve" alt="Inline"></p>',
       _graphic: { src: assetId, alt: 'Graphic description' },
       _items: [

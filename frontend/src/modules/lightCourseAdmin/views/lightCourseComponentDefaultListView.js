@@ -1,7 +1,7 @@
 // LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
 define(function(require) {
   var Origin = require('core/origin');
-  var OriginView = require('core/views/originView');
+  var AdminListView = require('./lightCourseAdminListView');
   var LightCourseComponentDefaultListItemView = require('./lightCourseComponentDefaultListItemView');
   var LightCourseComponentDefaultCreateView = require('./lightCourseComponentDefaultCreateView');
   var LightCourseComponentDefaultModel = require('../models/lightCourseComponentDefaultModel');
@@ -15,29 +15,54 @@ define(function(require) {
    * server-side singleton enforcement in plugins/content/lightcomponentdefault/index.js - this
    * view just re-fetches/re-renders afterwards).
    */
-  var LightCourseComponentDefaultListView = OriginView.extend({
+  var LightCourseComponentDefaultListView = AdminListView.extend({
     className: 'light-course-component-default-list',
+    listSelector: '.light-course-component-default-list',
+    searchFields: ['name'],
+    typeField: 'componentType',
+    emptyMessage: 'app.lightcoursecomponentdefaultnonetodisplay',
+    loadError: 'app.errorgettinglightcoursecomponentdefault',
 
-    events: {
+    events: _.extend({}, AdminListView.prototype.events, {
       'click .light-course-component-default-list-create': 'onCreateClicked'
-    },
+    }),
 
     preRender: function() {
       this.componentTypes = [];
-      this.listenTo(this.collection, 'sync', this.renderItems);
-      this.listenTo(this.collection, 'remove', this.renderItems);
+      AdminListView.prototype.preRender.call(this);
     },
 
     postRender: function() {
       var self = this;
-      $.get('api/componenttype').done(function(componentTypes) {
+      AdminListView.prototype.postRender.call(this);
+      this.componentTypesRequest = $.get('api/componenttype').done(function(componentTypes) {
+        if (self.disposed) return;
         self.componentTypes = (componentTypes || []).slice().sort(function(a, b) {
           return (a.displayName || a.component).localeCompare(b.displayName || b.component);
         });
-        self.collection.fetch({
-          success: self.setViewToReady.bind(self)
-        });
+        self.onCollectionChanged();
+      }).fail(function(response, status) {
+        if (self.disposed || status === 'abort') return;
+        Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcoursecomponenttypes') });
       });
+    },
+
+    onCollectionChanged: function() {
+      if (this.disposed) return;
+      var selected = this.$('.light-course-admin-filter-type').val() || '';
+      var $type = this.$('.light-course-admin-filter-type').empty();
+      $type.append($('<option>').val('').text(Origin.l10n.t('app.lightcoursefilteralltypes')));
+      var types = this.componentTypes.slice();
+      this.collection.each(function(model) {
+        var key = model.get('componentType');
+        if (!_.findWhere(types, { component: key })) types.push({ component: key, displayName: key });
+      });
+      if (selected && !_.findWhere(types, { component: selected })) types.push({ component: selected, displayName: selected });
+      types.forEach(function(type) {
+        $type.append($('<option>').val(type.component).text(type.displayName || type.component));
+      });
+      $type.val(selected);
+      AdminListView.prototype.onCollectionChanged.call(this);
     },
 
     getComponentDisplayName: function(componentType) {
@@ -45,21 +70,16 @@ define(function(require) {
       return (match && match.displayName) || componentType;
     },
 
-    renderItems: function() {
-      var $container = this.$('.light-course-component-default-list-items');
-      $container.empty();
-      if (!this.collection.length) {
-        this.$('.light-course-component-default-list-empty').removeClass('display-none');
-        return;
-      }
-      this.$('.light-course-component-default-list-empty').addClass('display-none');
-      var self = this;
-      this.collection.each(function(model) {
-        $container.append(new LightCourseComponentDefaultListItemView({
-          model: model,
-          componentDisplayName: self.getComponentDisplayName(model.get('componentType'))
-        }).$el);
+    createItemView: function(model) {
+      return new LightCourseComponentDefaultListItemView({
+        model: model, componentDisplayName: this.getComponentDisplayName(model.get('componentType'))
       });
+    },
+
+    remove: function() {
+      this.disposed = true;
+      if (this.componentTypesRequest) this.componentTypesRequest.abort();
+      AdminListView.prototype.remove.apply(this, arguments);
     },
 
     onCreateClicked: function(event) {

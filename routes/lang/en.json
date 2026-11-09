@@ -321,6 +321,7 @@
   "app.validationfailedmessage": "You need to fix the following before you can save your data:",
   "app.successdefaulttitle": "Success",
   "app.export": "Export source",
+  "app.exportstoryboard": "Export storyboard",
   "app.exporting": "Exporting",
   "app.exporterrortitle": "Course export failed",
   "app.exportcoursesuccess": "Course exported successfully!",

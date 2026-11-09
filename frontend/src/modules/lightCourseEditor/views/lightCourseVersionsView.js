@@ -3,6 +3,7 @@ define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
   var FieldPreview = require('../fieldPreview');
+  var ComponentLayout = require('../componentLayout');
   var fieldChanges = require('../../auditLog/lightFieldChanges');
   var exportWord = require('../wordExport');
 
@@ -159,7 +160,8 @@ define(function(require) {
       this.previewRequest = this.model.fetchVersion(id, {
         success: function(version) {
           if (self.disposed || self.selectedVersionId !== id) return;
-          var snapshot = version.contentSnapshot || {};
+          var snapshot = copy(version.contentSnapshot || {});
+          ComponentLayout.normalize(snapshot.contentTree || {});
           function nodes(items) {
             return (items || []).map(function(node) {
               return Object.assign({}, node, { label: Origin.l10n.t('app.lightcourse' + node.type),

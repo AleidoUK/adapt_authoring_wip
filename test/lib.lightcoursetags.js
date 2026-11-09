@@ -15,10 +15,10 @@ function load(file, dependencies, globals) {
   return result;
 }
 
-function harness(tags, locked) {
+function harness(tags, locked, useTemplate) {
   var state = { requests: [], alerts: [], saves: 0 };
   var origin = { l10n: { t: function(key) { return key; } }, Notify: { alert: function(data) { state.alerts.push(data); } } };
-  var input = { 0: {} };
+  var input = { 0: {}, val: function() { return ''; } };
   input.selectize = function(options) {
     state.settings = options;
     state.picker = {
@@ -40,8 +40,14 @@ function harness(tags, locked) {
     state.requests.push(request);
     return request;
   } };
-  var Model = load('frontend/src/modules/lightCourseEditor/models/lightCourseModel.js', { backbone: Backbone });
-  var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseEditorView.js', {
+  var Model = load(useTemplate ? 'frontend/src/modules/lightCourseAdmin/models/lightCourseTemplateModel.js' :
+    'frontend/src/modules/lightCourseEditor/models/lightCourseModel.js', { backbone: Backbone });
+  state.tagEditor = load('frontend/src/modules/lightCourseEditor/tagEditor.js', { 'core/origin': origin }, { $: $ });
+  var proto = load(useTemplate ? 'frontend/src/modules/lightCourseAdmin/views/lightCourseTemplateEditorView.js' :
+    'frontend/src/modules/lightCourseEditor/views/lightCourseEditorView.js', {
+    '../tagEditor': state.tagEditor,
+    '../../lightCourseEditor/tagEditor': state.tagEditor,
+    '../itemHistory': function() { return function() {}; },
     'core/origin': origin, 'core/views/originView': {
       extend: function(proto) { return proto; }, prototype: { remove: function() {} }
     }
@@ -53,7 +59,10 @@ function harness(tags, locked) {
     autosave: function() { state.saves++; state.saved = this.assembleSaveData(); }
   });
   state.proto = proto;
-  state.view.initializeTags();
+  if (useTemplate) {
+    delete state.view.autosave;
+    state.tagEditor.initialize.call(state.view);
+  } else state.view.initializeTags();
   return state;
 }
 
@@ -71,6 +80,79 @@ describe('core tags in light courses (isolated)', function() {
     assert.strictEqual(state.settings.valueField, '_id');
     assert.strictEqual(state.settings.labelField, 'title');
     assert.strictEqual(state.label, 'app.lightcoursetags');
+  });
+
+  describe('tags in light-course templates (isolated)', function() {
+    it('sends a minimal course-create payload so default empty tags do not override the template', function() {
+      var Model = load('frontend/src/modules/lightCourseEditor/models/lightCourseModel.js', { backbone: Backbone });
+      var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseCreateView.js', {
+        'core/origin': {}, 'core/views/originView': { extend: function(proto) { return proto; } }
+      });
+      var request, ajax = Backbone.ajax;
+      Backbone.ajax = function(options) { request = options; return {}; };
+      try {
+        proto.onSaveClicked.call({
+          model: new Model(),
+          $: function(selector) { return { val: function() {
+            return selector === '.light-course-create-title' ? 'Course' : 'template';
+          } }; }
+        });
+      } finally {
+        Backbone.ajax = ajax;
+      }
+      assert.deepStrictEqual(JSON.parse(request.data), { title: 'Course', _templateId: 'template' });
+    });
+    it('uses the core tag reference schema and the same catalogue without autosaving templates', function() {
+      var schema = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins/content/lightcoursetemplate/model.schema'), 'utf8'));
+      assert.strictEqual(schema.properties.tags.items.ref, 'tag');
+      assert.strictEqual(schema.properties.tags.items.type, 'objectid');
+      var state = harness([{ _id: 'existing', title: 'Existing' }], false, true);
+      state.picker.options.second = { _id: 'second', title: 'Second' };
+      state.picker.items.push('second');
+      state.settings.onChange();
+      assert.strictEqual(state.saves, 0);
+      assert.deepStrictEqual(Array.from(state.view.assembleSaveData().tags), ['existing', 'second']);
+      assert.deepStrictEqual(Array.from(state.view.model.toJSON().tags), ['existing', 'second']);
+      state.picker.items = [];
+      state.settings.onChange();
+      assert.deepStrictEqual(Array.from(state.view.assembleSaveData().tags), []);
+    });
+    it('preserves populated tag titles in memory, serializes references, and handles legacy and cleared tags', function() {
+      var Model = load('frontend/src/modules/lightCourseAdmin/models/lightCourseTemplateModel.js', { backbone: Backbone });
+      var model = new Model({ _id: 'template', tags: [{ _id: 'red', title: 'Red' }], contentSnapshot: {} }, { parse: true });
+      assert.strictEqual(model.get('tags')[0].title, 'Red');
+      assert.deepStrictEqual(Array.from(model.toJSON().tags), ['red']);
+      assert.strictEqual(model.get('tags')[0].title, 'Red');
+      model.set(model.parse({ success: true }));
+      assert.strictEqual(model.get('tags')[0].title, 'Red');
+      var legacy = new Model({ contentSnapshot: { tags: [{ _id: 'legacy', title: 'Legacy' }] } }, { parse: true });
+      assert.deepStrictEqual(Array.from(legacy.toJSON().tags), ['legacy']);
+      var cleared = new Model({ tags: [], contentSnapshot: { tags: ['old'] } }, { parse: true });
+      assert.deepStrictEqual(Array.from(cleared.toJSON().tags), []);
+    });
+    it('aborts pending tag requests and ignores responses when the template editor closes', function() {
+      var state = harness([], false, true);
+      state.settings.load('', function() { assert.fail('Closed template received a tag response'); });
+      state.settings.create('Tag', function() { assert.fail('Closed template received a new tag'); });
+      state.view.remove();
+      state.requests[0].success([]);
+      state.requests[1].success({ _id: 'tag', title: 'Tag' });
+      assert(state.requests.every(function(request) { return request.aborted; }));
+      assert(state.picker.destroyed);
+    });
+    it('renders readable tag labels through text, not unescaped HTML, on both lists', function() {
+      var state = harness();
+      var text;
+      state.tagEditor.renderTags.call({
+        model: new Backbone.Model({ tags: [{ _id: 'red', title: '<script>Red</script>' }, 'legacy'] }),
+        $: function() { return { text: function(value) { text = value; } }; }
+      });
+      assert.strictEqual(text, '<script>Red</script>, legacy');
+      ['lightCourseEditor/templates/lightCourseListItem.hbs', 'lightCourseAdmin/templates/lightCourseTemplateListItem.hbs']
+        .forEach(function(file) {
+          assert(fs.readFileSync(path.join(ROOT, 'frontend/src/modules', file), 'utf8').includes('light-course-list-item-tags'));
+        });
+    });
   });
 
   it('loads the existing core tag catalogue and autosaves attaching, removing and clearing tags by reference', function() {

@@ -6,6 +6,7 @@ var EventEmitter = require('events');
 var createRequire = require('module').createRequire;
 var Backbone = require('../frontend/src/libraries/backbone');
 var Handlebars = require('handlebars');
+var _ = require('underscore');
 var usage = require('../lib/lightcourse/assetUsage');
 var ROOT = path.join(__dirname, '..');
 var ID = '1234567890abcdef12345678';
@@ -185,7 +186,8 @@ function uiHarness() {
       text: function(text) { this.value = text; return this; },
       html: function(html) { this.value = html; return this; },
       empty: function() { this.value = ''; return this; },
-      append: function() {}, addClass: function() {}, removeClass: function() {}
+      append: function() {}, addClass: function() {}, removeClass: function() {},
+      prop: function() { return this; }, toggleClass: function() { return this; }
     };
     return h.elements[selector];
   };
@@ -201,14 +203,21 @@ function uiHarness() {
   };
   var parent = { extend: function(proto) { return proto; }, prototype: { remove: function() { h.removed = true; } } };
   h.origin = { l10n: { t: function(key) { return key; } }, Notify: { alert: function(alert) { h.alerts.push(alert); } } };
+  var base = load('frontend/src/modules/lightCourseAdmin/views/lightCourseAdminListView.js', {
+    'core/origin': h.origin, 'core/views/originView': parent,
+    '../../lightCourseEditor/tagEditor': load('frontend/src/modules/lightCourseEditor/tagEditor.js', { 'core/origin': h.origin })
+  });
   var proto = load('frontend/src/modules/lightCourseAdmin/views/lightCourseAssetListView.js', {
+    './lightCourseAdminListView': {
+      prototype: base, extend: function(proto) { return Object.assign({}, base, proto); }
+    },
     'core/origin': h.origin, 'core/views/originView': parent,
     './lightCourseAssetListItemView': function(options) {
       this.options = options; this.$el = 'row';
       this.remove = function() { this.removed = true; };
       h.rows.push(this);
     }
-  }, { $: h.$ });
+  }, { $: h.$, _: _ });
   var Model = Backbone.Model.extend({ idAttribute: '_id' });
   h.collection = new Backbone.Collection([{ _id: ID }, { _id: AUDIO }], { model: Model });
   h.view = Object.assign(Object.create(proto), {
@@ -231,7 +240,7 @@ describe('placeholder Uses column (isolated)', function() {
     assert(h.rows.every(function(row) { return row.options.usageState === 'loading'; }));
     var report = {}; report[ID] = { count: 1, uses: [] }; report[AUDIO] = { count: 0, uses: [] };
     h.requests[0].success(report);
-    assert.strictEqual(h.rows[2].options.usage.count, 1);
+    assert.strictEqual(h.rows[h.rows.length - 2].options.usage.count, 1);
     assert(h.rows.slice(0, 2).every(function(row) { return row.removed; }));
     assert.strictEqual(h.collection.at(0).get('usage'), undefined);
     h.collection.trigger('sync');

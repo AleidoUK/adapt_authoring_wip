@@ -15,6 +15,7 @@ define(function(require) {
   var ArticleModel = require('core/models/articleModel');
   var BlockModel = require('core/models/blockModel');
   var ComponentModel = require('core/models/componentModel');
+  var exportWord = require('modules/lightCourseEditor/wordExport');
 
   var EditorView = EditorOriginView.extend({
     className: "editor-view",
@@ -34,6 +35,7 @@ define(function(require) {
 
     preRender: function(options) {
       this.currentView = options.currentView;
+      this.storyboardDisposed = false;
       Origin.editor.isPreviewPending = false;
       this.currentCourseId = Origin.editor.data.course.get('_id');
       this.currentCourse = Origin.editor.data.course;
@@ -49,7 +51,8 @@ define(function(require) {
           var previewWindow = window.open('loading', 'preview');
           this.previewProject(previewWindow, isForceRebuild);
         },
-        'editorCommon:export': this.exportProject
+        'editorCommon:export': this.exportProject,
+        'editorCommon:storyboard': this.exportStoryboard
       });
       this.render();
       this.setupEditor();
@@ -137,6 +140,39 @@ define(function(require) {
           });
         }
       });
+    },
+
+    exportStoryboard: function() {
+      if (this.storyboardPending || this.storyboardDisposed) return;
+      var self = this;
+      this.storyboardPending = true;
+      function reset() {
+        self.storyboardPending = false;
+        $('.editor-common-sidebar-storyboard').prop('disabled', false);
+        $('.editor-common-sidebar-storyboard-inner').removeClass('display-none');
+        $('.editor-common-sidebar-storyboarding').addClass('display-none');
+      }
+      $('.editor-common-sidebar-storyboard').prop('disabled', true);
+      $('.editor-common-sidebar-storyboard-inner').addClass('display-none');
+      $('.editor-common-sidebar-storyboarding').removeClass('display-none');
+      var tenantId = Origin.sessionModel.get('tenantId'), course = Origin.editor.data.course;
+      this.storyboardRequest = exportWord(course, {
+        url: 'document-export/' + encodeURIComponent(tenantId) + '/' + encodeURIComponent(course.get('_id')) + '/storyboard.docx',
+        filename: (course.get('title') || 'course').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-') + '_storyboard.docx',
+        isDisposed: function() { return self.storyboardDisposed; },
+        success: reset,
+        error: function(response) {
+          reset();
+          Origin.Notify.alert({ type: 'error', title: Origin.l10n.t('app.exporterrortitle'),
+            text: response && response.responseJSON && response.responseJSON.message || Origin.l10n.t('app.errorgeneric') });
+        }
+      });
+    },
+
+    remove: function() {
+      this.storyboardDisposed = true;
+      if (this.storyboardRequest) this.storyboardRequest.abort();
+      EditorOriginView.prototype.remove.apply(this, arguments);
     },
 
     showExportAnimation: function(show, $btn) {

@@ -1,16 +1,17 @@
 <div class="col-row">
-  <div class="col-30">
+  <div class="col-20">
     <div class="tb-col-inner">
       <span class="light-course-template-list-item-name no-wrap">{{{name}}}</span>
     </div>
   </div>
-  <div class="col-40">
+  <div class="col-25">
     <div class="tb-col-inner no-wrap">{{description}}</div>
   </div>
+  <div class="col-20"><div class="tb-col-inner light-course-list-item-tags"></div></div>
   <div class="col-10">
     <div class="tb-col-inner">{{momentFormat updatedAt "Do MMMM YYYY HH:mm"}}</div>
   </div>
-  <div class="col-20 light-course-template-list-item-actions">
+  <div class="col-25 light-course-template-list-item-actions">
     <div class="tb-col-inner">
       <button class="btn primary light-course-template-list-item-edit">{{t 'app.edit'}}</button>
       <button class="btn primary light-course-template-list-item-clone">{{t 'app.lightcoursetemplateclone'}}</button>

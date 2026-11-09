@@ -18,6 +18,12 @@ When creating a new course, an editor can start from a blank course or from a te
 
 Administrators manage the list of available templates: they can build one from scratch, or turn any existing light course version into a template for others to reuse. Templates are there to save repetitive setup, not to restrict what an editor can change afterwards.
 
+Courses and templates share the authoring tool's tag catalogue. Both editors let
+you select existing tags or create new ones, and both list pages show a **Tags**
+column. A course started from a template inherits its tags; later changes to
+either remain independent. Template tag changes are saved with **Save template**.
+The course list's existing title, tags and state filters are unchanged.
+
 ## Document headers
 
 At the top of every light course sits a set of header sections aimed at reviewers and whoever later builds the full course. Other than the button icon choices, none of this information is carried into the full course on conversion - it exists to support drafting, review and handover.
@@ -34,7 +40,11 @@ At the top of every light course sits a set of header sections aimed at reviewer
 
 ## Building the course
 
-A course contains pages, pages contain articles, articles contain blocks, and blocks contain up to two components. Blocks and components can be reordered inside the tool. If a block has two components, they will be placed on the left and right when the full course is created.
+A course contains pages, pages contain articles, articles contain blocks, and blocks contain up to two components. Blocks and components can be reordered inside the tool.
+
+Each component has a **Layout** choice: **full**, **left** or **right**, subject to its installed component type's supported layouts. A block can contain one full-width component or up to two half-width components, one left and one right. Adding or pasting a second component beside a full-width component asks for confirmation before changing it to left and placing the new component on the right. Full-width-only types cannot be paired. Changing a paired component's side swaps its sibling to the opposite side. Components appear side by side in the tree, stacking on narrower screens. These controls are shared by course and template editors; component defaults can also record a layout.
+
+Existing components without a saved layout are interpreted as full when alone, or left/right in their existing order when paired. Both light- and full-course Word exports show the layout beside the component's unique ID and word count. Layout labels are read-only and do not change saved layouts on Word import.
 
 The component editor will have the same straightforward layout for every installed component. A dropdown lets the editor choose from all components currently available in the authoring tool. Common content fields include title, display title, body, instruction and a unique ID where applicable. Editors can add items to a component; for each item, they will see the text fields marked as translatable in that component's schema.
 

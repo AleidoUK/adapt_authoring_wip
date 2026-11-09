@@ -1,7 +1,7 @@
 // LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
 define(function(require) {
   var Origin = require('core/origin');
-  var OriginView = require('core/views/originView');
+  var AdminListView = require('./lightCourseAdminListView');
   var LightCourseAssetListItemView = require('./lightCourseAssetListItemView');
 
   /**
@@ -12,28 +12,22 @@ define(function(require) {
    * this needs a multipart/FormData POST (api/content/lightcourseasset/upload) rather than a
    * plain JSON save.
    */
-  var LightCourseAssetListView = OriginView.extend({
+  var LightCourseAssetListView = AdminListView.extend({
     className: 'light-course-asset-list',
+    listSelector: '.light-course-asset-list',
+    searchFields: ['title', 'filename'],
+    typeField: 'assetType',
+    emptyMessage: 'app.lightcourseassetnonetodisplay',
+    loadError: 'app.errorgettinglightcourseassets',
 
-    events: {
+    events: _.extend({}, AdminListView.prototype.events, {
       'click .light-course-asset-list-upload-submit': 'onUploadClicked'
-    },
+    }),
 
     preRender: function() {
-      this.itemViews = [];
+      AdminListView.prototype.preRender.call(this);
       this.usageState = 'loading';
       this.listenTo(this.collection, 'sync', this.loadUsage);
-      this.listenTo(this.collection, 'remove', this.renderItems);
-    },
-
-    postRender: function() {
-      this.collection.fetch({
-        success: this.setViewToReady.bind(this),
-        error: function() {
-          Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcourseassets') });
-          this.setViewToReady();
-        }.bind(this)
-      });
     },
 
     loadUsage: function() {
@@ -56,23 +50,9 @@ define(function(require) {
       });
     },
 
-    renderItems: function() {
-      if (this.disposed) return;
-      this.itemViews.forEach(function(view) { view.remove(); });
-      this.itemViews = [];
-      var $container = this.$('.light-course-asset-list-items');
-      $container.empty();
-      if (!this.collection.length) {
-        this.$('.light-course-asset-list-empty').removeClass('display-none');
-        return;
-      }
-      this.$('.light-course-asset-list-empty').addClass('display-none');
-      this.collection.each(function(model) {
-        var view = new LightCourseAssetListItemView({ model: model, usageState: this.usageState,
-          usage: this.usage && this.usage[model.id] });
-        this.itemViews.push(view);
-        $container.append(view.$el);
-      }, this);
+    createItemView: function(model) {
+      return new LightCourseAssetListItemView({ model: model, usageState: this.usageState,
+        usage: this.usage && this.usage[model.id] });
     },
 
     onUploadClicked: function(event) {
@@ -113,8 +93,7 @@ define(function(require) {
     remove: function() {
       this.disposed = true;
       if (this.usageRequest) this.usageRequest.abort();
-      this.itemViews.forEach(function(view) { view.remove(); });
-      OriginView.prototype.remove.apply(this, arguments);
+      AdminListView.prototype.remove.apply(this, arguments);
     }
   }, {
     template: 'lightCourseAssetList'

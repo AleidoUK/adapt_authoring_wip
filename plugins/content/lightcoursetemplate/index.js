@@ -190,6 +190,7 @@ function fromVersion(req, res) {
           _tenantId: user.tenant._id,
           name: req.body.name || ('Template from version ' + version.versionNumber),
           description: req.body.description || '',
+          tags: (version.contentSnapshot.tags || []).map(function(tag) { return typeof tag === 'string' ? tag : tag._id; }),
           contentSnapshot: idRegeneration.regenerateSnapshotIds(version.contentSnapshot),
           createdBy: user._id
         }, function (err, template) {

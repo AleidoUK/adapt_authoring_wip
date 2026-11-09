@@ -8,6 +8,7 @@ define(function(require) {
   var LightCourseHelpView = require('./lightCourseHelpView');
   var LightCourseVersionNotesView = require('./lightCourseVersionNotesView');
   var LightCourseWordView = require('./lightCourseWordView');
+  var TagEditor = require('../tagEditor');
 
   // Real installed extension identifiers (extensiontype.extension field), confirmed against the
   // live installed instance - NOT the Phase 1 schema-spike's assumed `adapt-aleido-*`/
@@ -136,70 +137,15 @@ define(function(require) {
     },
 
     initializeTags: function() {
-      if (this.tagPicker) this.tagPicker.destroy();
-      var self = this;
-      var tags = this.model.get('tags') || [];
-      this._initializingTags = true;
-      this._tagRequests = this._tagRequests || [];
-      this.$('.light-course-editor-tags-input').selectize({
-        valueField: '_id',
-        labelField: 'title',
-        searchField: ['title'],
-        loadingClass: 'selectize-loading',
-        maxItems: null,
-        preload: true,
-        options: tags.map(function(tag) {
-          return typeof tag === 'string' ? { _id: tag, title: tag } : tag;
-        }),
-        items: tags.map(function(tag) { return typeof tag === 'string' ? tag : tag._id; }),
-        createFilter: function(value) { return !!value.replace(/,/g, '').trim(); },
-        load: function(query, callback) {
-          self._tagRequests.push($.ajax({ url: 'api/autocomplete/tag', type: 'GET' })
-            .done(function(data) { if (!self._removed) callback(data); })
-            .fail(function(response) {
-              if (self._removed || response.statusText === 'abort') return;
-              self.onTagError(response, 'app.lightcoursetagsloaderror');
-              callback();
-            }));
-        },
-        create: function(value, callback) {
-          self._tagRequests.push($.ajax({
-            url: 'api/content/tag', type: 'POST', data: { title: value.replace(/,/g, '').trim() }
-          }).done(function(tag) {
-            if (self._removed) return;
-            if (!tag || !tag._id || typeof tag.title !== 'string') {
-              self.onTagError(null, 'app.lightcoursetagscreateerror');
-              return callback();
-            }
-            callback(tag);
-          }).fail(function(response) {
-            if (self._removed || response.statusText === 'abort') return;
-            self.onTagError(response, 'app.lightcoursetagscreateerror');
-            callback();
-          }));
-        },
-        onChange: function() {
-          if (self._initializingTags || self._removed || self.model.isLocked()) return;
-          self.model.set('tags', self.getSelectedTags());
-          self.autosave();
-        }
-      });
-      this.tagPicker = this.$('.light-course-editor-tags-input')[0].selectize;
-      this.tagPicker.$control_input.attr('aria-label', Origin.l10n.t('app.lightcoursetags'));
-      if (this.model.isLocked()) this.tagPicker.disable();
-      this._initializingTags = false;
+      return TagEditor.initialize.call(this);
     },
 
     getSelectedTags: function() {
-      if (!this.tagPicker) return this.model.get('tags') || [];
-      return this.tagPicker.items.map(function(id) {
-        return { _id: id, title: this.tagPicker.options[id].title };
-      }, this);
+      return TagEditor.selected.call(this);
     },
 
     onTagError: function(response, key) {
-      Origin.Notify.alert({ type: 'error', text: response && response.responseJSON && response.responseJSON.message ||
-        Origin.l10n.t(key) });
+      return TagEditor.error(response, key);
     },
 
     isExtensionSelected: function(extensionName) {

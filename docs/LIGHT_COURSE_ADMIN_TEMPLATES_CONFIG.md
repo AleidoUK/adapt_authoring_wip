@@ -77,6 +77,32 @@ A separate top-level module (not nested in `lightCourseEditor`), gated the same 
 
 ## Tests
 
+### Tags and list filters
+
+The template editor uses the same shared tag catalogue and tag picker as the
+light-course editor. Template tags are stored as core tag references, displayed
+in the template list, and retained by cloning and promotion from saved versions.
+New courses inherit the template's tags without linking later edits. An explicit
+empty tag selection on an API course-create request overrides inheritance.
+The light-course list also has a Tags column.
+
+The administration lists filter locally without modifying saved data:
+
+- **Placeholder assets:** title or filename search, and image/audio type.
+- **Templates:** name or description search, and tags (all selected tags must match).
+- **Component defaults:** name search, component type, and default/non-default status.
+
+Searches are case-insensitive literal substrings. Each list provides **Clear
+filters**, a matching/total count, and a distinct message when no records match.
+Filters remain applied while records refresh, including asset Uses updates.
+
+Template components use the same **Layout** control as light courses: one full-width
+component or up to two half-width components per block, one left and one right.
+Component Defaults also include the layout choice, restricted by the component
+type's supported layouts. Applying a default that cannot fit a paired block keeps
+the current layout and shows a warning while applying the other preset values.
+Older templates/defaults without a layout remain usable.
+
 - [test/lib.schemawalker.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.schemawalker.js): new assertions for `requiredTranslatablePaths`/`requiredAssetPaths` against the existing fixtures (none of which happen to have a required field that's also translatable/an asset) plus a new synthetic-schema test that does exercise both.
 - [test/lib.lightcourseadmin.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcourseadmin.js): new tests for `iconDefaults`/`defaultPluginSelections` validation on the config PUT route (reject an invalid icon, reject a non-array `extensions`), the `iconDefaults` -> new-course `headerData.iconChoices` wiring, and the `requireddefaultschema` route's response shape against the real installed component/extension types.
 - No frontend test harness exists in this codebase (consistent with every prior phase's UI work) - the **Manual QA checklist** below is the verification path for the new screens themselves.

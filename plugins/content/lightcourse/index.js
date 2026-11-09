@@ -235,6 +235,11 @@ LightCourseContent.prototype.create = function (data, next) {
         return next(new ContentPermissionError());
       }
       var snapshot = idRegeneration.regenerateSnapshotIds(template.contentSnapshot) || {};
+      if (data.tags === undefined) {
+        data.tags = (template.tags !== undefined ? template.tags : snapshot.tags || []).map(function(tag) {
+          return typeof tag === 'string' ? tag : tag._id;
+        });
+      }
       data.contentTree = snapshot.contentTree || {};
       data.pluginSelections = snapshot.pluginSelections || {};
       if (snapshot.headerData) {

@@ -210,11 +210,8 @@ define([
           this.editor.setData(this.pendingEditorValue);
           delete this.pendingEditorValue;
         }
-        CKEDITOR.instances = CKEDITOR.instances || []
-        CKEDITOR.instances.length = CKEDITOR.instances.length || 0;
-        this.editor.id = CKEDITOR.instances.length
-        CKEDITOR.instances.length++;
-        CKEDITOR.instances[this.editor.id] = this.editor
+        CKEDITOR.instances = CKEDITOR.instances || {};
+        CKEDITOR.instances[this.editor.id] = this.editor;
       })
     }).catch(function(error) {
       console.error('Failed to initialize rich-text editor:', error);

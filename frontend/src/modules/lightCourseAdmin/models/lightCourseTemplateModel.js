@@ -18,6 +18,7 @@ define(function(require) {
     defaults: {
       name: '',
       description: '',
+      tags: [],
       title: '',
       body: '',
       contentTree: {},
@@ -40,6 +41,7 @@ define(function(require) {
       }
       var snapshot = response.contentSnapshot || {};
       var flattened = Object.assign({}, response, {
+        tags: response.tags !== undefined ? response.tags : snapshot.tags || [],
         title: snapshot.title || '',
         body: snapshot.body || '',
         contentTree: snapshot.contentTree || {},
@@ -61,6 +63,7 @@ define(function(require) {
         updatedAt: attrs.updatedAt,
         name: attrs.name,
         description: attrs.description,
+        tags: (attrs.tags || []).map(function(tag) { return typeof tag === 'string' ? tag : tag._id; }),
         // also exposed flat (not just nested below) - this view's own template renders
         // `value="{{title}}"` etc directly against `model.toJSON()` (standard Backbone/
         // OriginView render convention), same as it already does for name/description; without

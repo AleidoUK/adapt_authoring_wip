@@ -12,6 +12,14 @@
       "type": "string",
       "default": ""
     },
+    "tags": {
+      "type": "array",
+      "default": [],
+      "inputType": "Tags",
+      "title": "Tags",
+      "editorOnly": true,
+      "items": { "type": "objectid", "ref": "tag", "editorOnly": true }
+    },
     "contentSnapshot": {
       "type": "object",
       "required": true,

@@ -32,6 +32,24 @@
   p { margin-top: 6px; }
 }
 
+.light-course-admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  .light-course-admin-filter {
+    flex: 1 1 180px;
+    min-width: 0;
+    label { display: block; font-weight: bold; margin-bottom: 6px; }
+    > input, > select { width: 100%; box-sizing: border-box; }
+    p { margin-top: 6px; }
+  }
+  .light-course-admin-filter-clear { margin-top: 25px; }
+}
+.light-course-admin-filter-results { margin: 0 0 12px; }
+.light-course-list-item-tags { overflow-wrap: anywhere; }
+
 .light-course-config-toolbar, .light-course-component-default-editor-toolbar {
     position: sticky;
     top: 0;
@@ -617,6 +635,20 @@
     gap: 6px;
   }
 
+  .light-course-tree-node-children-block {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    > .light-course-tree-node-component { min-width: 0; margin-bottom: 0; }
+    > .light-course-tree-component-full { grid-column-start: 1; grid-column-end: -1; }
+    > .light-course-tree-component-left { grid-column: 1; grid-row: 1; }
+    > .light-course-tree-component-right { grid-column: 2; grid-row: 1; }
+    @media (max-width: 900px) {
+      grid-template-columns: minmax(0, 1fr);
+      > .light-course-tree-node-component { grid-column: 1; grid-row: auto; }
+    }
+  }
+
   .light-course-tree-node-actions {
     display: flex;
     align-items: center;
@@ -644,6 +676,7 @@
     }
 
     .light-course-tree-component-uniqueid,
+    .light-course-tree-component-layout,
     .light-course-tree-component-wordcount {
       font-size: 0.85em;
       color: #777;

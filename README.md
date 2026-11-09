@@ -13,6 +13,11 @@ Interested? [See what Adapt can do.](https://community.adaptlearning.org/demo2/i
 * Web application built on Node.js, Backbone.js, and MongoDB for creating, editing and publishing Adapt content
 * Supports all core extensions and components
 * Allows uploading and linking of course assets
+* Export a full course as a Word storyboard using **Export storyboard** beneath
+  **Export source** in the course sidebar. Includes course titles, enabled Resources
+  and Glossary content, pages, components, nested items and supported full-library
+  images; article/block details and course settings are omitted. Storyboard import
+  is not supported.
 
 ## Full Documentation
 [Visit the wiki](https://github.com/adaptlearning/adapt_authoring/wiki) for full documentation, including [installation](https://github.com/adaptlearning/adapt_authoring/wiki/Installing-the-Authoring-Tool), course authoring, developer guides, and other information.

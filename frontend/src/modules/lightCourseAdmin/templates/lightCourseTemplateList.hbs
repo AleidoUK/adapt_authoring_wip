@@ -7,11 +7,26 @@
     </div>
   </div>
 
+  <div class="light-course-admin-filters">
+    <div class="light-course-admin-filter">
+      <label for="light-course-template-search">{{t 'app.lightcoursefiltersearch'}}</label>
+      <input id="light-course-template-search" class="light-course-admin-filter-search" type="search" placeholder="{{t 'app.lightcoursefiltertemplates'}}">
+    </div>
+    <div class="light-course-admin-filter">
+      <label for="light-course-template-filter-tags">{{t 'app.lightcoursetags'}}</label>
+      <select id="light-course-template-filter-tags" class="light-course-admin-filter-tags" multiple placeholder="{{t 'app.lightcourselistfiltertags'}}"></select>
+      <p id="light-course-template-filter-tag-help">{{t 'app.lightcoursetemplatefiltertaghelp'}}</p>
+    </div>
+    <button class="btn light-course-admin-filter-clear" disabled>{{t 'app.lightcourselistclearfilters'}}</button>
+  </div>
+  <p class="light-course-admin-filter-results" role="status" aria-live="polite" aria-atomic="true"></p>
+
   <div class="tb-heading col-row tb-row">
-    <div class="col-30"><div class="tb-col-inner"><h4>{{t 'app.lightcoursetemplatename'}}</h4></div></div>
-    <div class="col-40"><div class="tb-col-inner"><h4>{{t 'app.lightcoursetemplatedescription'}}</h4></div></div>
+    <div class="col-20"><div class="tb-col-inner"><h4>{{t 'app.lightcoursetemplatename'}}</h4></div></div>
+    <div class="col-25"><div class="tb-col-inner"><h4>{{t 'app.lightcoursetemplatedescription'}}</h4></div></div>
+    <div class="col-20"><div class="tb-col-inner"><h4>{{t 'app.lightcoursetags'}}</h4></div></div>
     <div class="col-10"><div class="tb-col-inner"><h4>{{t 'app.lastupdated'}}</h4></div></div>
-    <div class="col-20"></div>
+    <div class="col-25"></div>
   </div>
 
   <div class="light-course-template-list-empty display-none">{{t 'app.lightcoursetemplatenonetodisplay'}}</div>

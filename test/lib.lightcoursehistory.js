@@ -487,6 +487,7 @@ describe('new template starting settings (isolated)', function() {
       l10n: { t: function(key) { return key; } }
     };
     var view = loadAMD('frontend/src/modules/lightCourseAdmin/views/lightCourseTemplateListView.js', {
+      './lightCourseAdminListView': { extend: function(proto) { return proto; }, prototype: { events: {} } },
       'core/origin': origin,
       'core/views/originView': { extend: function(proto) { return proto; } },
       '../models/lightCourseTemplateModel': Model
@@ -505,6 +506,40 @@ describe('new template starting settings (isolated)', function() {
   });
 });
 
+describe('template tags across creation and promotion (isolated)', function() {
+  it('copies template tag references to a new course while respecting an explicit empty selection', async function() {
+    var harness = createHarness();
+    var template = await harness.create('lightcoursetemplate', {
+      name: 'Tagged template', tags: ['red', 'blue'], contentSnapshot: { contentTree: { children: [] } }
+    });
+    var course = await harness.create('lightcourse', { title: 'From template', _templateId: template._id });
+    assert.deepStrictEqual(course.tags, ['red', 'blue']);
+    var empty = await harness.create('lightcourse', { title: 'No tags', _templateId: template._id, tags: [] });
+    assert.deepStrictEqual(empty.tags, []);
+    course.tags.push('other');
+    assert.deepStrictEqual(template.tags, ['red', 'blue']);
+  });
+  it('copies saved-version tags to a promoted template and onward to a new independent course', async function() {
+    var harness = createHarness();
+    harness.records.lightcourseversion = [{
+      _id: 'version', versionNumber: 1,
+      contentSnapshot: { tags: [{ _id: 'red', title: 'Red' }], contentTree: { children: [] } }
+    }];
+    var promoted = await callRoute(harness, 'post /content/lightcoursetemplate/from-version/:versionId', {
+      params: { versionId: 'version' }, body: { name: 'Promoted' }
+    });
+    assert.deepStrictEqual(promoted.tags, ['red']);
+    var Backbone = loadCommonJS('frontend/src/libraries/backbone.js', { underscore: _ });
+    var Model = loadAMD('frontend/src/modules/lightCourseAdmin/models/lightCourseTemplateModel.js', { backbone: Backbone });
+    var model = new Model(copy(promoted), { parse: true });
+    var clone = await harness.create('lightcoursetemplate', Object.assign({}, copy(_.omit(model.toJSON(), '_id')), { name: 'Clone' }));
+    assert.deepStrictEqual(clone.tags, ['red']);
+    var course = await harness.create('lightcourse', { title: 'From clone', _templateId: clone._id });
+    assert.deepStrictEqual(course.tags, ['red']);
+    assert.strictEqual(harness.records.lightcourseversion[0].contentSnapshot.tags[0].title, 'Red');
+  });
+});
+
 describe('saving templates without leaving the editor (isolated)', function() {
   function harness() {
     var Backbone = loadCommonJS('frontend/src/libraries/backbone.js', { underscore: _ });
@@ -513,6 +548,7 @@ describe('saving templates without leaving the editor (isolated)', function() {
     var navigations = [];
     var requests = [];
     var proto = loadAMD('frontend/src/modules/lightCourseAdmin/views/lightCourseTemplateEditorView.js', {
+      '../../lightCourseEditor/tagEditor': loadAMD('frontend/src/modules/lightCourseEditor/tagEditor.js', {}),
       'core/origin': {
         l10n: { t: function(key) { return key; } },
         Notify: { alert: function(data) { alerts.push(data); } },

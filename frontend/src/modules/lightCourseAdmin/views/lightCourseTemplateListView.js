@@ -1,43 +1,24 @@
 // LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
 define(function(require) {
   var Origin = require('core/origin');
-  var OriginView = require('core/views/originView');
+  var AdminListView = require('./lightCourseAdminListView');
   var LightCourseTemplateListItemView = require('./lightCourseTemplateListItemView');
   var LightCourseTemplateCreateView = require('./lightCourseTemplateCreateView');
   var LightCoursePromoteFromVersionView = require('./lightCoursePromoteFromVersionView');
   var LightCourseTemplateModel = require('../models/lightCourseTemplateModel');
 
-  var LightCourseTemplateListView = OriginView.extend({
+  var LightCourseTemplateListView = AdminListView.extend({
     className: 'light-course-template-list',
+    listSelector: '.light-course-template-list',
+    searchFields: ['name', 'description'],
+    emptyMessage: 'app.lightcoursetemplatenonetodisplay',
+    loadError: 'app.errorgettinglightcoursetemplate',
+    ItemView: LightCourseTemplateListItemView,
 
-    events: {
+    events: _.extend({}, AdminListView.prototype.events, {
       'click .light-course-template-list-create': 'onCreateClicked',
       'click .light-course-template-list-promote': 'onPromoteClicked'
-    },
-
-    preRender: function() {
-      this.listenTo(this.collection, 'sync', this.renderItems);
-      this.listenTo(this.collection, 'remove', this.renderItems);
-    },
-
-    postRender: function() {
-      this.collection.fetch({
-        success: this.setViewToReady.bind(this)
-      });
-    },
-
-    renderItems: function() {
-      var $container = this.$('.light-course-template-list-items');
-      $container.empty();
-      if (!this.collection.length) {
-        this.$('.light-course-template-list-empty').removeClass('display-none');
-        return;
-      }
-      this.$('.light-course-template-list-empty').addClass('display-none');
-      this.collection.each(function(model) {
-        $container.append(new LightCourseTemplateListItemView({ model: model }).$el);
-      });
-    },
+    }),
 
     onCreateClicked: function(event) {
       event && event.preventDefault();

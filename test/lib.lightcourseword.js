@@ -44,20 +44,27 @@ function fixture() {
   };
 }
 function component(snapshot) { return snapshot.contentTree.children[0].children[0].children[0].children[0]; }
-function generate(snapshot) {
+function generate(snapshot, database) {
   return new Promise(function(resolve, reject) {
-    generator.generateDocx(snapshot, db, function(error, value) { if (error) reject(error); else resolve(value); });
+    generator.generateDocx(snapshot, database || db, function(error, value) { if (error) reject(error); else resolve(value); });
   });
-
+}
+function generateLegacy(snapshot) {
+  return new Promise(function(resolve, reject) {
+    generator.collectDocumentBlocks(snapshot.contentTree, db, function(error, blocks) {
+      if (error) return reject(error);
+      wordDocument.generate(snapshot, blocks, function(error, value) { if (error) reject(error); else resolve(value); }, db);
+    }, { word: true, reviewLayout: true });
+  });
 }
 function parse(buffer) {
   return new Promise(function(resolve, reject) {
     generator.parseDocx(buffer, function(error, value) { if (error) reject(error); else resolve(value); });
   });
 }
-function apply(parsed, snapshot) {
+function apply(parsed, snapshot, database) {
   return new Promise(function(resolve, reject) {
-    importer.importDocument(parsed, snapshot, db, function(error, value) { if (error) reject(error); else resolve(value); });
+    importer.importDocument(parsed, snapshot, database || db, function(error, value) { if (error) reject(error); else resolve(value); });
   });
 }
 async function edited(snapshot, edit, editStyles, editRelationships) {
@@ -126,7 +133,7 @@ function replaceField(xml, fieldName, text) {
   if (label === -1) label = xml.indexOf('>' + fieldName + ': </w:t>');
   if (label === -1 && fieldName === 'Unique Id') {
     var paragraph = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g).find(function(paragraph) {
-      return paragraph.includes('w:val="LightCourseFieldLabel"') && / \| \d+ words<\/w:t>/.test(paragraph);
+      return paragraph.includes('w:val="LightCourseFieldLabel"') && / \| \d+ words(?: \| (?:full|left|right))?<\/w:t>/.test(paragraph);
     });
     if (paragraph) label = xml.indexOf(paragraph);
   }
@@ -146,6 +153,7 @@ describe('mapped Word text round-trip', function() {
     var metadataXml = (await zip.files.find(function(file) { return file.path === 'docProps/custom.xml'; }).buffer()).toString('utf8');
     var metadata = JSON.parse(new XMLParser().parse(metadataXml).Properties.property['vt:lpwstr']);
     assert.strictEqual(metadata.contentControls, true);
+    assert(!xml.includes('Total word count:'));
     assert(xml.includes('xmlns:w15='));
     var controls = [];
     function collect(nodes) {
@@ -347,7 +355,7 @@ describe('mapped Word text round-trip', function() {
     ]) {
       var snapshot = fixture(), original = JSON.stringify(snapshot);
       var parsed = await edited(snapshot, function(xml) {
-        return edit(replaceBoxContent(xml, 'Developer Notes', '<w:p><w:r><w:t>Do not partially import</w:t></w:r></w:p>'));
+        return edit(replaceBoxContent(xml, 'Graphics Notes', '<w:p><w:r><w:t>Do not partially import</w:t></w:r></w:p>'));
       });
       assert.strictEqual((await apply(parsed, snapshot)).success, false);
       assert.strictEqual(JSON.stringify(snapshot), original);
@@ -567,7 +575,147 @@ describe('mapped Word text round-trip', function() {
     assert.strictEqual(JSON.stringify(snapshot), original);
   });
 
-  it('preserves empty fields when placeholders are untouched and imports reviewer replacements, including nested fields', async function() {
+  ['full', 'left', 'right'].forEach(function(layout) {
+    it('shows ' + layout + ' beside the unique ID/word count, preserves it on import and rejects edits to the label', async function() {
+      var snapshot = fixture(), node = component(snapshot);
+      node._layout = layout;
+      var before = JSON.stringify(snapshot), buffer = await generate(snapshot);
+      var parsed = await parse(buffer);
+      assert.deepStrictEqual(parsed.errors, []);
+      assert.strictEqual((await apply(parsed, snapshot)).success, true);
+      assert.strictEqual(JSON.stringify(snapshot), before);
+      var zip = await unzipper.Open.buffer(buffer);
+      var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      assert(/ \| \d+ words \| (?:full|left|right)<\/w:t>/.test(xml));
+      assert(xml.includes('words | ' + layout + '</w:t>'));
+      var changed = await editedBuffer(buffer, function(xml) {
+        return xml.replace('words | ' + layout + '</w:t>', 'words | invalid</w:t>');
+      });
+      assert(changed.errors.some(function(error) { return error.includes('layout was edited'); }));
+      assert.strictEqual((await apply(changed, snapshot)).success, false);
+      assert.strictEqual(JSON.stringify(snapshot), before);
+    });
+  });
+
+  it('infers left/right for legacy light-course pairs without writing layouts into their saved snapshots', async function() {
+    var snapshot = fixture(), node = component(snapshot);
+    var second = JSON.parse(JSON.stringify(node));
+    second._id = 'component-2';
+    second.uniqueId = 'author-2';
+    snapshot.contentTree.children[0].children[0].children[0].children.push(second);
+    var before = JSON.stringify(snapshot), buffer = await generate(snapshot);
+    var zip = await unzipper.Open.buffer(buffer);
+    var metadataXml = (await zip.files.find(function(file) { return file.path === 'docProps/custom.xml'; }).buffer()).toString();
+    var metadata = JSON.parse(new XMLParser().parse(metadataXml).Properties.property['vt:lpwstr']);
+    assert(metadata.fields.find(function(field) { return field.nodeId === node._id && field.path === 'uniqueId'; }).inlineSuffix.endsWith(' | left'));
+    assert(metadata.fields.find(function(field) { return field.nodeId === second._id && field.path === 'uniqueId'; }).inlineSuffix.endsWith(' | right'));
+    assert.strictEqual((await apply(await parse(buffer), snapshot)).success, true);
+    assert.strictEqual(JSON.stringify(snapshot), before);
+    assert.strictEqual(node._layout, undefined);
+    assert.strictEqual(second._layout, undefined);
+  });
+
+  it('exports only configured fields and round-trips omitted empty values without introducing placeholders', async function() {
+    var snapshot = fixture(), node = component(snapshot);
+    snapshot.contentTree.children[0].title = '';
+    snapshot.glossaryItems[0].description = ' ';
+    snapshot.helpContent.popup.instruction = '<p>&nbsp;</p>';
+    node.uniqueId = ' \t ';
+    node.body = '<p>&nbsp;<br></p>';
+    node.graphicsNotes = ' ';
+    var before = JSON.stringify(snapshot);
+    var buffer = await generate(snapshot), parsed = await parse(buffer);
+    assert.strictEqual(parsed.configuredFields, true);
+    assert.deepStrictEqual(parsed.errors, []);
+    var fields = parsed.blocks.find(function(block) { return block.id === node._id; }).fields;
+    ['uniqueId', 'body', 'instruction', 'graphicsNotes', 'developerNotes', '_items[0].body'].forEach(function(path) {
+      assert(!fields.some(function(field) { return field.path === path; }), path);
+    });
+    assert(!parsed.blocks[0].fields.some(function(field) { return field.path === 'title'; }));
+    assert(!parsed.blocks.find(function(block) { return block.id === 'glossary-1'; }).fields.some(function(field) {
+      return field.path === 'description';
+    }));
+    assert(!parsed.blocks.find(function(block) { return block.id === 'help-popup'; }).fields.some(function(field) {
+      return field.path === 'instruction';
+    }));
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(JSON.stringify(snapshot), before);
+    var zip = await unzipper.Open.buffer(buffer);
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+    assert(!xml.includes('Add developer notes here'));
+    assert(!xml.includes('Add unique id here'));
+    assert(/>\d+ words \| full<\/w:t>/.test(xml));
+    parsed = await editedBuffer(buffer, function(xml) { return replaceField(xml, 'Title', 'Reviewed component'); });
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(node.title, 'Reviewed component');
+    assert.strictEqual(node.body, '<p>&nbsp;<br></p>');
+    assert.strictEqual(node._items[0].body, '');
+    assert.strictEqual(node.graphicsNotes, ' ');
+    assert.strictEqual(node.developerNotes, undefined);
+  });
+
+  it('rejects attempts to import fields omitted from a configured-only export atomically', async function() {
+    var snapshot = fixture(), before = JSON.stringify(snapshot);
+    var parsed = await parse(await generate(snapshot));
+    var fields = parsed.blocks.find(function(block) { return block.id === 'component-1'; }).fields;
+    fields.find(function(field) { return field.path === 'title'; }).value = 'Do not partially import';
+    fields.push({ path: 'developerNotes', value: 'Not an exported field' });
+    var result = await apply(parsed, snapshot);
+    assert.strictEqual(result.success, false);
+    assert(result.errors.some(function(error) { return error.includes('Word fields'); }));
+    assert.strictEqual(JSON.stringify(snapshot), before);
+  });
+
+  [
+    { name: 'disabled', enabled: false, defaultValue: true, visible: false },
+    { name: 'disabled by default', defaultValue: false, visible: false },
+    { name: 'enabled', enabled: true, defaultValue: false, visible: true },
+    { name: 'enabled by default', defaultValue: true, visible: true }
+  ].forEach(function(state) {
+    it('filters ' + state.name + ' component options and preserves omitted settings on Word import', async function() {
+      var snapshot = fixture(), node = component(snapshot);
+      node._popup = { ariaLabel: 'Popup accessibility label', body: 'Popup content',
+        _graphic: { src: '', alt: 'Unused media label' } };
+      if (state.enabled !== undefined) node._popup._isEnabled = state.enabled;
+      node._items[0]._tooltip = { _isEnabled: false, text: 'Unused tooltip label' };
+      var gatedDb = { retrieve: function(type, query, options, callback) {
+        db.retrieve(type, query, options, function(error, records) {
+          if (error) return callback(error);
+          records[0].properties._popup = { type: 'object', properties: {
+            _isEnabled: { type: 'boolean', default: state.defaultValue },
+            ariaLabel: { type: 'string', translatable: true },
+            body: { type: 'string', translatable: true },
+            _graphic: { type: 'object', properties: {
+              src: { type: 'string', inputType: 'Asset:image' }, alt: { type: 'string', translatable: true }
+            } }
+          } };
+          records[0].properties._items.items.properties._tooltip = { type: 'object', properties: {
+            _isEnabled: { type: 'boolean', default: false }, text: { type: 'string', translatable: true }
+          } };
+          callback(null, records);
+        });
+      } };
+      var before = JSON.stringify(snapshot), buffer = await generate(snapshot, gatedDb);
+      var parsed = await parse(buffer);
+      assert.deepStrictEqual(parsed.errors, []);
+      var fields = parsed.blocks.find(function(block) { return block.id === node._id; }).fields;
+      assert.strictEqual(fields.some(function(field) { return field.path === '_popup.ariaLabel'; }), state.visible);
+      assert(!fields.some(function(field) { return field.path === '_popup._graphic.alt'; }));
+      assert(!fields.some(function(field) { return field.path === '_items[0]._tooltip.text'; }));
+      assert.strictEqual((await apply(parsed, snapshot, gatedDb)).success, true);
+      assert.strictEqual(JSON.stringify(snapshot), before);
+      parsed = await editedBuffer(buffer, function(xml) {
+        return replaceBoxContent(xml, 'Body', '<w:p><w:r><w:t>Reviewed body</w:t></w:r></w:p>');
+      });
+      assert.strictEqual((await apply(parsed, snapshot, gatedDb)).success, true);
+      assert.strictEqual(node.body, '<p>Reviewed body</p>');
+      assert.strictEqual(node._popup.ariaLabel, 'Popup accessibility label');
+      assert.strictEqual(node._popup._isEnabled, state.enabled);
+      assert.strictEqual(node._items[0]._tooltip.text, 'Unused tooltip label');
+    });
+  });
+
+  it('still imports legacy empty-field placeholders and reviewer replacements, including nested fields', async function() {
     var snapshot = fixture();
     snapshot.contentTree.children[0].title = '';
     snapshot.contentTree.children[0].instruction = '<p><br></p>';
@@ -575,7 +723,7 @@ describe('mapped Word text round-trip', function() {
     node.uniqueId = ' \t '; node.body = '<p>&nbsp;</p>'; node.instruction = ''; node._graphic.alt = '';
     snapshot.glossaryItems[0].description = '';
     var original = JSON.stringify(snapshot);
-    var buffer = await generate(snapshot);
+    var buffer = await generateLegacy(snapshot);
     var zip = await unzipper.Open.buffer(buffer);
     var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString('utf8');
     ['Add title here', 'Add unique id here', 'Add body here', 'Add instruction here',
@@ -586,7 +734,7 @@ describe('mapped Word text round-trip', function() {
     assert.deepStrictEqual(parsed.errors, []);
     assert.strictEqual((await apply(parsed, snapshot)).success, true);
     assert.strictEqual(JSON.stringify(snapshot), original);
-    parsed = await edited(snapshot, function(xml) {
+    parsed = await editedBuffer(buffer, function(xml) {
       xml = replaceField(xml, 'Title', 'Reviewer page title');
       xml = replaceField(xml, 'Unique Id', 'reviewer-1');
       xml = replaceField(xml, 'Body', 'Reviewer body');
@@ -624,7 +772,7 @@ describe('mapped Word text round-trip', function() {
       assert.strictEqual(component(snapshot).uniqueId, collapsed ? 'reviewer-1' : 'author-1-reviewed');
     }
     var snapshot = fixture(), original = JSON.stringify(snapshot);
-    var parsed = await edited(snapshot, function(xml) { return xml.replace(/ \| \d+ words<\/w:t>/, ' | 999 words</w:t>'); });
+    var parsed = await edited(snapshot, function(xml) { return xml.replace(/ \| \d+ words/, ' | 999 words'); });
     assert(parsed.errors.some(function(error) { return error.includes('component word count'); }));
     assert.strictEqual((await apply(parsed, snapshot)).success, false);
     assert.strictEqual(JSON.stringify(snapshot), original);
@@ -717,8 +865,9 @@ describe('mapped Word text round-trip', function() {
       .some(function(paragraph) { return paragraph.includes('>Glossary</w:t>') && paragraph.includes('<w:pageBreakBefore'); }));
   });
 
-  it('puts component unique IDs above editable titles, spaces fields and italicises notes and empty placeholders', async function() {
+  it('puts component unique IDs above editable titles, spaces fields and italicises configured notes', async function() {
     var snapshot = fixture();
+    component(snapshot).developerNotes = 'Existing developer notes';
     var original = JSON.stringify(snapshot);
     var zip = await unzipper.Open.buffer(await generate(snapshot));
     var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString('utf8');
@@ -736,7 +885,7 @@ describe('mapped Word text round-trip', function() {
       assert(run.includes('w:color w:val="777777"'));
       assert(run.includes('<w:b/>'));
     });
-    ['Illustration notes', 'Add developer notes here'].forEach(function(text) {
+    ['Illustration notes', 'Existing developer notes'].forEach(function(text) {
       var paragraph = paragraphs.find(function(item) { return item.includes(text); });
       assert(paragraph.includes('<w:i/>'), text);
     });
@@ -749,7 +898,7 @@ describe('mapped Word text round-trip', function() {
     });
     assert.strictEqual((await apply(parsed, snapshot)).success, true);
     assert.strictEqual(component(snapshot).developerNotes, '<p><em>Reviewer developer notes</em></p>');
-    component(snapshot).graphicsNotes = '';
+    component(snapshot).graphicsNotes = 'Existing graphics notes';
     parsed = await edited(snapshot, function(xml) {
       return replaceField(xml, 'Graphics Notes', 'Reviewer graphics notes');
     });
@@ -770,7 +919,7 @@ describe('mapped Word text round-trip', function() {
     var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString('utf8');
     var paragraph = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)
       .find(function(paragraph) { return paragraph.includes('>c-01_01_010</w:t>'); });
-    assert(paragraph.includes('> | 100 words</w:t>'));
+    assert(paragraph.includes('> | 100 words | full</w:t>'));
     assert(!xml.includes('Unique Id: '));
     assert.strictEqual((await apply(await parse(await generate(snapshot)), snapshot)).success, true);
     assert.strictEqual(JSON.stringify(snapshot), original);
@@ -783,7 +932,7 @@ describe('mapped Word text round-trip', function() {
     node._component = '';
     zip = await unzipper.Open.buffer(await generate(snapshot));
     xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString('utf8');
-    assert(xml.includes('> | 0 words</w:t>'));
+    assert(xml.includes('> | 0 words | full</w:t>'));
     assert.strictEqual((await apply(await parse(await generate(snapshot)), snapshot)).success, true);
   });
 
@@ -827,9 +976,9 @@ describe('mapped Word text round-trip', function() {
     assert.strictEqual(component(snapshot).body, '');
   });
 
-  it('accepts replacement of an empty-field reviewer placeholder', async function() {
+  it('accepts replacement of a legacy empty-field reviewer placeholder', async function() {
     var snapshot = fixture();
-    var parsed = await edited(snapshot, function(xml) {
+    var parsed = await editedBuffer(await generateLegacy(snapshot), function(xml) {
       return replaceFieldContent(xml, 'Developer Notes',
         '<w:del w:id="1"><w:r><w:delText>Add developer notes here</w:delText></w:r></w:del>' +
         '<w:ins w:id="2"><w:r><w:t>Reviewer notes</w:t></w:r></w:ins>');
@@ -1516,6 +1665,7 @@ describe('mapped Word text round-trip', function() {
 
   it('maps multiline paragraphs, blank clears, page titles, nested items and popup instructions without changing course details', async function() {
     var snapshot = fixture();
+    component(snapshot)._items[0].body = 'Original nested body';
     var parsed = await edited(snapshot, function(xml) {
       xml = replaceField(xml, 'Body', 'Changed &lt;literal&gt;</w:t></w:r></w:p><w:p><w:r><w:t>New paragraph');
       return xml;
@@ -1620,7 +1770,9 @@ describe('mapped Word text round-trip', function() {
         '../../lib/usermanager': { getCurrentUser: function() { return { _id: 'user', tenant: { _id: 'tenant-1' } }; } },
         '../../lib/logger': { log: function() {} },
         '../../': function() { return app; },
-        '../../lib/lightcourse/documentGenerator': generator
+        '../../lib/lightcourse/documentGenerator': generator,
+        '../../lib/storyboard': {},
+        '../../lib/configuration': {}
       };
       vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../routes/document-export/index.js'), 'utf8'), {
         module: { exports: {} }, require: function(name) { assert(name in mocks, name); return mocks[name]; }

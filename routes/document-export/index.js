@@ -13,6 +13,8 @@ var usermanager = require('../../lib/usermanager');
 var logger = require('../../lib/logger');
 var origin = require('../../');
 var documentGenerator = require('../../lib/lightcourse/documentGenerator');
+var storyboard = require('../../lib/storyboard');
+var configuration = require('../../lib/configuration');
 
 permissions.ignoreRoute(/^\/document-export\/?.*$/);
 
@@ -20,6 +22,51 @@ function handleError(res, statusCode, error) {
   logger.log('error', error);
   res.status(statusCode).json({ success: false, message: error.message || error });
 }
+
+function sendWord(res, output, filename) {
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + filename.replace(/[^\x20-\x7e]/g, '-') +
+    '"; filename*=UTF-8\'\'' + encodeURIComponent(filename).replace(/['()*]/g, function(character) {
+      return '%' + character.charCodeAt(0).toString(16).toUpperCase();
+    }));
+  return res.send(output);
+}
+
+server.get('/document-export/:tenant/:id/storyboard.docx', function(req, res) {
+  var tenantId = req.params.tenant, id = req.params.id, user = usermanager.getCurrentUser();
+  if (!user || !user.tenant || String(user.tenant._id) !== tenantId) {
+    return res.status(401).json({ success: false, message: 'You are not permitted to do that' });
+  }
+  var resource = permissions.buildResourceString(tenantId, '/api/content/course/' + id);
+  permissions.hasPermission(String(user._id), 'read', resource, function(error, allowed) {
+    if (error) return handleError(res, 500, error);
+    if (!allowed) return res.status(403).json({ success: false, message: 'You are not permitted to do that' });
+    database.getDatabase(function(error, db) {
+      if (error) return handleError(res, 500, error);
+      db.retrieve('course', { _id: id, _tenantId: tenantId }, { jsonOnly: true, populate: { tags: '_id title' } }, function(error, courses) {
+        if (error) return handleError(res, 500, error);
+        if (!courses || courses.length !== 1) return res.status(404).json({ success: false, message: 'Course not found' });
+        var course = courses[0];
+        origin().contentmanager.getContentPlugin('course', function(error, plugin) {
+          if (error) return handleError(res, 500, error);
+          plugin.hasPermission('read', String(user._id), tenantId, course, function(error, allowed) {
+            if (error) return handleError(res, 500, error);
+            if (!allowed) return res.status(403).json({ success: false, message: 'You are not permitted to do that' });
+            database.getDatabase(function(error, schemaDb) {
+              if (error) return handleError(res, 500, error);
+              storyboard.generate(course, db, schemaDb, origin().contentmanager._contentSchemas, function(error, output) {
+                if (error) return handleError(res, 500, error);
+                var filename = (course.tags || []).map(function(tag) { return tag.title || ''; }).filter(Boolean)
+                  .concat(course.title || 'course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() + '_storyboard.docx';
+                sendWord(res, output, filename);
+              });
+            }, configuration.getConfig('dbName'));
+          });
+        });
+      });
+    }, tenantId);
+  });
+});
 
 /**
  * Resolves either a `lightcourse` draft or a `lightcourseversion` by ID - an export can target
@@ -142,17 +189,12 @@ server.get('/document-export/:tenant/:id', function (req, res) {
               }
 
               if (format === 'docx') {
-                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
                 var tags = (data.tags || []).map(function(tag) {
                   return tag && typeof tag.title === 'string' ? tag.title.trim() : '';
                 }).filter(Boolean);
                 var filename = tags.concat(data.title || 'light-course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() +
                   '_v' + (data.versionNumber || 'draft').replace(/[^a-zA-Z0-9.-]/g, '-') + '.docx';
-                res.setHeader('Content-Disposition', 'attachment; filename="' + filename.replace(/[^\x20-\x7e]/g, '-') +
-                  '"; filename*=UTF-8\'\'' + encodeURIComponent(filename).replace(/['()*]/g, function(character) {
-                    return '%' + character.charCodeAt(0).toString(16).toUpperCase();
-                  }));
-                return res.send(output);
+                return sendWord(res, output, filename);
               }
               res.setHeader('Content-Type', 'text/markdown');
               res.setHeader('Content-Disposition', 'attachment; filename="' + slugify(data.title) + '.md"');

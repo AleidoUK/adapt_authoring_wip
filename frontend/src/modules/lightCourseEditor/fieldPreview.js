@@ -2,7 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var SchemaFilter = require('./schemaFilter');
-  var INTERNAL_FIELDS = ['_id', 'type', '_component', 'children', '_componentSchemaSnapshot', '_componentPresetId'];
+  var INTERNAL_FIELDS = ['_id', 'type', '_component', '_layout', 'children', '_componentSchemaSnapshot', '_componentPresetId'];
 
   function fieldLabel(key, field) {
     if (key === 'screenshotAssetId') return Origin.l10n.t('app.lightcoursecomponentscreenshot');

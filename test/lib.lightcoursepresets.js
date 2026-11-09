@@ -50,6 +50,7 @@ function treeHarness() {
   var alerts = [];
   var containers = {};
   var events = [];
+  var confirmations = [];
   var renderedContexts = [];
   function $(selector) { return selector instanceof Element ? selector : new Element(); }
   $.get = function() {
@@ -62,7 +63,7 @@ function treeHarness() {
   };
   var origin = {
     trigger: function(name) { events.push(name); }, l10n: { t: function(key) { return key; } },
-    Notify: { alert: function(alert) { alerts.push(alert); } }
+    Notify: { alert: function(alert) { alerts.push(alert); }, confirm: function(options) { confirmations.push(options); } }
   };
   var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseTreeView.js', {
     'core/origin': origin,
@@ -82,7 +83,7 @@ function treeHarness() {
     renderComponentForm: function(node) { this.rendered = copy(node); }
   });
   return { tree: tree, node: node, containers: containers, requests: requests, alerts: alerts,
-    events: events, renderedContexts: renderedContexts };
+    events: events, renderedContexts: renderedContexts, confirmations: confirmations, origin: origin };
 }
 
 var PRESET = { _id: 'text-default', name: 'Text default', isDefault: true, values: { body: 'Default body', items: [{ title: 'Item' }] } };
@@ -226,6 +227,8 @@ describe('copying and pasting light course pages, blocks and components (isolate
     var values = copy(cloned);
     values._id = original._id;
     values.children.forEach(function(node, index) { node._id = original.children[index]._id; });
+    original.children[0]._layout = 'left';
+    original.children[1]._layout = 'right';
     assert.deepStrictEqual(values, original);
     cloned.children[0].items[0].graphic.src = 'changed.png';
     cloned.children[0]._componentSchemaSnapshot.title.type = 'number';
@@ -512,6 +515,136 @@ describe('component editor overlay drafts (isolated)', function() {
   });
 });
 
+describe('light-course full and paired layouts (isolated)', function() {
+  function setup(layouts) {
+    var h = treeHarness();
+    h.block = { _id: 'layout-block', type: 'block', children: layouts.map(function(layout, index) {
+      return { _id: 'layout-' + index, type: 'component', _component: 'text', _layout: layout, body: 'Body ' + index };
+    }) };
+    h.tree.tree = { children: [h.block] };
+    h.tree.getNodeIdFromEvent = function() { return h.block._id; };
+    return h;
+  }
+  it('adds a full component to an empty block and confirms before splitting it into left and right', function() {
+    var h = setup([]);
+    h.tree.onAddChildClicked();
+    assert.strictEqual(h.block.children[0]._layout, 'full');
+    assert.strictEqual(h.events.length, 1);
+    h.tree.onAddChildClicked();
+    assert.strictEqual(h.block.children.length, 1);
+    assert.strictEqual(h.confirmations.length, 1);
+    h.confirmations[0].callback(false);
+    assert.strictEqual(h.block.children[0]._layout, 'full');
+    h.tree.onAddChildClicked();
+    h.confirmations[1].callback(true);
+    assert.deepStrictEqual(Array.from(h.block.children, function(node) { return node._layout; }), ['left', 'right']);
+    assert.strictEqual(h.events.length, 2);
+    h.tree.onAddChildClicked();
+    assert.strictEqual(h.block.children.length, 2);
+    assert.strictEqual(h.alerts[0].text, 'app.lightcoursemaxcomponents');
+  });
+  it('adds or pastes into the vacant half without changing the existing slot or sharing values', function() {
+    var h = setup(['right']);
+    h.tree.clipboardNode = { _id: 'source', type: 'component', _component: 'text', _layout: 'full', items: [{ body: 'Copied' }] };
+    h.tree.onPasteClicked();
+    assert.deepStrictEqual(Array.from(h.block.children, function(node) { return node._layout; }), ['left', 'right']);
+    assert.notStrictEqual(h.block.children[0]._id, 'source');
+    assert.strictEqual(h.tree.clipboardNode, null);
+    assert.strictEqual(h.confirmations.length, 0);
+    assert.strictEqual(h.events.length, 1);
+  });
+  it('rejects pairing full-width-only component types without altering the block', function() {
+    var h = setup(['full']);
+    h.origin.schemas = { get: function() { return { _supportedLayout: { enum: ['full-width'] } }; } };
+    h.tree.onAddChildClicked();
+    assert.strictEqual(h.block.children.length, 1);
+    assert.strictEqual(h.block.children[0]._layout, 'full');
+    assert.strictEqual(h.confirmations.length, 0);
+    assert.strictEqual(h.events.length, 0);
+    assert.strictEqual(h.alerts[0].text, 'app.lightcourselayoutunsupported');
+  });
+  it('saves side changes atomically by swapping the other half and ordering left before right', function() {
+    var h = setup(['left', 'right']);
+    h.tree.openComponentNodeId = h.block.children[0]._id;
+    h.tree.openComponentDraft = copy(h.block.children[0]);
+    h.tree.componentFormView = { getFormData: function() { return { _layout: 'right', body: 'Reviewed' }; }, remove: function() {} };
+    h.tree.closeComponentEditor();
+    assert.strictEqual(h.block.children[0]._id, 'layout-1');
+    assert.strictEqual(h.block.children[0]._layout, 'left');
+    assert.strictEqual(h.block.children[0].body, 'Body 1');
+    assert.strictEqual(h.block.children[1]._id, 'layout-0');
+    assert.strictEqual(h.block.children[1]._layout, 'right');
+    assert.strictEqual(h.block.children[1].body, 'Reviewed');
+    assert.strictEqual(h.events.length, 1);
+  });
+  it('rejects a full-width edit in a pair without closing the editor or partially saving', function() {
+    var h = setup(['left', 'right']), before = copy(h.block);
+    h.tree.openComponentNodeId = h.block.children[0]._id;
+    h.tree.openComponentDraft = copy(h.block.children[0]);
+    h.tree.componentFormView = { getFormData: function() { return { _layout: 'full', body: 'Do not save' }; } };
+    assert.strictEqual(h.tree.closeComponentEditor(), false);
+    assert.deepStrictEqual(h.block, before);
+    assert.strictEqual(h.tree.openComponentNodeId, 'layout-0');
+    assert.strictEqual(h.events.length, 0);
+  });
+  it('moves a pair between left and right slots without changing the component content', function() {
+    var h = setup(['left', 'right']);
+    h.tree.moveNode('layout-1', -1);
+    assert.strictEqual(h.block.children[0]._id, 'layout-1');
+    assert.strictEqual(h.block.children[0]._layout, 'left');
+    assert.strictEqual(h.block.children[0].body, 'Body 1');
+    assert.strictEqual(h.block.children[1]._layout, 'right');
+  });
+  it('applies preset content but explicitly warns when its full layout cannot replace a paired slot', function() {
+    var h = setup(['left', 'right']);
+    var draft = copy(h.block.children[0]);
+    h.tree.applyPresetValues(draft, { _id: 'preset', values: { body: 'Preset body', _layout: 'full' } });
+    assert.strictEqual(draft._layout, 'left');
+    assert.strictEqual(draft.body, 'Preset body');
+    assert.strictEqual(h.block.children[0].body, 'Body 0');
+    assert.strictEqual(h.alerts[0].text, 'app.lightcoursepresetlayoutkept');
+  });
+});
+
+describe('component default layout validation (isolated)', function() {
+  function harness() {
+    var writes = [];
+    function ContentPlugin() {}
+    ContentPlugin.prototype.create = function(data, next) { writes.push(data); next(null, data); };
+    ContentPlugin.prototype.update = function(search, data, next) { writes.push(data); next(null, data); };
+    var Plugin = load('plugins/content/lightcomponentdefault/index.js', {
+      '../../../lib/contentmanager': { ContentPlugin: ContentPlugin },
+      '../../../': {},
+      '../../../lib/permissions': {},
+      '../../../lib/lightcourse/permissionAction': {},
+      '../../../lib/usermanager': {}
+    });
+    return { plugin: new Plugin(), writes: writes };
+  }
+  it('rejects invalid layout values on create/update before writing a preset', function() {
+    var h = harness();
+    ['wide', '', null].forEach(function(layout) {
+      var callbacks = 0;
+      function rejected(error) { assert(error); assert.match(error.message, /layout must be/); callbacks++; }
+      h.plugin.create({ values: { _layout: layout } }, rejected);
+      h.plugin.update({ _id: 'preset' }, { values: { _layout: layout } }, rejected);
+      assert.strictEqual(callbacks, 2);
+    });
+    assert.strictEqual(h.writes.length, 0);
+  });
+  it('allows full, left, right and legacy presets without a stored layout', function() {
+    var h = harness();
+    ['full', 'left', 'right', undefined].forEach(function(layout) {
+      var callbacks = 0;
+      function saved(error) { assert.ifError(error); callbacks++; }
+      h.plugin.create({ values: { _layout: layout } }, saved);
+      h.plugin.update({ _id: 'preset' }, { values: { _layout: layout } }, saved);
+      assert.strictEqual(callbacks, 2);
+    });
+    assert.strictEqual(h.writes.length, 8);
+  });
+});
+
 describe('component popup field order (isolated)', function() {
   var rawSchema = {
     title: { type: 'string', title: 'Title', translatable: true },
@@ -521,7 +654,7 @@ describe('component popup field order (isolated)', function() {
     } } } }
   };
 
-  function render(schema, useSnapshot) {
+  function render(schema, useSnapshot, allowedLayouts) {
     var options;
     function Form(formOptions) { options = formOptions; }
     Form.prototype.render = function() { return this; };
@@ -543,7 +676,7 @@ describe('component popup field order (isolated)', function() {
       _componentSchemaSnapshot: useSnapshot ? schema : undefined
     });
     var view = Object.assign(Object.create(proto), {
-      model: model, $el: { prepend: function() {} },
+      model: model, allowedLayouts: allowedLayouts, $el: { prepend: function() {} },
       $: function() { return new Element(); },
       setViewToReady: function() {}
     });
@@ -556,10 +689,14 @@ describe('component popup field order (isolated)', function() {
     it('places unique ID before title and preserves other fields for ' +
       (useSnapshot ? 'a missing plugin snapshot' : 'an installed component'), function() {
       var options = render(rawSchema, useSnapshot);
-      assert.deepStrictEqual(copy(options.fields), ['uniqueId', 'title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
+      assert.deepStrictEqual(copy(options.fields), ['uniqueId', '_layout', 'title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
       assert.strictEqual(options.schema.uniqueId.title, 'Unique ID');
       assert.strictEqual(options.model.get('uniqueId'), 'c-01');
       assert.strictEqual(options.model.get('title'), 'Original title');
+      assert.strictEqual(options.model.get('_layout'), 'full');
+      assert.deepStrictEqual(copy(options.schema._layout.inputType.options), ['full', 'left', 'right']);
+      options.model.set('_layout', 'right');
+      assert.strictEqual(options.getFormData()._layout, 'right');
       assert.strictEqual(options.schema.screenshotAssetId.inputType, 'LightCourseAsset:image');
       assert.strictEqual(options.schema.screenshotAssetId.translatable, undefined);
       assert.strictEqual(options.getFormData().screenshotAssetId, '1234567890abcdef12345678');
@@ -570,8 +707,20 @@ describe('component popup field order (isolated)', function() {
 
   it('preserves field order without adding an unavailable unique ID field', function() {
     var options = render(_.omit(rawSchema, '_extensions'), false);
-    assert.deepStrictEqual(copy(options.fields), ['title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
+    assert.deepStrictEqual(copy(options.fields), ['_layout', 'title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
     assert.strictEqual(options.schema.uniqueId, undefined);
+  });
+  it('offers only half-width positions for a paired slot and persists the selected side', function() {
+    var options = render(rawSchema, false, ['left', 'right']);
+    assert.deepStrictEqual(copy(options.schema._layout.inputType.options), ['left', 'right']);
+    assert.strictEqual(options.model.get('_layout'), 'left');
+    options.model.set('_layout', 'right');
+    assert.strictEqual(options.getFormData()._layout, 'right');
+  });
+  it('restricts component-default forms to their installed component type layout support', function() {
+    var options = render(Object.assign({}, rawSchema, { _supportedLayout: { enum: ['full-width'] } }), false);
+    assert.deepStrictEqual(copy(options.schema._layout.inputType.options), ['full']);
+    assert.strictEqual(options.getFormData()._layout, 'full');
   });
 });
 
@@ -739,15 +888,60 @@ function editorHarness(attached) {
 }
 
 function tick() { return new Promise(function(resolve) { setTimeout(resolve, 20); }); }
+var nextEditorId = 0;
 function fakeEditor() {
   return {
-    data: '', destroyed: false,
+    id: 'editor-' + (++nextEditorId), data: '', destroyed: false, destroyCalls: 0,
     getData: function() { return this.data; }, setData: function(value) { this.data = value; },
-    destroy: function() { this.destroyed = true; return Promise.resolve(); }
+    destroy: function() { this.destroyed = true; this.destroyCalls++; return Promise.resolve(); }
   };
 }
 
 describe('rich-text fields during preset replacement (isolated)', function() {
+  it('preserves the CKEditor context identity when registering and destroying an editor', async function() {
+    var h = editorHarness(true), editor = fakeEditor(), originalId = editor.id;
+    var contextEditors = new Map([[originalId, editor]]);
+    var destroy = editor.destroy;
+    editor.destroy = function() {
+      assert.strictEqual(contextEditors.get(this.id), this, 'Editor must remain removable by its original context ID');
+      contextEditors.delete(this.id);
+      return destroy.call(this);
+    };
+    h.field.render();
+    await tick();
+    h.created[0](editor);
+    await tick();
+    assert.strictEqual(editor.id, originalId);
+    assert.strictEqual(h.CKEDITOR.instances[originalId], editor);
+    h.field.remove();
+    h.field.remove();
+    await tick();
+    assert.strictEqual(editor.destroyCalls, 1);
+    assert.strictEqual(contextEditors.size, 0);
+    assert.strictEqual(h.CKEDITOR.instances[originalId], undefined);
+  });
+
+  it('keeps multiple rich-text fields registered separately and removes only the closed field', async function() {
+    var h = editorHarness(true), secondField = new h.field.constructor();
+    var firstEditor = fakeEditor(), secondEditor = fakeEditor();
+    var firstId = firstEditor.id, secondId = secondEditor.id;
+    h.field.render();
+    secondField.render();
+    await tick();
+    h.created[0](firstEditor);
+    h.created[1](secondEditor);
+    await tick();
+    assert.strictEqual(h.CKEDITOR.instances[firstId], firstEditor);
+    assert.strictEqual(h.CKEDITOR.instances[secondId], secondEditor);
+    h.field.remove();
+    assert.strictEqual(h.CKEDITOR.instances[firstId], undefined);
+    assert.strictEqual(h.CKEDITOR.instances[secondId], secondEditor);
+    assert.strictEqual(secondEditor.destroyCalls, 0);
+    secondField.remove();
+    assert.strictEqual(secondEditor.destroyCalls, 1);
+    assert.strictEqual(h.CKEDITOR.instances[secondId], undefined);
+  });
+
   it('allows an early save and applies pending values when the editor becomes ready', async function() {
     var h = editorHarness(true);
     h.field.render();

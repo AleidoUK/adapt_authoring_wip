@@ -8,7 +8,7 @@ define(function(require) {
     function fail(response) {
       if (!disposed()) options.error(response || { responseJSON: { message: Origin.l10n.t('app.errorgeneric') } });
     }
-    request.open('GET', 'document-export/' + encodeURIComponent(Origin.sessionModel.get('tenantId')) +
+    request.open('GET', options.url || 'document-export/' + encodeURIComponent(Origin.sessionModel.get('tenantId')) +
       '/' + encodeURIComponent(model.get('_id')) + '?format=docx');
     request.responseType = 'blob';
     request.onabort = function() { aborted = true; };
@@ -38,7 +38,7 @@ define(function(require) {
         var tags = (model.get('tags') || []).map(function(tag) {
           return tag && typeof tag.title === 'string' ? tag.title.trim() : '';
         }).filter(Boolean);
-        filename = name ? name[1] :
+        filename = name ? name[1] : options.filename ||
           tags.concat(model.get('title') || 'light-course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() +
             '_v' + (model.get('versionNumber') || model.get('currentVersionNumber') || 'draft') + '.docx';
       }

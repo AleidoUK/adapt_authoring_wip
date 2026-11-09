@@ -4,6 +4,7 @@ define(function(require) {
   var OriginView = require('core/views/originView');
   var SchemaFilter = require('../schemaFilter');
   var LightCourseAssetContext = require('../lightCourseAssetContext');
+  var ComponentLayout = require('../componentLayout');
 
   /**
    * Renders the generic component field editor described in Phase 3/4's "Generic component-field
@@ -30,6 +31,7 @@ define(function(require) {
     preRender: function(options) {
       this.includeAudio = !!options.includeAudio;
       this.lightCourseRefs = options.lightCourseRefs || null;
+      this.allowedLayouts = options.allowedLayouts || ComponentLayout.values;
       LightCourseAssetContext.set(options.lightCourseId);
     },
 
@@ -61,6 +63,12 @@ define(function(require) {
       }
 
       var filteredSchema = SchemaFilter.filterComponentSchema(rawSchema, { includeAudio: this.includeAudio, lightCourseRefs: this.lightCourseRefs });
+      var layouts = ComponentLayout.choices(rawSchema).filter(function(layout) {
+        return (this.allowedLayouts || ComponentLayout.values).indexOf(layout) !== -1;
+      }, this);
+      if (this.model.get('_layout') === undefined) this.model.set('_layout', layouts[0], { silent: true });
+      filteredSchema._layout = { type: 'string', inputType: { type: 'Select', options: layouts },
+        title: Origin.l10n.t('app.lightcoursecomponentlayout'), validators: ['required'] };
       filteredSchema.screenshotAssetId = { type: 'string', inputType: 'LightCourseAsset:image',
         title: Origin.l10n.t('app.lightcoursecomponentscreenshot') };
 
@@ -79,8 +87,8 @@ define(function(require) {
 
       var schema = Origin.scaffold.buildSchema(filteredSchema);
       var fields = Object.keys(schema);
-      fields = ['uniqueId', 'title', 'screenshotAssetId'].filter(function(key) { return fields.indexOf(key) !== -1; })
-        .concat(_.without(fields, 'uniqueId', 'title', 'screenshotAssetId'));
+      fields = ['uniqueId', '_layout', 'title', 'screenshotAssetId'].filter(function(key) { return fields.indexOf(key) !== -1; })
+        .concat(_.without(fields, 'uniqueId', '_layout', 'title', 'screenshotAssetId'));
 
       this.model.schema = schema;
       this.form = new Backbone.Form({ model: this.model, schema: schema, fields: fields }).render();

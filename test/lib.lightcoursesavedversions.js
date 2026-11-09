@@ -78,6 +78,7 @@ function uiHarness() {
   var deps = {
     backbone: Backbone, 'core/origin': origin, 'core/views/originView': parent,
     '../fieldPreview': function(node) { return [{ text: node.title }]; },
+    '../componentLayout': require('../frontend/src/modules/lightCourseEditor/componentLayout'),
     '../../auditLog/lightFieldChanges': changes,
     '../wordExport': loadAMD('frontend/src/modules/lightCourseEditor/wordExport.js', { 'core/origin': origin }, browser),
     '../../auditLog/views/auditLogView': function(options) {

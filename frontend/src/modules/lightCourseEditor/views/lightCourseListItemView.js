@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var TagEditor = require('../tagEditor');
 
   var LightCourseListItemView = OriginView.extend({
     tagName: 'div',
@@ -11,6 +12,10 @@ define(function(require) {
       'dblclick .light-course-list-item-title': 'onEditClicked',
       'click .light-course-list-item-edit': 'onEditClicked',
       'click .light-course-list-item-delete': 'onDeleteClicked'
+    },
+
+    postRender: function() {
+      TagEditor.renderTags.call(this);
     },
 
     onEditClicked: function(event) {

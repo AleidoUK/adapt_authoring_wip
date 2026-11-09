@@ -4,6 +4,54 @@ Part of the [Light Course Editor implementation plan](LIGHT_COURSE_IMPLEMENTATIO
 
 ## Word editing workflow
 
+### Full-course storyboard export
+
+Full courses also have an **Export storyboard** sidebar button directly below
+**Export source**. This downloads an export-only Word document using the same
+Calibri/Aleido-green review layout. A read-only total word count appears directly
+under the course title. It totals exported course/page text, enabled Resources
+and Glossary information/items, and component content; headings are not counted
+again, and omitted content, review notes, IDs, filenames and resource URLs are
+excluded. Light-course exports retain their version-history word counts.
+Course content includes only the title and
+display title, followed by enabled Resources and Glossary sections with their
+introductory text and items, not configurable settings or global labels.
+Menus/pages and components follow the saved course order; article and block
+information is omitted. Page/menu headings show only their label and number
+(for example, `Page 1`); titles remain in the labelled content fields.
+Components and Resources/Glossary items use Heading 2. Component headings show only the component type, with
+title, unique ID, word count and nested content using the light-course layout.
+Both full- and light-course exports append the saved component layout:
+`uniqueId | 100 words | full` (or `left` / `right`). Components without an ID show
+`100 words | full`. Missing layouts in older light-course blocks are inferred as
+full for a single component or left/right in stored order for a pair.
+Empty or unconfigured component fields (including blank rich text and review
+notes) are omitted. Image-only content is retained, and components without a
+unique ID still show their word count without an empty ID placeholder.
+Across components, nested option groups with `_isEnabled: false` are excluded,
+including their text, accessibility labels, images and word counts. If the flag
+is absent, its schema default is respected. This also applies inside item arrays,
+extensions and theme settings. Media descriptions/labels are omitted when their
+associated asset fields have no source. Saved content is unchanged. The same
+inclusion rules apply to new light-course Word exports.
+Supported images are resolved from the full-course asset collection in the
+current tenant database, not the light-course placeholder bank. Missing or
+unsupported image references show explicit notices. The file is named
+`{tags}_{coursename}_storyboard.docx`, omitting the tag prefix when there are no tags.
+
+The endpoint is `GET /document-export/:tenant/:courseId/storyboard.docx`.
+Both full-course read permission and access to that particular course are checked.
+Content/assets are read from the user's tenant; installed plugin schemas come
+from the master schema database. Export does not modify the course, create a
+light-course export record, or include the light-course import mapping. There is
+no storyboard import option; the existing source ZIP export is unchanged.
+
+Rich-text editors retain their CKEditor-generated instance IDs. The shared field
+registry uses those IDs without replacing them, so CKEditor can remove each
+instance from its own context during form cleanup without destroying it twice.
+
+### Light-course Word round trips
+
 The light course editor now has a **Word export / import** toolbar button. This is
 Word-only and is not exposed in the template editor. Export saves the committed
 draft first, downloads a `.docx` and records the export snapshot; persistence or
@@ -30,19 +78,28 @@ headings retain their larger sizes. The editable text remains its normal colour.
 block sections (including their field labels) are omitted from the Word document.
 Their IDs remain in the mapping, so the course's articles, blocks and stored values
 are preserved unchanged on import; pages and components remain visible.
-Existing empty strings are included so they can be populated or cleared.
+Only fields with content are included; empty strings, whitespace-only values and
+visually blank rich text are omitted. Component option groups that are disabled
+(including by their schema default) omit all associated fields and images,
+recursively through nested items, extensions and theme settings. Media
+descriptions are omitted when their asset source is unconfigured.
 Page titles, page instructions, component translatable fields,
 author Unique IDs, graphics/developer notes and glossary/resource/help text are
 editable. Component Unique IDs precede the editable Title field, displayed as
-`c-01_01_010 | 100 words` in 8 pt grey Calibri, without a Unique Id label.
-The count is read-only and uses the core schema-based component word-count rules
-at export time; it excludes review placeholders, labels and non-translatable notes/IDs.
-Keep the count unchanged when editing the ID; it is never imported as part of the ID.
+`c-01_01_010 | 100 words | full` in 8 pt grey Calibri, without a Unique Id label.
+The count and layout are read-only. The count uses the core schema-based component word-count rules
+at export time; it excludes disabled content, labels and non-translatable notes/IDs.
+Keep the count and layout unchanged when editing the ID; neither is imported as part of the ID,
+and editing either suffix is rejected. Layout changes must be made in the editor.
 Other field values
 remain 12 pt. Fields have a blank line's spacing between them. Graphics/developer
-notes are italic. Every empty editable field (including visually blank rich text)
-has a reviewer placeholder; replace it to add content. Leaving it unchanged
-preserves the original empty value and markup.
+notes are italic. Image-only content is retained without an empty editable box.
+Components without a configured unique ID still show their word count.
+New documents record the configured-only layout in their import mapping:
+omitted fields and disabled settings stay untouched on import. Existing exported
+fields can still be cleared. Add previously empty content in the editor and
+re-export rather than adding new fields in Word. Older documents with reviewer
+placeholders remain importable using their original layout.
 Component context headings use the installed component display name (for example,
 Text or Splash), without the editable title. Page context headings use the saved
 section terminology and position (Section 1 or Topic 1), without the page title.

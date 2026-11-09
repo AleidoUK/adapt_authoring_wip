@@ -6,6 +6,7 @@ define(function(require) {
   var LightCourseTreeView = require('../../lightCourseEditor/views/lightCourseTreeView');
   var LightCourseItemListView = require('../../lightCourseEditor/views/lightCourseItemListView');
   var LightCourseHelpView = require('../../lightCourseEditor/views/lightCourseHelpView');
+  var TagEditor = require('../../lightCourseEditor/tagEditor');
 
   // Same real installed extension identifiers used in lightCourseEditor/views/
   // lightCourseEditorView.js - duplicated rather than shared from there deliberately: this is a
@@ -43,6 +44,8 @@ define(function(require) {
     },
 
     postRender: function() {
+      if (this._removed) return;
+      TagEditor.initialize.call(this);
       this.treeView = new LightCourseTreeView({ model: this.model });
       this.$('.light-course-template-editor-tree-container').append(this.treeView.$el);
 
@@ -165,6 +168,7 @@ define(function(require) {
         description: this.$('.light-course-template-editor-description').val(),
         title: this.$('.light-course-template-editor-menu-title').val(),
         body: this.$('.light-course-template-editor-menu-body').val(),
+        tags: TagEditor.selected.call(this).map(TagEditor.id),
         contentTree: this.treeView.getContentTree(),
         pluginSelections: this.model.get('pluginSelections'),
         glossaryItems: this.glossaryView ? this.glossaryView.getItems() : this.model.get('glossaryItems'),
@@ -197,6 +201,9 @@ define(function(require) {
     },
 
     remove: function() {
+      this._removed = true;
+      (this._tagRequests || []).forEach(function(request) { request.abort(); });
+      if (this.tagPicker) this.tagPicker.destroy();
       if (this.treeView) {
         this.treeView.remove();
       }

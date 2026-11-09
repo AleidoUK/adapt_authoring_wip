@@ -32,6 +32,13 @@
   </button>
   {{/ifHasPermissions}}
 
+  <button class="editor-common-sidebar-storyboard action-secondary">
+    <span class="editor-common-sidebar-storyboard-inner">{{ t 'app.exportstoryboard'}}</span>
+    <span class="editor-common-sidebar-storyboarding display-none">
+      <i class="fa fa-circle-o-notch fa-spin"></i>{{ t 'app.exporting'}}
+    </span>
+  </button>
+
   <div class="separator" />
 
   <div class="sidebar-row">

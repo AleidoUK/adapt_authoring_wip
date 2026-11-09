@@ -37,6 +37,7 @@ define(function(require) {
         data._templateId = templateId;
       }
       this.model.save(data, {
+        attrs: data,
         wait: true,
         success: function(model) {
           Origin.router.navigateTo('lightCourseEditor/' + model.get('_id'));

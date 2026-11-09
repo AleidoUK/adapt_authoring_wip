@@ -5,6 +5,29 @@
     </div>
   </div>
 
+  <div class="light-course-admin-filters">
+    <div class="light-course-admin-filter">
+      <label for="light-course-default-search">{{t 'app.lightcoursefiltersearch'}}</label>
+      <input id="light-course-default-search" class="light-course-admin-filter-search" type="search" placeholder="{{t 'app.lightcoursefilterdefaults'}}">
+    </div>
+    <div class="light-course-admin-filter">
+      <label for="light-course-default-filter-type">{{t 'app.lightcoursecomponenttype'}}</label>
+      <select id="light-course-default-filter-type" class="light-course-admin-filter-type">
+        <option value="">{{t 'app.lightcoursefilteralltypes'}}</option>
+      </select>
+    </div>
+    <div class="light-course-admin-filter">
+      <label for="light-course-default-filter-status">{{t 'app.lightcoursecomponentdefaultisdefault'}}</label>
+      <select id="light-course-default-filter-status" class="light-course-admin-filter-status">
+        <option value="">{{t 'app.lightcoursefilterallstatuses'}}</option>
+        <option value="default">{{t 'app.lightcoursefilterdefaultonly'}}</option>
+        <option value="other">{{t 'app.lightcoursefilternondefault'}}</option>
+      </select>
+    </div>
+    <button class="btn light-course-admin-filter-clear" disabled>{{t 'app.lightcourselistclearfilters'}}</button>
+  </div>
+  <p class="light-course-admin-filter-results" role="status" aria-live="polite" aria-atomic="true"></p>
+
   <div class="tb-heading col-row tb-row">
     <div class="col-25"><div class="tb-col-inner"><h4>{{t 'app.lightcoursecomponentdefaultname'}}</h4></div></div>
     <div class="col-20"><div class="tb-col-inner"><h4>{{t 'app.lightcoursecomponenttype'}}</h4></div></div>

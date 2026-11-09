@@ -33,6 +33,7 @@ var contentmanager = require('../../../lib/contentmanager'),
     rest = require('../../../lib/rest'),
     origin = require('../../../'),
     permissionAction = require('../../../lib/lightcourse/permissionAction'),
+    assetUsage = require('../../../lib/lightcourse/assetUsage'),
     formidable = require('formidable'),
     IncomingForm = formidable.IncomingForm,
     bytes = require('bytes'),
@@ -269,6 +270,20 @@ function assetThumb(req, res, next) {
   });
 }
 
+function getUses(req, res, next) {
+  var user = usermanager.getCurrentUser();
+  if (!user || !user.tenant) return res.status(401).json({ success: false, message: 'Authentication required' });
+  // Asset readers include light editors; this tenant-wide report is for asset administrators.
+  new LightCourseAssetContent().hasPermission('update', user._id, user.tenant._id, {}, function(error, allowed) {
+    if (error) return next(error);
+    if (!allowed) return res.status(403).json({ success: false, message: 'You are not permitted to do that' });
+    database.getDatabase(function(error, db) {
+      if (error) return next(error);
+      assetUsage.collect(db, user.tenant._id).then(function(usage) { res.json(usage); }, next);
+    }, user.tenant._id);
+  });
+}
+
 function initialize() {
   origin().once('serverStarted', function () {
     rest.post('/content/lightcourseasset/upload', uploadAsset);
@@ -279,6 +294,7 @@ function initialize() {
     // gotcha plugins/content/lightcourse/index.js's own icon routes ran into).
     rest.get('/content/lightcourseasset/:id/serve', serveAsset);
     rest.get('/content/lightcourseasset/:id/thumb', assetThumb);
+    rest.get('/content/lightcourseasset/uses/all', getUses);
   });
 }
 

@@ -1,5 +1,17 @@
 {
   "app": {
+    "lightcoursefiltersearch": "Search",
+    "lightcoursefilterresults": "Showing %{shown} of %{total} items",
+    "lightcoursefilternomatches": "No items match these filters",
+    "lightcoursetemplatefiltertaghelp": "Templates must have all selected tags.",
+    "lightcoursefiltertemplates": "Name or description",
+    "lightcoursefilterassets": "Title or filename",
+    "lightcoursefilterdefaults": "Name",
+    "lightcoursefilteralltypes": "All types",
+    "lightcoursefilterallstatuses": "All",
+    "lightcoursefilterdefaultonly": "Default only",
+    "lightcoursefilternondefault": "Non-default only",
+    "errorgettinglightcoursecomponenttypes": "Could not load component types. Please refresh and try again.",
     "lightcourseadministration": "Light Course Administration",
     "lightcoursetemplates": "Light Course Templates",
     "lightcoursetemplatesbacktolist": "Back to templates",
