@@ -77,7 +77,7 @@ div[name="_extensions"], div[name="_aleido"], div[name="_tileMenu"] {
   }
 }
 
-.list-items, div[name="_style"], div[name="_mobilestyle"], div[name="_position"], div[name="_positionSelect"], 
+.list-items, div[name="_style"], div[name="_mobilestyle"], div[name="_position"], div[name="_initialPosition"], div[name="_sizing"], div[name="_positionSelect"], 
 div[name="_itemDimensions"], div[name="_pin"], div[name="_icon"], div[name="_media"], div[name="_transcript"], 
 div[name="_itemButtons"], div[name="_options"], div[name="_activity"], div[name="_pdf"], div[name="_columns"] {
   background-color: rgba(@aleido-extra-light-green, 0.5);
@@ -113,6 +113,38 @@ div[name="_pdf"] {
   padding: 1rem;
 }
 
+.field-object-gamification {
+  .fieldset-object {
+    background-color: #fff;
+    flex-direction: column;
+    display: flex;
+  }
+  .field-styling {
+    background-color: #fff;
+  }
+  .field {
+    padding: 1rem;
+
+    label[title="_audio"], label[title="_styling"], label[title="_sizing"], label[title="_position"], label[title="_character"], label[title="_backgroundImage"],
+    label[title="_positionIcon"], label[title="_initialPosition"], label[title="_startHereIndicator"], label[title="_stopIcons"], label[title="_hotspots"],
+    label[title="_items"], label[title="_floatingBadges"], label[title="_autoCollapse"], label[title="_icon"], label[title="_onIcon"], label[title="_numberWords"],
+    label[title="_graphic"], label[title="_scoringBands"], label[title="_buttons"]  {
+      font-weight: @font-weight-bold!important;
+    }
+  }
+
+  label {
+    font-weight: @font-weight-bold;
+  }
+  fieldset {
+    border: none;
+    background-color: transparent;
+    label {
+      font-weight: @font-weight;
+    }
+  }
+}
+
 .field {
   position: relative;
   padding: 10px 30px;
@@ -138,6 +170,8 @@ div[name="_pdf"] {
   //   color: @aleido-dark-green;
   //   font-weight: @font-weight;
   // }
+
+  
   &-styling, div[name="_graphic"], div[name="_bgSize"], div[name="_bgPosition"], div[name="_feedback"], div[name="_buttons"] {
     background-color: rgba(@aleido-extra-light-green, 0.5);
     .field {
