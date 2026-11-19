@@ -66,6 +66,12 @@ Where a course uses the glossary and resources extensions, light editors can mai
 
 Each resource row displays its **Unique ID** in a read-only, copyable field. New resources receive their ID when saved.
 
+Both Light and Full Course **Content Preview**, their content-only Word exports
+and their storyboard Word exports show **Unique ID: ...** beneath each resource
+title when an ID is present. The ID is reference-only: changing it in a Light
+Course Word document does not change the stored ID on import. Resource IDs do
+not contribute to word counts.
+
 If a course doesn't have the glossary or resources extension selected, the editor will say so rather than let entries be added and then quietly dropped. These lists carry across when a light course is converted, in the same way as other translatable content.
 
 Each enabled list also has **Data import** controls. Download its CSV template, choose a file, then append to the current list or replace it after confirmation. The columns and boolean values match Full Course Data Import. Rows missing required values are skipped and reported; a file with no valid rows leaves the list unchanged. Resource IDs must be unique within the resulting list; leave an ID blank to generate one automatically. Imports use the normal draft autosave, revision checks and history, and are unavailable on converted (locked) courses. A save error is shown explicitly rather than reporting a successful import.
@@ -183,13 +189,21 @@ Markdown exports/imports do not transfer discussions.
 
 ## Turning a light course into a full course
 
-Only a full administrator can convert a light course, and only its latest saved version can be converted. The tool will first check that its components, selected Menu, Theme and Extensions, images, media and required default settings are available and valid. Administrators will have a configuration area for default plugin selections, graphic placeholders and required non-text values, including example/default media files.
+Only a full administrator can convert a light course, and only its latest saved version can be converted. Save current edits and create a new version if the draft has changed since that version.
 
-Successful conversion creates a new full course with its pages, articles, blocks, components, item text and other translatable content already in place. Selected plugins and configured defaults are applied, including left/right placement for paired components and the chosen Next/Back/Menu/Help/Side Drawer/Reflection icons. A full administrator can then edit the resulting full course in the normal editor.
+Administrators configure missing required values under **Light Course > Conversion Defaults**, separately from Component Defaults. These settings never change existing light content. Only missing or invalid required values receive proposed fallbacks; valid authored values and optional empty fields are preserved. The explicit **Graphic placeholder for all items** setting is an exception for optional item images: it can fill missing/invalid graphics while preserving valid images, item text and order. It does not replace the items array.
+
+Select **Convert to Full Course** to run a read-only check of installed plugins, required fields, layouts, navigation icons and assets. The review shows all errors and any proposed fallback values. Resolve errors and explicitly approve the review before conversion can start.
+
+Successful conversion creates a new full course with its pages, articles, blocks, components, item text and other translatable content already in place. Selected plugins, paired component layouts, glossary/resources/help, resource IDs and supported navigation icons carry across. The Back button is fixed, not configurable. Images are copied to ordinary Asset Management or reuse an identical existing asset. The new course opens in the normal editor.
+
+Page/component Unique IDs require the selected Unique ID extension. Article/block Unique IDs currently prevent conversion because the installed extension does not support those owners.
 
 The document header sections (version history, reviewing instructions, developer information, terminology and the help-screen style choice) and each component's Graphics Notes and Developer Notes are not needed once a full course exists, so none of them carry over - they remain visible on the light course for reference.
 
-The light course becomes read-only **only after** the full course has been created successfully. Its saved versions can still be reviewed, compared and exported. If conversion fails, the light course remains editable and the administrator receives an explanation of what must be fixed.
+The light course is temporarily locked while conversion runs and remains read-only after successful conversion. Its saved versions can still be reviewed, compared and exported. A failed conversion removes its partial output and restores editing if cleanup succeeds. An interrupted conversion or cleanup failure stays locked for administrator inspection rather than allowing duplicate or incomplete output.
+
+See [admin conversion details](LIGHT_COURSE_PHASE7_ADMIN_CONVERSION.md) for configuration, API and recovery guidance.
 
 ## What stays in the full editor?
 

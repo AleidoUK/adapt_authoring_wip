@@ -4,6 +4,10 @@
   "id": "http://jsonschema.net",
   "required":false,
   "properties":{
+    "_lightCourseConversionId": {
+      "type": "string",
+      "editorOnly": true
+    },
     "createdAt": {
       "type":"date",
       "id": "http://jsonschema.net/createdAt",

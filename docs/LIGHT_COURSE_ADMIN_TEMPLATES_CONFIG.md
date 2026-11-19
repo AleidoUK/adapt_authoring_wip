@@ -16,10 +16,26 @@ Validated via the full backend suite (175 passing / the same 14 pre-existing unr
 
 ## New backend routes
 
+### Conversion Defaults
+
+**Light Course > Conversion Defaults** is a separate administrator screen for
+fallback values used only when converting to a Full Course. It reads installed
+required fields from `GET /api/lightcourseconfig/conversionschema` and stores
+values under `lightcourseconfig.conversionDefaults`. It does not change Component
+Defaults, existing course/template content or ordinary starting settings.
+
+Only missing/invalid required values receive proposed replacements, subject to
+explicit conversion approval. Valid content and optional empty fields are
+preserved. Configured values are schema-validated on save, and placeholder-bank
+references contribute to asset usage counts.
+
+See [admin conversion](LIGHT_COURSE_PHASE7_ADMIN_CONVERSION.md) for group/path
+syntax, the review workflow, locking and interrupted-conversion recovery.
+
 ### Placeholder asset uses
 
 The **Light Course Placeholder Assets** list has a **Uses** column. Expand a
-non-zero count to see linked courses, templates and component defaults, with a
+non-zero count to see linked courses, templates, component defaults and conversion defaults, with a
 per-editor count; hover over an entry for its saved field paths. Each distinct
 field referencing the asset counts once, including component screenshots,
 nested item images/audio and managed asset links in rich text.

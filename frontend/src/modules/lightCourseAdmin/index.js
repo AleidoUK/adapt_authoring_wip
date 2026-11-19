@@ -7,6 +7,7 @@ define(function(require) {
   var LightCourseTemplateEditorView = require('./views/lightCourseTemplateEditorView');
   var LightCourseConfigModel = require('./models/lightCourseConfigModel');
   var LightCourseConfigView = require('./views/lightCourseConfigView');
+  var LightCourseConversionDefaultsView = require('./views/lightCourseConversionDefaultsView');
   var LightCourseComponentDefaultCollection = require('./collections/lightCourseComponentDefaultCollection');
   var LightCourseComponentDefaultModel = require('./models/lightCourseComponentDefaultModel');
   var LightCourseComponentDefaultListView = require('./views/lightCourseComponentDefaultListView');
@@ -32,6 +33,7 @@ define(function(require) {
   Origin.on('origin:dataReady login:changed', function() {
     Origin.permissions.addRoute('lightCourseTemplates', data.featurePermissions);
     Origin.permissions.addRoute('lightCourseConfig', data.featurePermissions);
+    Origin.permissions.addRoute('lightCourseConversionDefaults', data.featurePermissions);
     Origin.permissions.addRoute('lightCourseComponentDefaults', data.featurePermissions);
     Origin.permissions.addRoute('lightCourseAssets', data.featurePermissions);
 
@@ -45,6 +47,14 @@ define(function(require) {
       text: parent,
       icon: 'fa-cogs',
       sortOrder: 4
+    });
+    Origin.globalMenu.addSubItem({
+      parent: parent,
+      location: 'global',
+      text: Origin.l10n.t('app.lightcourseconversiondefaults'),
+      icon: 'fa-exchange',
+      callbackEvent: 'lightCourseConversionDefaults:open',
+      sortOrder: 8
     });
 
     Origin.globalMenu.addSubItem({
@@ -90,6 +100,19 @@ define(function(require) {
 
   Origin.on('globalMenu:lightCourseConfig:open', function() {
     Origin.router.navigateTo('lightCourseConfig');
+  });
+
+  Origin.on('globalMenu:lightCourseConversionDefaults:open', function() {
+    Origin.router.navigateTo('lightCourseConversionDefaults');
+  });
+  Origin.on('router:lightCourseConversionDefaults', function() {
+    Origin.trigger('sidebar:views:remove');
+    Origin.trigger('sidebar:sidebarContainer:hide');
+    Origin.trigger('location:title:update', { title: Origin.l10n.t('app.lightcourseconversiondefaults') });
+    (new LightCourseConfigModel()).fetch({
+      success: function(model) { Origin.contentPane.setView(LightCourseConversionDefaultsView, { model: model }); },
+      error: function() { Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgettinglightcourseconfig') }); }
+    });
   });
 
   Origin.on('globalMenu:lightCourseComponentDefaults:open', function() {

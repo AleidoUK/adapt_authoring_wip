@@ -49,7 +49,7 @@ define(function(require) {
     },
 
     isLocked: function() {
-      return this.get('conversionStatus') === 'converted';
+      return ['converted', 'converting'].indexOf(this.get('conversionStatus')) !== -1;
     }
   });
 

@@ -66,7 +66,7 @@ define(function(require) {
         $container.append(self.renderRow(item, index));
       });
       this.$el.html('').append($container).append(
-        '<button class="btn secondary-hollow light-course-item-list-add">' + Origin.l10n.t('app.lightcourseadditem') + '</button>'
+        '<button class="btn secondary light-course-item-list-add">' + Origin.l10n.t('app.lightcourseadditem') + '</button>'
       );
       if (this.importExtension && !this.courseModel.isLocked()) this.renderImport();
     },

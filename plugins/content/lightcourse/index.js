@@ -133,7 +133,8 @@ LightCourseContent.prototype.hasPermission = function (action, userId, tenantId,
   if (contentItem && contentItem._tenantId && contentItem._tenantId.toString() !== tenantId.toString()) {
     return next(null, false);
   }
-  if (('update' === action || 'delete' === action) && contentItem && contentItem.conversionStatus === 'converted') {
+  if (('update' === action || 'delete' === action) && contentItem &&
+      ['converted', 'converting'].includes(contentItem.conversionStatus)) {
     return next(null, false); // converted drafts are locked against further mutation
   }
   var resource = permissions.buildResourceString(tenantId, '/api/content/lightcourse/' + ((contentItem && contentItem._id) || '*'));
@@ -157,6 +158,9 @@ LightCourseContent.prototype.getModelName = function () {
  * validation before delegating to the base implementation.
  */
 LightCourseContent.prototype.create = function (data, next) {
+  data.conversionStatus = 'none';
+  delete data.conversionAttempt;
+  delete data._convertedCourseId;
   var user = usermanager.getCurrentUser();
   var self = this;
   var templateId = data._templateId;
@@ -307,6 +311,10 @@ LightCourseContent.prototype.destroy = function (search, force, next) {
 LightCourseContent.prototype.update = function (search, delta, next) {
   var user = usermanager.getCurrentUser();
   var self = this;
+  // Conversion state is written only by the admin conversion pipeline, never by draft saves.
+  delete delta.conversionStatus;
+  delete delta.conversionAttempt;
+  delete delta._convertedCourseId;
 
   if ('number' !== typeof delta.revision) {
     return next(new Error('a client-known "revision" value is required to save a light course'));
@@ -397,7 +405,7 @@ LightCourseContent.prototype.update = function (search, delta, next) {
 
             var Model = db.getModel('lightcourse');
             Model.findOneAndUpdate(
-              { _id: existing._id, revision: clientRevision },
+              { _id: existing._id, revision: clientRevision, conversionStatus: { $nin: ['converted', 'converting'] } },
               { $set: setDelta, $inc: { revision: 1 } },
               { new: true },
               function (err, updated) {
@@ -459,7 +467,7 @@ function nextVersionNumber(draft, bump) {
         // Reserve the number before creating the snapshot; do not replace draft content until
         // that immutable snapshot has been persisted successfully.
         Model.findOneAndUpdate(
-          { _id: draft._id, revision: draft.revision },
+          { _id: draft._id, revision: draft.revision, conversionStatus: { $nin: ['converted', 'converting'] } },
           { $set: Object.assign({}, versionInfo, { currentVersionNumber: number }), $inc: { revision: 1 } },
           { new: true },
           function(error, reserved) {
@@ -592,7 +600,7 @@ function publishVersion(req, res) {
 
           var Model = db.getModel('lightcourse');
           Model.findOneAndUpdate(
-            { _id: id, revision: clientRevision },
+            { _id: id, revision: clientRevision, conversionStatus: { $nin: ['converted', 'converting'] } },
             {
               $set: {
                 versionMajor: versionInfo.versionMajor,
@@ -887,6 +895,9 @@ function initialize() {
     var dataImport = require('../../../lib/lightcourse/dataImport');
     rest.get('/content/lightcourse/:id/data-import/:extension/template', dataImport(new LightCourseContent(), true));
     rest.post('/content/lightcourse/:id/data-import/:extension', dataImport(new LightCourseContent(), false));
+    var conversion = require('../../../lib/lightcourse/conversion');
+    rest.post('/content/lightcourse/:id/conversion/preflight', conversion.route(false));
+    rest.post('/content/lightcourse/:id/conversion', conversion.route(true));
     rest.post('/content/lightcourse/:id/versions', publishVersion);
     rest.get('/content/lightcourse/:id/versions', listVersions);
     // NOTE: "compare" must be registered before the ":versionId" param route below, otherwise

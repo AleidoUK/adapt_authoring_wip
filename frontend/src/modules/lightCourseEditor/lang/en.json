@@ -1,5 +1,15 @@
 {
   "app": {
+    "lightcourseconvert": "Convert to Full Course",
+    "lightcourseconversionrunning": "Conversion is in progress. This Light Course is temporarily read-only. If the operation was interrupted, ask an administrator to inspect its conversion attempt before retrying.",
+    "lightcourseconversionchecking": "Checking the latest saved version...",
+    "lightcourseconversionversion": "Saved version %{version}",
+    "lightcourseconversionready": "Preflight passed. Review any proposed fallbacks before approving.",
+    "lightcourseconversionblocked": "Conversion is blocked. Resolve all errors, then review again.",
+    "lightcourseconversionreview": "Run preflight again",
+    "lightcourseconversionapprove": "Approve fallbacks and convert",
+    "lightcourseconversionreviewhelp": "Only the latest saved version can be converted. The draft must match that version. Required missing or invalid fields are shown with their proposed fallbacks. Optional empty fields are left unchanged.",
+    "lightcourseconversionconfirm": "Approve all displayed fallbacks and create the Full Course? The Light Course will be locked only after successful creation. Its saved versions remain available.",
     "contentpreview": "Content preview",
     "lightcourseread": "Content preview",
     "lightcoursereadimages": "Show images",

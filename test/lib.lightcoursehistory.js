@@ -45,6 +45,7 @@ function copy(value) {
 function matches(record, search) {
   return Object.keys(search).every(function(key) {
     if (search[key] === undefined) return true;
+    if (search[key] && search[key].$nin) return search[key].$nin.indexOf(record[key]) === -1;
     if (search[key] && search[key].$ne !== undefined) return record[key] !== search[key].$ne;
     return record[key] === search[key];
   });

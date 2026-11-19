@@ -1,0 +1,32 @@
+<div class="light-course-config-toolbar">
+  <button class="btn primary light-course-conversion-save" disabled>{{t 'app.lightcourseconfigsave'}}</button>
+</div>
+<section class="light-course-component-default-editor-section">
+  <h1>{{t 'app.lightcourseconversiondefaults'}}</h1>
+  <p>{{t 'app.lightcourseconversiondefaultshelp'}}</p>
+  <p class="light-course-conversion-error" role="alert"></p>
+  <p>{{t 'app.lightcourseconversiongrouphelp'}}</p>
+  <div class="light-course-conversion-selectors">
+    <div>
+      <label for="light-course-conversion-core">{{t 'app.lightcourseconversioncontenttypes'}}</label>
+      <select id="light-course-conversion-core" class="light-course-conversion-group" data-category="core" disabled></select>
+    </div>
+    <div>
+      <label for="light-course-conversion-components">{{t 'app.lightcourseconversioncomponents'}}</label>
+      <select id="light-course-conversion-components" class="light-course-conversion-group" data-category="component" disabled></select>
+    </div>
+    <div>
+      <label for="light-course-conversion-extensions">{{t 'app.lightcourseconversionextensions'}}</label>
+      <select id="light-course-conversion-extensions" class="light-course-conversion-group" data-category="extension" disabled></select>
+    </div>
+    <div>
+      <label for="light-course-conversion-menus">{{t 'app.lightcourseconversionmenus'}}</label>
+      <select id="light-course-conversion-menus" class="light-course-conversion-group" data-category="menu" disabled></select>
+    </div>
+    <div>
+      <label for="light-course-conversion-themes">{{t 'app.lightcourseconversionthemes'}}</label>
+      <select id="light-course-conversion-themes" class="light-course-conversion-group" data-category="theme" disabled></select>
+    </div>
+  </div>
+  <div class="light-course-conversion-fields"></div>
+</section>

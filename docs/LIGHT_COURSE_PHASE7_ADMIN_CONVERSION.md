@@ -1,49 +1,176 @@
 # Phase 7: Admin Conversion
 
-Part of the [Light Course Editor implementation plan](LIGHT_COURSE_IMPLEMENTATION_PLAN.md). Depends on [Phase 1](LIGHT_COURSE_PHASE1_SCHEMA_SPIKE.md) (icon/plugin validation matrix), [Phase 2](LIGHT_COURSE_PHASE2_STORAGE_API_AUTH.md) (locking/permissions) and [Phase 6](LIGHT_COURSE_PHASE6_VERSIONS_COMPARISON_IMPORT.md) (only the latest published version is convertible).
+Part of the [Light Course Editor implementation plan](LIGHT_COURSE_IMPLEMENTATION_PLAN.md).
 
-## Reuse the existing import pipeline's approach, not full-course CRUD directly
+## Administrator workflow
 
-The closest existing reference for "build real `course`/`contentobject`/`article`/`block`/`component` Mongo documents with correct parent-ID remapping and asset import from an external representation" is [plugins/output/adapt/importsource.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/plugins/output/adapt/importsource.js) (confirmed sequence: `retrieveImportInfo -> prepare -> installPlugins -> addAssets -> cacheMetadata -> importContent`, ~lines 24-72; `importContent()` creates the Mongo documents and reconnects parent IDs from the cached, ID-remapped JSON). Conversion should follow the same *shape* of pipeline - read the light course's final content, remap IDs, create real content documents in parent-first order, import/relink assets - rather than inventing a new content-creation mechanism. It should **not** call `importsource.js` directly (that module is built around parsing an uploaded ZIP's file layout, which a light course isn't), but should mirror its ID-remapping and ordered-creation strategy.
+1. Open **Light Course > Conversion Defaults** and configure any required fallback values.
+2. Save the Light Course and create its final saved version. The current draft must match the latest saved version's content, tags and button icon choices.
+3. Select **Convert to Full Course** in the Light Course editor. Preflight reads the source, installed schemas, settings and assets without writing course records.
+4. Resolve all reported errors. Review the proposed replacements, including the original value, fallback and field path.
+5. Explicitly approve the review and conversion. Successful conversion opens the new course in the normal Full Course editor.
 
-## Preflight (confirmed validation targets from Phase 1)
+Both conversion endpoints require tenant-wide administrator update permission, not merely Light Editor access. Changes affecting the proposed conversion, including draft content, required defaults or managed asset state, invalidate the review and require preflight again.
 
-Before any write:
-- **Component/plugin availability**: every `_component` in the tree has a live `componenttype` record (not just a stored snapshot - see [Phase 4](LIGHT_COURSE_PHASE4_COMPONENTS_PLUGINS_IMAGES.md)'s "missing plugin" handling); same for the selected menu/theme/extensions via `menutype`/`themetype`/`extensiontype`.
-- **Required defaults**: every field the installed schema requires but the light editor didn't expose (video/audio/other settings, per [Phase 4](LIGHT_COURSE_PHASE4_COMPONENTS_PLUGINS_IMAGES.md)) has a configured default in `lightcourseconfig` ([Phase 2](LIGHT_COURSE_PHASE2_STORAGE_API_AUTH.md)) - do not assume a placeholder file's mere presence satisfies the plugin's schema validation; actually validate the composed document against the real schema before writing (reuse whatever schema-validation call [lib/contentmanager.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/lib/contentmanager.js)'s own `create` path already performs, so conversion fails the same way manual content creation would).
-- **Image/audio/media assets and unique IDs**: referenced bank assets still exist and belong to the tenant; `uniqueId` values map correctly to `_extensions._uniqueId._id` (per Phase 1) on the right node types.
-- **Button/help-screen icon validation, per the confirmed Phase 1 finding**: validate each chosen icon **against its owning extension's specific option list**, not a single shared theme/menu list (`adapt-aleido-menuButton`: 9 options, `adapt-aleido-reflection`: 5 options, `adapt-aleido-help`: 2 options, side-drawer: freeform text so no validation needed, **Back button: not configurable at all - skip validation for it entirely, don't require or reject a value**). Fail with an actionable, per-control error naming the invalid icon and the valid set, not a generic "invalid configuration" message.
-- **Glossary/resources/help extension installed-ness**: if the course selected these extensions, confirm they're actually installed in the target framework version before writing (per the main plan).
-- **Schema validation and tenant membership** for every node and every referenced asset.
+## Separate Conversion Defaults
 
-Show all failures together (not fail-fast on the first one) so the admin gets one actionable list per the main plan's "actionable failures before any write."
+Conversion Defaults are stored in the tenant's `lightcourseconfig.conversionDefaults`. They do not change Component Defaults, existing Light Course content or templates. The screen lists configurable required fields from installed core/component/plugin schemas; internal IDs and ownership fields are not configurable.
 
-## Conversion write
+Separate **Content types**, **Components**, **Extensions**, **Menus** and **Themes**
+dropdowns list entries alphabetically by their displayed name. Only one entry is
+active at a time; selecting another retains edits in memory until **Save** stores
+all changes. Categories with no configurable required fields are disabled.
 
-1. Create the `course` document, then `contentobject`/`article`/`block`/`component` documents in parent-first order, remapping light-course stable IDs to new Mongo IDs as each parent is created (same dependency order `importsource.js` already uses).
-2. Apply selected plugins (menu/theme/extensions) and the admin-configured defaults to the new documents.
-3. Assign left/right layout for paired components (per the main plan - this is a `_classes`/layout-field write on the component, following whatever convention the installed theme's two-column block layout already uses - confirm the exact class/field name against the target theme during implementation, it wasn't inspected in this spike).
-4. Write the chosen navigation icons into the generated course's config/extension documents at the paths identified in the Phase 1 matrix (e.g. `_help._navItem._icon`, the menuButton extension's own icon field, `_config._drawer._iconClass`) - this is the **one** piece of document header data that *does* carry over, per the main plan.
-5. Populate glossary/resources/help extension configuration from the saved entries, carrying resource ID values through unchanged (pending the Phase 1 follow-up on the real resource ID field name).
-6. Discard all other document header data and every component's Graphics Notes/Developer Notes - they stay on the light course for reference only (confirmed as already structurally separated from component schema values per [Phase 4](LIGHT_COURSE_PHASE4_COMPONENTS_PLUGINS_IMAGES.md), so "discarding" them is simply never reading those fields during conversion, not an active redaction step).
-7. Keep an ID-mapping table (light-course node ID -> new full-course Mongo ID) for audit/troubleshooting.
+Values are grouped by:
 
-## Audit trail (confirmed reusable pattern)
+- `core:<type>`, for example `core:course` or `core:config`;
+- `component:<component>`, for example `component:graphic`;
+- `extension:<extension>:<location>`, for example `extension:help:course`;
+- `menu:<menu>:<location>` and `theme:<theme>:<location>`.
 
-[plugins/content/auditlog/](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/plugins/content/auditlog) already provides a working audit-entry pattern via `app.contentmanager.addContentHook('create', '*', {when:'post'}, ...)` (confirmed in `index.js`, ~lines 70-73/88-146), writing entries with `action`/`contentType`/`contentId`/`userId`/`timestamp`/`snapshot`/`changes` to its own `auditlog` collection. Conversion will **already** generate standard `create` audit entries for every new `course`/`contentobject`/`article`/`block`/`component` document for free, since those hooks fire on `app.contentmanager.create(...)` calls regardless of caller. For the light-course-specific ID-mapping record (light ID -> full ID per node, which the generic audit hook doesn't capture), write a dedicated record - either as `metadata` on the course-level audit entry, or as its own small collection (`lightcourseconversionlog`, following the same minimal `ContentPlugin` shape as `lightcoursebankasset`) if per-node queryability is needed for troubleshooting.
+Paths are relative to the group's schema, using `[]` for each existing array item. For example:
 
-## Atomicity and idempotency
+```json
+{
+  "component:graphic": {
+    "_graphic.large": "<light-course-image-bank-id>",
+    "_graphic.small": "<light-course-image-bank-id>"
+  },
+  "component:accordion": {
+    "_items[]._graphic.src": "<light-course-image-bank-id>"
+  }
+}
+```
 
-No existing Mongo transaction usage was found in this codebase to copy (confirmed: content creation throughout uses sequential `db.create`/`db.update` calls, not Mongo multi-document transactions). Given that, implement conversion as:
-1. Write all new documents tagged with a `_lightCourseConversionId` (a generated token) so a failed attempt's partial writes are identifiably group-deletable.
-2. On any failure after step 1 begins, delete every document tagged with that token (cleanup), then return the failure - the light course stays editable and unlocked.
-3. Only after the full set is written **and** validated (e.g. attempt a schema-level re-read/validate of the new course, "verify the generated course opens and validates before setting the converted state," per the main plan) do you: set `lightcourse.conversionStatus = 'converted'` and `_convertedCourseId`, using the same conditional-update-on-`revision` mechanism from [Phase 2](LIGHT_COURSE_PHASE2_STORAGE_API_AUTH.md) so a retry can't double-lock or double-create.
-4. For retried conversions (idempotency): check `conversionStatus` first - if already `converted`, return the existing `_convertedCourseId` rather than creating a second course; if `failed`/`none`, proceed as a fresh attempt (prior partial writes, if any, were already cleaned up in step 2).
+Required fields and per-item graphic placeholders can be configured. Required objects
+expand into normal controls for their nested fields. Inside item arrays, only
+required fields without a valid installed default are shown; optional fields and
+fields with usable defaults are hidden. Values such as `false` and `0` count as
+defaults when valid for the field, whereas an invalid/empty required text default
+does not. Hidden item fields use valid installed defaults; existing optional
+values in configured fallback items are retained when there is no usable default.
+Other required arrays have inline item controls with Add/Remove actions. This filter
+does not affect fields outside item arrays or the separate **Graphic placeholder
+for all items** controls. Media fields use the placeholder bank picker.
+The container checkbox enables the whole composed object/array as a fallback;
+this does not make optional children required or allow overwriting valid authored
+values. Enabled empty scalar values and schema-invalid configured values are
+rejected. Defaults for temporarily unavailable plugin groups remain stored.
 
-## Permissions
+For every component, `_supportedLayout` and the whole `_items` array editor are
+hidden from Conversion Defaults. Layout support comes from the installed plugin;
+authored item arrays are maintained in the Light Course. Individual required item
+fields without usable defaults and the separate per-item graphic placeholders
+remain available. Other content types and plugin settings are unchanged.
 
-Only `SuperAdmin`-equivalent users can call the convert route (`urn:x-adapt:{{tenantid}}/api/content/lightcourse/*/convert`, per [Phase 2](LIGHT_COURSE_PHASE2_STORAGE_API_AUTH.md) - already covered by `SuperAdmin.json`'s wildcard, no new role grant needed). Only a full administrator can then edit the resulting full course - this is already true automatically, since the new course is a completely ordinary `course` document subject to the existing, unmodified full-course permission rules.
+Where a required object/array also has individually listed descendant controls,
+the grouped container is hidden to avoid showing the same settings twice (for
+example `_columns` versus `_columns._large`, `_columns._medium` and
+`_columns._small`). Individual controls and per-item graphic placeholders remain.
+Containers without individually listed fields keep their grouped editor.
+Previously saved grouped fallbacks remain stored and retain their existing
+conversion behaviour; hiding a duplicate does not delete configuration.
 
-## Tests
+Conversion preserves valid authored values, including optional empty fields except
+for explicitly enabled per-item graphic placeholders. For missing/invalid required
+values, it proposes a configured Conversion Default or, if none is configured, a
+valid installed-schema default. For item fields with a usable installed default,
+that default takes precedence over older custom per-item defaults (except the
+explicit per-item graphic placeholders). Valid authored values are still kept.
+Existing nested objects are completed field by
+field rather than replaced wholesale. Defaults for array items apply only to
+existing items unless the array itself requires a fallback.
 
-`test/lib.lightcourseconversion.js`: successful conversion produces a valid, openable full course and locks only the light course; a missing-plugin/invalid-icon/failed-write preflight failure leaves the light course editable with no partial full-course records; retrying a successful conversion returns the same course rather than duplicating it; retrying a failed conversion cleans up and starts fresh; older light versions remain reviewable/comparable/exportable after locking.
+### Graphic placeholders for all items
+
+Image fields inside item arrays have a separate **Graphic placeholder for all
+items** checkbox and picker, even when the image is optional. For example,
+`component:accordion` can configure `_items[]._graphic.src`. Enable each relevant
+path to fill missing, empty, schema-invalid, missing-file or wrong-MIME graphics
+in existing items. Valid authored graphics, alt text, item text, order and other
+fields remain unchanged. The source Light Course is never changed.
+
+Missing graphic objects are created only as needed for this explicit setting;
+missing/empty item arrays are not populated by it. It applies to each existing
+item, including nested item arrays. Replacements still require preflight approval,
+and an invalid/unavailable placeholder blocks conversion.
+
+An existing saved **whole `_items` array** setting is different: it supplies an entire fallback
+array when a required array is absent, invalid in type, or shorter than its
+required minimum. It does not merge an example item's graphic into existing
+items. This whole-array editor is no longer shown for components; use the per-item
+graphic picker for missing graphics instead.
+
+### Question options
+
+Component Conversion Defaults also show these boolean options wherever declared
+by the installed component schema: **Display Model Answer**, **Display item
+correctness**, **Display Feedback**, **Display Marking**, **Display Attempts**,
+**Randomise answers**, **Record interaction** and **Enable item scoring**.
+Unsupported options are not invented for components that lack them.
+
+The first checkbox enables a custom fallback; the labelled setting checkbox
+chooses its true/false value. Enabled fallbacks fill missing/invalid settings and
+appear in preflight for approval. Valid authored `true` and `false` values are
+preserved. Unticked optional settings retain normal installed behaviour; required
+settings still use normal required-field fallback rules.
+
+Every replacement requires explicit review approval; no placeholders are silently written into the Light Course. Placeholder-bank usage counts include Conversion Defaults.
+
+## Preflight and mapping
+
+The implementation is split between [schema normalization](../lib/lightcourse/conversionSchema.js), the [installed schema catalogue](../lib/lightcourse/conversionCatalog.js), the [pure planner](../lib/lightcourse/conversionPlan.js) and the [conversion service](../lib/lightcourse/conversion.js).
+
+Preflight checks:
+
+- latest saved version, unchanged draft, valid tree, unique stable node IDs and supported component layouts;
+- installed components and selected menu/theme/extensions, including menu/theme package names;
+- composed records against inherited installed schemas, with aggregated required-field and type/option failures;
+- managed asset availability, tenant ownership, stored files, MIME category and checksums;
+- authored Unique IDs and per-control icons against their owning installed extension schemas.
+
+Required managed media, and optional per-item images with an explicitly configured
+graphic placeholder, may use a valid fallback when missing or of the wrong type,
+but only as a review proposal. Other invalid optional media and unresolved assets
+in rich text block conversion rather than being silently removed. External HTTP(S)
+media URLs remain external; their remote availability is not checked.
+
+Conversion creates ordinary course/page/article/block/component records in parent-first order with fresh Mongo IDs, maintaining a stable-node-to-Mongo-ID map. It updates the single config automatically created by the course creation hook. Selected plugins are enabled; menu/theme short identifiers are mapped to installed package names. Component layouts use `_layout: full|left|right`.
+
+Authored titles, body/instruction and installed-schema content fields carry across. Where the Light Course has a title but no separate display title, that title also becomes the Full Course display title. Explicit display titles, including empty ones, are preserved. Tags, glossary entries, resource entries and their `_id` values, help content and supported button icons are retained. The Back button is fixed and is not configurable.
+
+Authored `uniqueId` maps to `_extensions._uniqueId._id` on pages and components, requiring the Unique ID extension. Article/block Unique IDs currently block conversion because the installed extension does not support those owners.
+
+Graphics/Developer Notes, comments, screenshot references, component presets and document-header metadata other than supported button icons remain solely in the Light Course.
+
+Referenced Light Course bank assets are copied through the ordinary Asset Management importer, reusing existing deduplicated assets where applicable. Existing ordinary assets are reused. Schema media fields, managed rich-text URLs, resource `_assetId` and help `_graphicAssetId` are rewritten to `course/assets/<filename>`. Courseasset associations identify the actual owning record and parent.
+
+## API
+
+- `GET /api/lightcourseconfig/conversionschema`: administrator-only required-field catalogue.
+- `POST /api/content/lightcourse/:id/conversion/preflight`: returns `{ hash, versionNumber, proposals, errors, ready }`.
+- `POST /api/content/lightcourse/:id/conversion`: accepts `{ hash, approved: true }`, recomputes preflight and returns `{ courseId, idMap }` on success.
+
+Both conversion endpoints return the existing `{ courseId, converted: true }` for a source already converted. Concurrent or interrupted conversions return HTTP 409 rather than creating another course. Authentication/authorization failures return 401/403; invalid or stale approval returns 409. Preflight errors must be resolved before writing.
+
+## Locking, validation and rollback
+
+Before writing, conversion atomically reserves the source revision, sets `conversionStatus: converting` and persists `conversionAttempt` with its token, planned course ID and ID map. The source cannot be edited or deleted during conversion.
+
+Created course/content records carry an editor-only `_lightCourseConversionId`; config is associated through `_courseId`. After writing, conversion re-reads records, validates them through the actual database models and checks that composed schema-field values survived persistence. A dedicated source audit entry records the version and ID mapping, in addition to ordinary content-creation history.
+
+Only then does a conditional update set `conversionStatus: converted` and `_convertedCourseId`. The original content and saved versions remain available for reading, comparison and export.
+
+On a caught failure, conversion removes the attempt's generated content/config/courseasset records and dedicated conversion audit entry. Newly imported assets are removed only if unused; existing/reused assets are never deleted by rollback. Normal create audit entries can remain as evidence of the failed attempt. Successful cleanup unlocks the original for correction and retry.
+
+### Interrupted conversion recovery
+
+There is **no automatic stale-lock reset or recovery endpoint**. A process interruption, or a failure to clean up, leaves the source `converting`. Cleanup failures explicitly report that administrator attention is required.
+
+An administrator must first establish that the conversion process is no longer running, then inspect the persisted `conversionAttempt`, its course ID/token/ID map, generated records and logs. Verify and remove only that attempt's incomplete output and unused newly imported assets before clearing its lock. Do not clear the lock while a worker is still running, delete reused assets or mark an unverified partial course as converted. Take a database backup before manual recovery.
+
+## Verification
+
+[Isolated tests](../test/lib.lightcourseconversion.js) cover required-only defaults, unchanged source snapshots, plugin/layout/icon validation, permissions, asset checks, explicit/stale approval, concurrency, parent/asset ID mapping, persistence validation, retry, rollback and recovery locks. Related suites cover placeholder usage, history, saved-version imports, CSV imports and Light Course validation.
+
+These are isolated tests with mocked persistence, not a live database/browser conversion. Restart the application to load the new backend/schema code, refresh the rebuilt frontend and validate a representative disposable course end to end before converting production content.

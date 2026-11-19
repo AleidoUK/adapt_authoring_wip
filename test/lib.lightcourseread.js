@@ -38,7 +38,7 @@ function fixture() {
       ] }] }
     ] }] },
     glossaryItems: [{ term: 'Glossary term', description: 'Glossary description' }],
-    resourceItems: [{ title: 'Resource heading', description: 'Resource content', _link: 'https://example.com/resource' }],
+    resourceItems: [{ _id: 'resource-01', title: 'Resource heading', description: 'Resource content', _link: 'https://example.com/resource' }],
     helpContent: { popup: { title: 'Help heading', body: 'Help content', instruction: 'Help instruction' },
       items: [{ title: 'Help item', body: 'Help item content' }] }
   };
@@ -111,6 +111,21 @@ describe('Light course reading content', function() {
     data.pluginSelections.extensions = ['help'];
     data.helpContent.popup.title = '';
     assert(JSON.stringify(await read(data)).includes('Help content'));
+  });
+
+  it('shows resource Unique IDs in preview and its Word export without exposing component IDs', async function() {
+    var data = fixture(), original = JSON.stringify(data), content = await read(data);
+    var index = content.entries.findIndex(function(entry) { return entry.text === 'Resource heading'; });
+    assert.deepStrictEqual(content.entries[index + 1], { type: 'text', text: 'Unique ID: resource-01' });
+    var xml = await part(await read(data, {}, null, true), 'word/document.xml');
+    assert(xml.includes('Unique ID: resource-01'));
+    assert(!xml.includes('Hidden unique ID'));
+    assert.strictEqual(JSON.stringify(data), original);
+    delete data.resourceItems[0]._id;
+    assert(!JSON.stringify(await read(data)).includes('Unique ID:'));
+    data.resourceItems[0]._id = 'resource-01';
+    data.pluginSelections.extensions = [];
+    assert(!JSON.stringify(await read(data)).includes('resource-01'));
   });
 
   it('honours nested enablement and visible titles without losing learner feedback', async function() {

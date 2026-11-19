@@ -1,5 +1,17 @@
 @import 'colours';
 
+.light-course-conversion-default-field, .light-course-conversion-proposal {
+  padding: 12px 0;
+  border-bottom: 1px solid @aleido-grey-3;
+  textarea { width: 100%; min-height: 100px; box-sizing: border-box; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+}
+.light-course-conversion, .light-course-conversion-defaults {
+  .error, .light-course-conversion-error { color: #b00020; }
+}
+.light-course-editor-editable-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.light-course-editor-locked .light-course-editor-edit-current-entry { display: none; }
+
 .light-course-read {
   max-width: 900px;
   margin: 0 auto;
@@ -1010,4 +1022,26 @@
   .light-course-word-import-section { margin-top: 24px; }
   .light-course-word-file { display: block; margin: 12px 0; }
   .light-course-word-status { white-space: pre-wrap; color: #b00020; }
+}
+
+
+
+.light-course-item-list-rows {
+  margin-top: 1rem;
+  .light-course-item-list-row {
+    background: #fff;
+  }
+}
+
+.light-course-csv {
+  background: #fff;
+  padding: 1rem;
+
+  h4 {
+    font-weight: bold;
+  }
+  form label {
+    font-size: 100%;
+    border-bottom: none !important;
+  }
 }

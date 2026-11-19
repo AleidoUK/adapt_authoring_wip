@@ -31,6 +31,10 @@ util.inherits(LightCourseConfigContent, ContentPlugin);
  * @return {string|null} the first validation error found, or null if everything checked out
  */
 function validateConfig(delta) {
+  if (delta.conversionDefaults !== undefined) {
+    var conversionError = require('../../../lib/lightcourse/conversionSchema').validateDefaults(delta.conversionDefaults);
+    if (conversionError) return conversionError;
+  }
   if (delta.defaultPluginSelections !== undefined) {
     var pluginError = lightcourseValidation.validate({ pluginSelections: delta.defaultPluginSelections });
     if (pluginError) {
@@ -88,7 +92,11 @@ LightCourseConfigContent.prototype.create = function (data, next) {
   if (validationError) {
     return next(new Error(validationError));
   }
-  ContentPlugin.prototype.create.call(this, data, next);
+  var self = this;
+  validateConversionDefaults(data, function(error) {
+    if (error) return next(error);
+    ContentPlugin.prototype.create.call(self, data, next);
+  });
 };
 
 /**
@@ -99,10 +107,42 @@ LightCourseConfigContent.prototype.update = function (search, delta, next) {
   if (validationError) {
     return next(new Error(validationError));
   }
-  ContentPlugin.prototype.update.call(this, search, delta, next);
+  var self = this;
+  validateConversionDefaults(delta, function(error) {
+    if (error) return next(error);
+    ContentPlugin.prototype.update.call(self, search, delta, next);
+  });
 };
 
-var CONFIG_OBJECT_FIELDS = ['defaultPluginSelections', 'graphicPlaceholders', 'requiredDefaults', 'iconDefaults'];
+function validateConversionDefaults(data, next) {
+  if (data.conversionDefaults === undefined) return next();
+  var user = usermanager.getCurrentUser();
+  if (!user || !user.tenant) return next(new Error('Please log in.'));
+  database.getDatabase(function(error, db) {
+    if (error) return next(error);
+    var catalog = require('../../../lib/lightcourse/conversionCatalog');
+    var schema = require('../../../lib/lightcourse/conversionSchema');
+    catalog.load(db, origin().contentmanager._contentSchemas).then(function(loaded) {
+      var groups = catalog.definitions(loaded);
+      for (var group of groups) {
+        var values = data.conversionDefaults[group.key] || {};
+        for (var path of Object.keys(values)) {
+          if (!group.fields.some(function(field) { return field.path === path; })) {
+            return next(new Error('Not a configurable conversion field: ' + group.label + ' / ' + path));
+          }
+        }
+        for (var field of group.fields) {
+          if (Object.prototype.hasOwnProperty.call(values, field.path) && !schema.valid(field.schema, values[field.path])) {
+            return next(new Error('Invalid Conversion Default: ' + group.label + ' / ' + field.path));
+          }
+        }
+      }
+      next();
+    }).catch(next);
+  }, user.tenant._id);
+}
+
+var CONFIG_OBJECT_FIELDS = ['defaultPluginSelections', 'graphicPlaceholders', 'requiredDefaults', 'iconDefaults', 'conversionDefaults'];
 
 /**
  * An empty plain object `{}` value for a `Mixed`-typed Mongoose path is confirmed (via direct
@@ -281,6 +321,22 @@ function initialize() {
   origin().once('serverStarted', function () {
     rest.get('/lightcourseconfig/mine', getOrCreateMine);
     rest.get('/lightcourseconfig/requireddefaultschema', getRequiredDefaultSchema);
+    rest.get('/lightcourseconfig/conversionschema', function(req, res) {
+      var user = usermanager.getCurrentUser();
+      if (!user || !user.tenant) return res.status(401).json({ message: 'Please log in.' });
+      var resource = permissions.buildResourceString(user.tenant._id, '/*');
+      permissions.hasPermission(user._id, 'update', resource, function(error, allowed) {
+        if (error) return res.status(500).json({ message: error.message });
+        if (!allowed) return res.status(403).json({ message: 'Only administrators can configure conversion defaults.' });
+        database.getDatabase(function(error, db) {
+          if (error) return res.status(500).json({ message: error.message });
+          var catalog = require('../../../lib/lightcourse/conversionCatalog');
+          catalog.load(db, origin().contentmanager._contentSchemas).then(function(loaded) {
+            res.status(200).json(catalog.definitions(loaded));
+          }).catch(function(error) { res.status(500).json({ message: error.message }); });
+        }, user.tenant._id);
+      });
+    });
   });
 }
 

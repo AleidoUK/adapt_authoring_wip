@@ -9,6 +9,7 @@ define(function(require) {
   var LightCourseVersionNotesView = require('./lightCourseVersionNotesView');
   var LightCourseWordView = require('./lightCourseWordView');
   var LightCourseReadView = require('./lightCourseReadView');
+  var LightCourseConversionView = require('./lightCourseConversionView');
   var TagEditor = require('../tagEditor');
 
   // Real installed extension identifiers (extensiontype.extension field), confirmed against the
@@ -41,6 +42,7 @@ define(function(require) {
       'click .light-course-editor-word': 'onWordClicked',
       'click .light-course-editor-read': 'onReadClicked',
       'click .light-course-editor-versions': 'onVersionsClicked',
+      'click .light-course-editor-convert': 'onConvertClicked',
       'click .light-course-editor-edit-current-entry': 'onEditCurrentEntryClicked',
       'click .light-course-editor-create-minor-version': 'onCreateMinorVersionClicked',
       'click .light-course-editor-create-major-version': 'onCreateMajorVersionClicked',
@@ -55,6 +57,20 @@ define(function(require) {
     onBackToListClicked: function(event) {
       event && event.preventDefault();
       Origin.router.navigateTo('lightCourseEditor');
+    },
+
+    onConvertClicked: function(event) {
+      event.preventDefault();
+      var self = this;
+      if (!Origin.permissions.hasPermissions(['*/*:update'])) return;
+      function open(error) {
+        if (error || self._removed) return;
+        Origin.trigger('modal:open', LightCourseConversionView, {
+          title: Origin.l10n.t('app.lightcourseconvert'), model: self.model, _shouldShowDoneButton: false
+        });
+      }
+      if (this.model.isLocked()) return this.afterPendingSave(open);
+      this.autosave(open);
     },
 
     onVersionsClicked: function(event) {
@@ -134,6 +150,8 @@ define(function(require) {
     },
 
     postRender: function() {
+      this.$('.light-course-editor-convert').prop('hidden', !Origin.permissions.hasPermissions(['*/*:update']));
+      this.$('.light-course-editor-editable-fields').prop('disabled', this.model.isLocked());
       this.headerView = new LightCourseHeaderView({ model: this.model });
       this.$('.light-course-editor-header-container').append(this.headerView.$el);
 

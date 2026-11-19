@@ -187,7 +187,7 @@ describe('full-course content preview', function() {
     config._enabledExtensions.resources = { targetAttribute: '_resources' };
     config._enabledExtensions.glossary = { targetAttribute: '_glossary' };
     h.course._extensions._resources = { title: 'Useful resources',
-      _resourcesItems: [{ title: 'Resource title', description: 'Resource description', _link: 'https://example.com' }] };
+      _resourcesItems: [{ _id: 'resource-01', title: 'Resource title', description: 'Resource description', _link: 'https://example.com' }] };
     h.course._extensions._glossary = { _glossaryItems: [{ term: 'Torque', description: 'Turning force' }] };
     Object.assign(h.plugins.extensiontype[0].properties.pluginLocations.properties.course.properties._help.properties, {
       _popup: { type: 'object', properties: {
@@ -201,8 +201,11 @@ describe('full-course content preview', function() {
     help._items = [{ title: 'Help item', body: 'Help item body' },
       { _isEnabled: false, title: 'Hidden help item', body: 'Hidden help content' }];
     var content = JSON.stringify(await preview(h));
-    ['Useful resources', 'Resource description', 'https://example.com', 'Torque', 'Turning force', 'Help item body']
+    ['Useful resources', 'Unique ID: resource-01', 'Resource description', 'https://example.com', 'Torque', 'Turning force', 'Help item body']
       .forEach(function(value) { assert(content.includes(value), value); });
+    var zip = await unzipper.Open.buffer(await preview(h, {}, true));
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+    assert(xml.includes('Unique ID: resource-01'));
     assert(!content.includes('Help popup'));
     assert(!content.includes('Hidden help'));
     help._popup._isEnabled = true;
@@ -211,7 +214,8 @@ describe('full-course content preview', function() {
     delete config._enabledExtensions.glossary;
     help._isEnabled = false;
     content = JSON.stringify(await preview(h));
-    ['Useful resources', 'Torque', 'Help item body', 'Help text'].forEach(function(value) { assert(!content.includes(value), value); });
+    ['Useful resources', 'Unique ID: resource-01', 'Torque', 'Help item body', 'Help text']
+      .forEach(function(value) { assert(!content.includes(value), value); });
   });
 
   it('shares independently selected tenant images and screenshots with the Word export', async function() {
@@ -587,7 +591,7 @@ describe('full-course storyboard generation', function() {
       _isEnabled: true, title: 'Useful resources', displayTitle: 'Reference library',
       description: 'Resources description', body: '<p>Resources introduction</p>', instruction: 'Choose a resource',
       _filterButtons: { all: 'Do not export filter labels' }, _drawerOrder: 3,
-      _resourcesItems: [{ title: 'Reference sheet', description: '<p>Resource details</p>',
+      _resourcesItems: [{ _id: 'reference-sheet-01', title: 'Reference sheet', description: '<p>Resource details</p>',
         filename: 'reference.pdf', _link: 'course/assets/reference.pdf', _forceDownload: true,
         _isGlobal: true, _type: 'document' }]
     };
@@ -608,7 +612,7 @@ describe('full-course storyboard generation', function() {
       var zip = await unzipper.Open.buffer(await generate(h));
       var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
       ['Resources', 'Useful resources', 'Reference library', 'Resources description', 'Resources introduction',
-        'Choose a resource', 'Reference sheet', 'Resource details', 'reference.pdf', 'course/assets/reference.pdf',
+        'Choose a resource', 'Reference sheet', 'Unique ID: reference-sheet-01', 'Resource details', 'reference.pdf', 'course/assets/reference.pdf',
         'Glossary', 'Key terms', 'Glossary description', 'Torque', 'Turning force']
         .forEach(function(value) { assert(xml.includes(value), value); });
       assert(xml.includes('>Total word count: 44<'));

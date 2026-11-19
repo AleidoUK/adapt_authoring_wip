@@ -147,6 +147,26 @@ function replaceField(xml, fieldName, text) {
 }
 
 describe('mapped Word text round-trip', function() {
+  it('shows resource Unique IDs as read-only reference text and preserves IDs on import', async function() {
+    var snapshot = fixture(), original = JSON.stringify(snapshot);
+    var zip = await unzipper.Open.buffer(await generate(snapshot));
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+    assert(xml.includes('Unique ID: resource-1'));
+    var identifierParagraph = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g).find(function(paragraph) {
+      return paragraph.includes('Unique ID: resource-1');
+    });
+    assert(identifierParagraph.includes('<w:pStyle w:val="LightCourseReadOnly"/>'));
+    assert(!identifierParagraph.includes('lcfield_'));
+    var parsed = await edited(snapshot, function(document) {
+      return document.replace('Unique ID: resource-1', 'Unique ID: changed-in-Word');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    var imported = await apply(parsed, snapshot);
+    assert.strictEqual(imported.success, true, JSON.stringify(imported.errors));
+    assert.strictEqual(imported.snapshot.resourceItems[0]._id, 'resource-1');
+    assert.strictEqual(JSON.stringify(snapshot), original);
+  });
+
   it('exports every editable field as a locked, tagged Aleido-green control with visible green borders', async function() {
     var zip = await unzipper.Open.buffer(await generate(fixture()));
     var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString('utf8');

@@ -123,6 +123,10 @@
       "default": "none",
       "editorOnly": true
     },
+    "conversionAttempt": {
+      "type": "object",
+      "editorOnly": true
+    },
     "_convertedCourseId": {
       "type": "objectid",
       "required": false,

@@ -4,6 +4,10 @@
   "id": "http://jsonschema.net",
   "$ref": "http://localhost/system/tenantObject.schema",
   "properties": {
+    "conversionDefaults": {
+      "type": "object",
+      "default": {}
+    },
     "defaultPluginSelections": {
       "type": "object",
       "default": {}

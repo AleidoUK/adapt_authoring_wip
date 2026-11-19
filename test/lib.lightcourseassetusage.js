@@ -66,7 +66,7 @@ describe('saved light course asset usage', function() {
     assert(result[ID].uses[0].paths.includes('contentTree.children[0]._items[0]._graphic.src'));
     assert.strictEqual(result[AUDIO].count, 3);
     assert.deepStrictEqual(result[UNUSED], { count: 0, uses: [] });
-    assert.strictEqual(db.queries.length, 4);
+    assert.strictEqual(db.queries.length, 5);
     db.queries.forEach(function(query) {
       assert.deepStrictEqual(query.query, { _tenantId: 'tenant' });
       assert.strictEqual(query.options.jsonOnly, true);
@@ -103,7 +103,18 @@ describe('saved light course asset usage', function() {
     assert.strictEqual(result[UNUSED].count, 0);
   });
 
-  ['lightcourseasset', 'lightcourse', 'lightcoursetemplate', 'lightcomponentdefault'].forEach(function(type) {
+  it('counts configured conversion placeholder assets without changing course or preset uses', async function() {
+    var db = database();
+    db.records.lightcourseconfig = [{ _tenantId: 'tenant', conversionDefaults: {
+      'component:graphic': { '_graphic.large': UNUSED }
+    } }];
+    var result = await usage.collect(db, 'tenant');
+    assert.strictEqual(result[UNUSED].count, 1);
+    assert.strictEqual(result[UNUSED].uses[0].type, 'lightcourseconfig');
+    assert.strictEqual(result[ID].count, 6);
+  });
+
+  ['lightcourseasset', 'lightcourse', 'lightcoursetemplate', 'lightcomponentdefault', 'lightcourseconfig'].forEach(function(type) {
     it('propagates ' + type + ' retrieval errors instead of reporting zero uses', async function() {
       var db = database(), retrieve = db.retrieve;
       db.retrieve = function(name, query, options, callback) {

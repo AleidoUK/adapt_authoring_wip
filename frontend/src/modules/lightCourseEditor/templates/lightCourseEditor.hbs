@@ -10,6 +10,9 @@
     {{t 'app.lightcourselockedmessage'}}
   </div>
   {{/ifValueEquals}}
+  {{#ifValueEquals conversionStatus "converting"}}
+  <div class="light-course-editor-locked-banner">{{t 'app.lightcourseconversionrunning'}}</div>
+  {{/ifValueEquals}}
   {{/if}}
 
   <div class="light-course-editor-toolbar">
@@ -24,9 +27,11 @@
       <button class="btn secondary-hollow light-course-editor-word">{{t 'app.lightcourseword'}}</button>
       <button class="btn secondary-hollow light-course-editor-versions">{{t 'app.lightcoursesavedversions'}}</button>
       <button class="btn secondary-hollow light-course-editor-auditlog">{{t 'app.editorauditlog'}}</button>
+      <button class="btn secondary-hollow light-course-editor-convert" hidden>{{t 'app.lightcourseconvert'}}</button>
     </div>
   </div>
 
+  <fieldset class="light-course-editor-editable-fields">
   <section class="light-course-editor-tags">
     <label for="light-course-tags-{{_id}}">{{t 'app.lightcoursetags'}}</label>
     <input type="text" id="light-course-tags-{{_id}}" class="light-course-editor-tags-input">
@@ -85,4 +90,5 @@
       </section>
     </div>
   </details>
+  </fieldset>
 </div>

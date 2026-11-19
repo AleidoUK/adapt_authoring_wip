@@ -187,6 +187,110 @@
   }
 }
 
+.light-course-conversion-defaults {
+  padding: 20px;
+
+  .light-course-conversion-selectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+
+    > div {
+      flex: 1 1 180px;
+      min-width: 0;
+    }
+
+    label {
+      display: block;
+    }
+
+    select {
+      width: 100%;
+    }
+  }
+
+  .light-course-config-toolbar {
+    display: flex;
+    justify-content: flex-end; //space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .light-course-component-default-editor-section {
+    margin-bottom: 20px;
+
+    background-color: @aleido-extra-light-green;
+    padding: 18px 20px;
+    border: 1px solid #aaa;
+
+    .light-course-conversion-fields {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .light-course-conversion-default-field {
+      background-color: #fff;
+      padding: 1rem;
+      margin-top: 1rem;
+      margin-right: 1rem;
+      width: 20%;
+    }
+
+    .light-course-conversion-default-container {
+      width: 100%;
+      box-sizing: border-box;
+
+      .list-item {
+        border: 1px solid @aleido-green;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+    }
+
+    h1 {
+      font-weight: bold;
+      border-bottom: 1px solid @aleido-green;
+    }
+
+    h2 {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    p {
+      color: black;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+
+    label {
+      font-weight: bold;
+    }
+
+    form label {
+      font-size: 100%;
+      font-weight: normal;
+    }
+
+    select {
+      border: 1px solid @aleido-green;
+    }
+
+    .field-row {
+      background-color: white;
+      padding: 1rem;
+
+      label {
+        margin-bottom: 15px;
+        font-size: 110%;
+      }
+    }
+  }
+
+  .light-course-template-editor-extension-row {
+    margin-bottom: 5px;
+  }
+}
+
 .light-course-component-default-editor {
   padding: 20px;
 
@@ -196,6 +300,7 @@
     align-items: center;
     margin-bottom: 20px;
   }
+
 }
 
 .light-course-template-editor {
