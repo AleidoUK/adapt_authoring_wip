@@ -12,6 +12,7 @@
 
 .asset-management-cleanup {
   .asset-cleanup-loading,
+  .asset-cleanup-result,
   .asset-cleanup-empty {
     padding: 10px 20px;
     font-size: 13px;
@@ -81,11 +82,27 @@
     }
 
     .asset-cleanup-item-filename,
+    .asset-cleanup-item-tags,
     .asset-cleanup-item-usage {
       font-size: 12px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .asset-cleanup-item-tags {
+      color: #555;
+      overflow: visible;
+      overflow-wrap: anywhere;
+      text-overflow: clip;
+      white-space: normal;
+    }
+
+    .asset-cleanup-item-error {
+      margin-top: 5px;
+      color: #b30000;
+      font-size: 12px;
+      overflow-wrap: anywhere;
     }
   }
 }

@@ -106,10 +106,16 @@ function preview(h, options, word) {
 }
 
 describe('full-course content preview', function() {
-  it('includes the whole saved course with structural hierarchy and component types, without metadata or mutations', async function() {
+  it('includes course content without article/block titles or component extensions and without mutating saved content', async function() {
     var h = fixture();
     h.records.component[1].graphicsNotes = 'Review graphics notes';
     h.records.component[1].developerNotes = 'Review developer notes';
+    h.schemas.component.properties._extensions = { type: 'object', properties: {
+      _tutor: { type: 'object', properties: { hideFeedback: text } }
+    } };
+    h.records.component[1]._extensions._tutor = {
+      hideFeedback: '{{_globals._extensions._tutor.hideFeedback}}'
+    };
     var source = JSON.stringify([h.course, h.records, h.plugins, h.schemas]);
     var content = await preview(h), values = content.entries.map(function(entry) { return entry.text; });
     assert.strictEqual(content.title, 'Bicycle training');
@@ -119,15 +125,45 @@ describe('full-course content preview', function() {
     assert(headings.findIndex(function(entry) { return entry.text === 'Nested page'; }) <
       headings.findIndex(function(entry) { return entry.text === 'First page'; }));
     [
-      ['First page', 1], ['Article title', 2], ['Block title', 3], ['Left component', 4], ['Item title', 5], ['Last page', 1]
+      ['First page', 1], ['Left component', 4], ['Item title', 5], ['Last page', 1]
     ].forEach(function(expected) {
       assert(headings.some(function(entry) { return entry.text === expected[0] && entry.level === expected[1]; }), expected[0]);
+    });
+    ['Article title', 'Block title', '{{_globals._extensions._tutor.hideFeedback}}'].forEach(function(value) {
+      assert(!JSON.stringify(content).includes(value), value);
     });
     var index = content.entries.findIndex(function(entry) { return entry.text === 'Left component'; });
     assert.deepStrictEqual(content.entries[index - 1], { type: 'componentType', text: 'Text' });
     ['c-01', 'Review graphics notes', 'Review developer notes', 'Do not export disabled text']
       .forEach(function(value) { assert(!values.includes(value), value); });
+    var docx = await preview(h, {}, true), zip = await unzipper.Open.buffer(docx);
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+    ['Article title', 'Block title', '{{_globals._extensions._tutor.hideFeedback}}'].forEach(function(value) {
+      assert(!xml.includes(value), value);
+    });
     assert.strictEqual(JSON.stringify([h.course, h.records, h.plugins, h.schemas]), source);
+  });
+
+  it('includes the original source in unavailable-image notices and preview Word exports', async function() {
+    var h = fixture(), source = 'course/assets/vector.svg', getStorage = filestorage.getStorage;
+    h.records.component[1].body = '<p>Left body<img src="' + source + '"></p>';
+    h.records.asset.push({ _id: 'vector', filename: 'vector.svg', repository: 'test',
+      path: 'stored/vector.svg', mimeType: 'image/svg+xml' });
+    filestorage.getStorage = function(repository, callback) {
+      callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
+    };
+    try {
+      var content = await preview(h, { images: true });
+      var notice = content.entries.find(function(entry) {
+        return entry.type === 'notice' && entry.text.includes(source);
+      });
+      assert(notice);
+      assert.strictEqual(notice.text, 'Image unavailable: Word image previews support PNG, JPEG, GIF and BMP files. Source: ' + source);
+      var buffer = await preview(h, { images: true }, true), zip = await unzipper.Open.buffer(buffer);
+      var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      assert(xml.includes('Image unavailable:'));
+      assert(xml.includes('Source: ' + source));
+    } finally { filestorage.getStorage = getStorage; }
   });
 
   it('filters empty, disabled and accessibility fields using actual selected schemas', async function() {
@@ -253,7 +289,7 @@ describe('full-course storyboard generation', function() {
     assert(!JSON.stringify(result.blocks).includes('Help text'));
     assert(!JSON.stringify(result.blocks).includes('Do not export disabled text'));
     assert.strictEqual(result.data.storyboard, true);
-    assert.strictEqual(result.data.totalWordCount, 28);
+    assert.strictEqual(result.data.totalWordCount, 22);
     assert.strictEqual(result.data._lightCourseId, undefined);
     assert.strictEqual(h.queries.length, 6);
     assert.strictEqual(h.schemaQueries.length, 4);
@@ -263,6 +299,20 @@ describe('full-course storyboard generation', function() {
   it('embeds tenant-library image bytes and uses light-course component layout without article/block details or import mapping', async function() {
     this.timeout(10000);
     var h = fixture(), getStorage = filestorage.getStorage;
+    h.records.contentobject[1].displayTitle = 'First display';
+    h.records.contentobject[1].linkText = 'First link';
+    h.records.contentobject[3].displayTitle = 'Nested page';
+    h.records.contentobject[0].displayTitle = 'Last display';
+    h.records.contentobject[0].linkText = 'Last link';
+    h.schemas.contentobject.properties.linkText = text;
+    h.schemas.component.properties._extensions = { type: 'object', properties: {
+      _tutor: { type: 'object', properties: { _button: { type: 'object', properties: {
+        text: text, ariaLabel: text
+      } } } }
+    } };
+    h.records.component[1]._extensions._tutor = { _button: {
+      text: 'Tutor button text', ariaLabel: 'Tutor button aria label'
+    } };
     filestorage.getStorage = function(repository, callback) {
       assert.strictEqual(repository, 'test');
       callback(null, { getFileContents: function(file, callback) {
@@ -291,9 +341,12 @@ describe('full-course storyboard generation', function() {
       });
       assert(!xml.includes('<w:pStyle w:val="Heading4"/>'));
       assert(!xml.includes('<w:pStyle w:val="Heading5"/>'));
-      assert(xml.includes('>Page 2<'));
-      assert(!xml.includes('Page 2: First page'));
-      assert(xml.includes('>First page<'));
+      ['First display', 'Nested page', 'Last display'].forEach(function(value) {
+        assert(xml.includes('>' + value + '<'), value);
+      });
+      ['Page 2', 'First page', 'Last page', 'First link', 'Last link',
+        'Link Text', 'Tutor button text', 'Tutor button aria label', 'Extensions _tutor']
+        .forEach(function(value) { assert(!xml.includes(value), value); });
       assert(xml.indexOf('Left body') < xml.indexOf('Right body'));
       assert(!xml.includes('Storyboard (export only)'));
       assert(!xml.includes('Developer information'));
@@ -471,7 +524,7 @@ describe('full-course storyboard generation', function() {
       assert(!xml.includes('Image unavailable:'));
       assert(!xml.includes('<w:drawing>'));
       assert(xml.includes('>4 words | right<'));
-      assert(xml.includes('>Total word count: 16<'));
+      assert(xml.includes('>Total word count: 10<'));
       assert(xml.includes('Right body'));
       assert.strictEqual(reads, 0);
     } finally { filestorage.getStorage = getStorage; }
@@ -558,7 +611,7 @@ describe('full-course storyboard generation', function() {
         'Choose a resource', 'Reference sheet', 'Resource details', 'reference.pdf', 'course/assets/reference.pdf',
         'Glossary', 'Key terms', 'Glossary description', 'Torque', 'Turning force']
         .forEach(function(value) { assert(xml.includes(value), value); });
-      assert(xml.includes('>Total word count: 50<'));
+      assert(xml.includes('>Total word count: 44<'));
       ['Do not export', 'Filter buttons', 'Drawer order', 'Clear search', 'Search placeholder', 'Force download', 'Is global',
         'Image unavailable:'].forEach(function(value) { assert(!xml.includes(value), value); });
       assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, 4);

@@ -12,6 +12,11 @@ The Audit Log feature provides comprehensive change tracking for all content ope
 - **Delete Operations**: Captures snapshots before deletion
 
 ### Change Detection
+Course-asset entries use the linked asset's original filename (for example,
+`AI.jpg`) as their label, falling back to its title or stored filename. New entries
+save this label so it survives asset deletion. Older untitled entries resolve the
+label when history is opened, provided the linked asset still exists.
+
 The system intelligently categorizes changes by type:
 - **Text changes**: Title, body, description fields
 - **Image changes**: Graphics, thumbnails, background images

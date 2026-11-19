@@ -36,6 +36,10 @@ See [Contributing to the Adapt authoring tool](https://github.com/adaptlearning/
 
 
 ## Troubleshooting, Bugs, and Feedback
+Normal **Preview course** refreshes course data and reapplies the installed
+framework's schema defaults when supported, without rebuilding scripts and styles.
+Use **Force rebuild** when compiled framework, plugin or theme files need rebuilding.
+
 + For help with troubleshooting, visit the [Technical Discussion Forum](https://community.adaptlearning.org/mod/forum/view.php?id=4).
 + To report a bug, please [GitHub Issues](https://github.com/adaptlearning/adapt_authoring/issues).
 + To provide feedback, please use the [GitHub Issues](https://github.com/adaptlearning/adapt_authoring/issues).

@@ -35,6 +35,22 @@ The Asset Replacement feature allows you to replace an existing asset file with 
 
 ## Replacement Process
 
+### Duplicate imports and shared files
+
+Asset uploads (including ZIP/CSV bulk imports) compare the file-content hash against
+existing non-deleted assets in the same tenant and storage repository. Identical
+files reuse the existing asset without overwriting its title, description or tags,
+even when the uploaded filename differs. Bulk imports show these rows as
+**Already exists - skipped** and report the duplicate count separately.
+
+Asset usage checks match asset IDs, filenames and stored file paths, not the
+storage-provider name. Existing duplicate records that share a filename can
+therefore legitimately show the same filename-based course references.
+
+Deleting one of several records sharing a stored file preserves the file for the
+remaining records. A storage deletion error retains the database record for retry;
+an already missing file does not prevent removal of its asset record.
+
 ### What Happens During Replacement
 
 1. **File Validation**: The new file is checked against size limits based on its type

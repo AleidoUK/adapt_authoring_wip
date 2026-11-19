@@ -99,7 +99,10 @@ define(function(require){
 
         $bar.removeClass('pending uploading done error').addClass(row.status);
 
-        if(row.status === 'done') {
+        if(row.status === 'duplicate') {
+          $bar.css('width', '100%').addClass('done');
+          $status.text(Origin.l10n.t('app.assetbulkuploadstatusduplicate'));
+        } else if(row.status === 'done') {
           $bar.css('width', '100%');
           $status.text(Origin.l10n.t('app.assetbulkuploadstatusdone'));
         } else if(row.status === 'error') {
@@ -135,7 +138,7 @@ define(function(require){
         self.updateProgressRows(job.rows);
 
         var doneCount = _.filter(job.rows, function(row) {
-          return row.status === 'done' || row.status === 'error';
+          return row.status === 'done' || row.status === 'error' || row.status === 'duplicate';
         }).length;
         self.updateOverallProgress(doneCount, job.total);
 
@@ -166,6 +169,9 @@ define(function(require){
       }
 
       var text = Origin.l10n.t('app.assetbulkuploadsuccess', { imported: job.imported, total: job.total });
+      if (job.duplicates) {
+        text += ' ' + Origin.l10n.t('app.assetbulkuploadduplicates', { count: job.duplicates });
+      }
       if(job.errors && job.errors.length) {
         text += ' ' + Origin.l10n.t('app.assetbulkuploadskipped', { skipped: job.errors.length });
       }

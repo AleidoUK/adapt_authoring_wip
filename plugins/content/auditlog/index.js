@@ -125,7 +125,7 @@ function auditCreate(data, callback, contentType) {
         _tenantId: user.tenant._id
       };
       
-      app.contentmanager.create('auditlog', logEntry, function(err) {
+      createAuditEntry(app, logEntry, function(err) {
         if (err) {
           console.error('Failed to create audit log:', err);
         }
@@ -214,7 +214,7 @@ function auditUpdate(data, callback, hookContentType) {
           _tenantId: user.tenant._id
         };
           
-        app.contentmanager.create('auditlog', logEntry, function(err) {
+        createAuditEntry(app, logEntry, function(err) {
           if (err) {
             console.error('Failed to create audit log:', err);
           }
@@ -268,7 +268,7 @@ function auditDestroy(data, callback, contentType) {
           _tenantId: user.tenant._id
         };
         
-        app.contentmanager.create('auditlog', logEntry, function(err) {
+        createAuditEntry(app, logEntry, function(err) {
           if (err) {
             console.error('Failed to create audit log:', err);
           }
@@ -331,7 +331,7 @@ function logDescendantDeletes(app, user, contentType, parentId, callback) {
             _tenantId: user.tenant._id
           };
 
-          app.contentmanager.create('auditlog', logEntry, function(err) {
+          createAuditEntry(app, logEntry, function(err) {
             if (err) {
               console.error('Failed to create audit log:', err);
             }
@@ -352,6 +352,33 @@ function getContentTitle(item) {
     return '';
   }
   return item.title || item.name || item.displayTitle || item.heading || item._component || '';
+}
+
+function resolveCourseAssetTitles(logs, callback) {
+  var entries = logs.map(function(log) { return Object.assign({}, log.toJSON ? log.toJSON() : log); });
+  var missing = entries.filter(function(entry) {
+    return entry.contentType === 'courseasset' && !entry.contentTitle && entry.snapshot && entry.snapshot._assetId;
+  });
+  if (!missing.length) return callback(null, entries);
+  require('../../../lib/database').getDatabase(function(error, db) {
+    if (error) return callback(error);
+    var ids = Array.from(new Set(missing.map(function(entry) { return String(entry.snapshot._assetId); })));
+    db.retrieve('asset', { _id: { $in: ids } }, { jsonOnly: true }, function(error, assets) {
+      if (error) return callback(error);
+      missing.forEach(function(entry) {
+        var asset = assets.find(function(asset) { return String(asset._id) === String(entry.snapshot._assetId); });
+        if (asset) entry.contentTitle = asset.name || asset.title || asset.filename || '';
+      });
+      callback(null, entries);
+    });
+  });
+}
+
+function createAuditEntry(app, entry, callback) {
+  resolveCourseAssetTitles([entry], function(error, entries) {
+    if (error) return callback(error);
+    app.contentmanager.create('auditlog', entries[0], callback);
+  });
 }
 
 /**
@@ -471,7 +498,10 @@ function getAuditLogsByCourse(req, res, next) {
       return res.status(500).json({ success: false, message: err.message });
     }
     
-    res.status(200).json(results);
+    resolveCourseAssetTitles(results, function(error, entries) {
+      if (error) return res.status(500).json({ success: false, message: error.message });
+      res.status(200).json(entries);
+    });
   });
 }
 
@@ -534,7 +564,10 @@ function getAuditLogsByContent(req, res, next) {
       return res.status(500).json({ success: false, message: err.message });
     }
     
-    res.status(200).json(results);
+    resolveCourseAssetTitles(results, function(error, entries) {
+      if (error) return res.status(500).json({ success: false, message: error.message });
+      res.status(200).json(entries);
+    });
   });
 }
 

@@ -167,12 +167,12 @@ function publishCourse(courseId, mode, request, response, next) {
       exec('npx browserslist --update-db', { cwd: FRAMEWORK_ROOT_FOLDER }, e => callback(e));
     },
     function(callback) {
-      if (!isRebuildRequired) {
+      if (!isRebuildRequired && !fs.existsSync(path.join(FRAMEWORK_ROOT_FOLDER, 'grunt', 'tasks', 'schema-defaults.js'))) {
         resultObject.success = true;
         return callback(null, 'Framework already built, nothing to do');
       }
 
-      logger.log('info', '3.1. Ensuring framework build exists');
+      logger.log('info', isRebuildRequired ? '3.1. Ensuring framework build exists' : 'Applying framework defaults to refreshed preview JSON');
 
       var args = [];
       var outputFolder = COURSE_FOLDER.replace(FRAMEWORK_ROOT_FOLDER + path.sep,'');
@@ -192,9 +192,10 @@ function publishCourse(courseId, mode, request, response, next) {
       var generateSourcemap = outputJson.config._generateSourcemap;
       var buildMode = generateSourcemap === true ? 'dev' : 'prod';
 
-      logger.log('info', 'npx grunt server-build:' + buildMode + ' ' + args.join(' '));
+      var task = isRebuildRequired ? 'server-build:' + buildMode : 'schema-defaults';
+      logger.log('info', 'npx grunt ' + task + ' ' + args.join(' '));
 
-      child = exec('npx grunt server-build:' + buildMode + ' ' + args.join(' '), {cwd: path.join(FRAMEWORK_ROOT_FOLDER)}, function(error, stdout, stderr) {
+      child = exec('npx grunt ' + task + ' ' + args.join(' '), {cwd: path.join(FRAMEWORK_ROOT_FOLDER)}, function(error, stdout, stderr) {
         if (error !== null) {
           logger.log('error', 'exec error: ' + error);
           logger.log('error', 'stdout error: ' + stdout);

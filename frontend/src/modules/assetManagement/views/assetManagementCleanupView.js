@@ -28,6 +28,7 @@ define(function(require){
       var self = this;
 
       this.$('.asset-cleanup-list').empty();
+      this.$('.asset-cleanup-result').empty().addClass('display-none');
       this.$('.asset-cleanup-header').addClass('display-none');
       this.$('.asset-cleanup-empty').addClass('display-none');
       this.$('.asset-cleanup-loading').removeClass('display-none');
@@ -67,6 +68,9 @@ define(function(require){
 
     buildItemMarkup: function(asset) {
       var isPreviewable = (asset.assetType === 'image' || asset.assetType === 'video') && asset.metadata;
+      var tags = (asset.tags || []).map(function(tag) {
+        return typeof tag === 'string' ? tag : tag && tag.title;
+      }).filter(Boolean);
       var thumbHtml = isPreviewable
         ? '<div class="asset-cleanup-item-thumb" style="background-image:url(api/asset/thumb/' + asset._id + '?v=' + (asset.updatedAt || '') + ')"></div>'
         : '<div class="asset-cleanup-item-thumb asset-cleanup-item-thumb-icon"><i class="fa ' + this.getIconClass(asset.assetType) + '"></i></div>';
@@ -80,7 +84,12 @@ define(function(require){
           '<div class="asset-cleanup-item-details">' +
             '<div class="asset-cleanup-item-title">' + this.escapeHtml(asset.title || asset.filename) + '</div>' +
             '<div class="asset-cleanup-item-filename">' + this.escapeHtml(asset.filename || '') + '</div>' +
+            (tags.length ? '<div class="asset-cleanup-item-tags">' + this.escapeHtml(Origin.l10n.t('app.tags')) +
+              ': ' + tags.map(this.escapeHtml).join(', ') + '</div>' : '') +
             '<div class="asset-cleanup-item-usage">' + Origin.l10n.t('app.assetcleanupusagecount', { count: asset.usageCount || 0 }) + '</div>' +
+            (asset.deletionError ? '<div class="asset-cleanup-item-error" role="alert">' +
+              this.escapeHtml(Origin.l10n.t('app.assetcleanupdeleteerror')) + ' ' +
+              this.escapeHtml(asset.deletionError) + '</div>' : '') +
           '</div>' +
         '</li>'
       );
@@ -135,6 +144,8 @@ define(function(require){
         },
         error: function() {
           Origin.trigger('assetManagement:cleanupDeleteFinished');
+          self.$('.asset-cleanup-result').text(Origin.l10n.t('app.assetcleanupdeleteerror'))
+            .removeClass('display-none');
           Origin.Notify.alert({
             type: 'error',
             text: Origin.l10n.t('app.assetcleanupdeleteerror')
@@ -148,10 +159,15 @@ define(function(require){
       Origin.trigger('assets:update');
 
       var deletedIds = (data && data.deleted) || [];
-      var errorCount = (data && data.errors && data.errors.length) || 0;
+      var errors = (data && data.errors) || [];
+      var errorCount = errors.length;
 
       this.assets = _.reject(this.assets, function(asset) {
         return _.contains(deletedIds, String(asset._id));
+      });
+      this.assets.forEach(function(asset) {
+        var error = errors.find(function(entry) { return String(entry.id) === String(asset._id); });
+        asset.deletionError = error ? error.message : '';
       });
 
       this.$('.asset-cleanup-list').empty();
@@ -161,6 +177,7 @@ define(function(require){
       if (errorCount) {
         text += ' ' + Origin.l10n.t('app.assetcleanupdeleteskipped', { skipped: errorCount });
       }
+      this.$('.asset-cleanup-result').text(text).removeClass('display-none');
       Origin.Notify.alert({
         type: errorCount ? 'warning' : 'success',
         text: text
