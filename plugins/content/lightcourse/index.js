@@ -884,6 +884,9 @@ function getIconFont(req, res) {
 
 function initialize() {
   origin().once('serverStarted', function () {
+    var dataImport = require('../../../lib/lightcourse/dataImport');
+    rest.get('/content/lightcourse/:id/data-import/:extension/template', dataImport(new LightCourseContent(), true));
+    rest.post('/content/lightcourse/:id/data-import/:extension', dataImport(new LightCourseContent(), false));
     rest.post('/content/lightcourse/:id/versions', publishVersion);
     rest.get('/content/lightcourse/:id/versions', listVersions);
     // NOTE: "compare" must be registered before the ":versionId" param route below, otherwise

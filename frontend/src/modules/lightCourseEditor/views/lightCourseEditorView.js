@@ -181,6 +181,9 @@ define(function(require) {
       }
 
       this.glossaryView = new LightCourseItemListView({
+        importExtension: GLOSSARY_EXTENSION,
+        courseModel: this.model,
+        saveImport: this.autosave.bind(this),
         items: this.model.get('glossaryItems') || [],
         isEnabled: this.isExtensionSelected(GLOSSARY_EXTENSION),
         disabledMessageKey: 'lightcourseglossarydisabled',
@@ -193,6 +196,9 @@ define(function(require) {
       this.$('.light-course-editor-glossary-container').empty().append(this.glossaryView.$el);
 
       this.resourcesView = new LightCourseItemListView({
+        importExtension: RESOURCES_EXTENSION,
+        courseModel: this.model,
+        saveImport: this.autosave.bind(this),
         items: this.model.get('resourceItems') || [],
         isEnabled: this.isExtensionSelected(RESOURCES_EXTENSION),
         disabledMessageKey: 'lightcourseresourcesdisabled',
@@ -200,7 +206,8 @@ define(function(require) {
           { key: '_type', label: Origin.l10n.t('app.lightcoursetype'), type: 'select', options: ['document', 'link', 'media'] },
           { key: 'title', label: Origin.l10n.t('app.title'), type: 'text' },
           { key: 'description', label: Origin.l10n.t('app.lightcoursedescription'), type: 'textarea' },
-          { key: '_link', label: Origin.l10n.t('app.lightcourselink'), type: 'text' }
+          { key: '_link', label: Origin.l10n.t('app.lightcourselink'), type: 'text' },
+          { key: '_id', label: Origin.l10n.t('app.lightcoursefielduniqueid'), type: 'text', readOnly: true }
         ],
         emptyItem: function() { return { _type: 'document', title: '', description: '', _link: '' }; }
       });

@@ -477,40 +477,8 @@ function disableExtensions(courseId, extensions, cb) {
  * Field mappings for extensions that support CSV item import. Keyed by the short
  * extension name used in config._enabledExtensions (see extensiontype.extension).
  */
-var csvImportConfig = {
-  glossary: {
-    extensionAttr: '_glossary',
-    itemsAttr: '_glossaryItems',
-    columns: ['term', 'description'],
-    requiredFields: ['term', 'description'],
-    sampleRow: ['Example term', 'Example description explaining the term'],
-    mapRow: function (row) {
-      return { term: row.term, description: row.description };
-    }
-  },
-  resources: {
-    extensionAttr: '_resources',
-    itemsAttr: '_resourcesItems',
-    columns: ['title', '_type', 'description', '_link', 'filename', '_isGlobal', '_forceDownload', '_id'],
-    requiredFields: ['_type'],
-    sampleRow: ['Example resource', 'document', 'Example description', 'https://example.com/file.pdf', 'file.pdf', 'true', 'false', 'example-resource-1'],
-    mapRow: function (row) {
-      var item = {
-        _type: row._type,
-        title: row.title || '',
-        description: row.description || '',
-        _link: row._link || '',
-        filename: row.filename || '',
-        _isGlobal: /^(true|1|yes)$/i.test(row._isGlobal || ''),
-        _forceDownload: /^(true|1|yes)$/i.test(row._forceDownload || '')
-      };
-      if (row._id) {
-        item._id = row._id;
-      }
-      return item;
-    }
-  }
-};
+var extensionCsv = require('../../../lib/extensionCsv');
+var csvImportConfig = extensionCsv.config;
 
 function csvEscape(value) {
   var str = (value === null || typeof value === 'undefined') ? '' : String(value);
@@ -577,26 +545,15 @@ function importExtensionItems(req, res) {
         return res.status(500).json({ success: false, message: 'Failed to read uploaded file' });
       }
 
-      var rows;
+      var parsed;
       try {
-        rows = helpers.parseCsv(content);
+        parsed = extensionCsv.parse(extensionKey, content);
       } catch (parseError) {
         return res.status(400).json({ success: false, message: 'Failed to parse CSV: ' + parseError.message });
       }
 
-      var items = [];
-      var rowErrors = [];
-      rows.forEach(function (row, index) {
-        var missing = importConfig.requiredFields.filter(function (field) {
-          return !row[field] || !String(row[field]).trim();
-        });
-        if (missing.length) {
-          // +2: 1 to move from 0-based index, 1 more to account for the header row
-          rowErrors.push({ row: index + 2, message: 'Missing required field(s): ' + missing.join(', ') });
-          return;
-        }
-        items.push(importConfig.mapRow(row));
-      });
+      var items = parsed.items;
+      var rowErrors = parsed.errors;
 
       if (!items.length) {
         return res.status(400).json({ success: false, message: 'No valid rows found in CSV', errors: rowErrors });

@@ -64,7 +64,11 @@ If a plugin is later removed, its saved information will remain visible but read
 
 Where a course uses the glossary and resources extensions, light editors can maintain their lists directly in the tool instead of opening full plugin settings. A glossary entry has its term and definition. A resource entry has its details plus a resource ID value, which is used elsewhere to link to that resource. Editors can add, edit, reorder and remove entries in both lists.
 
+Each resource row displays its **Unique ID** in a read-only, copyable field. New resources receive their ID when saved.
+
 If a course doesn't have the glossary or resources extension selected, the editor will say so rather than let entries be added and then quietly dropped. These lists carry across when a light course is converted, in the same way as other translatable content.
+
+Each enabled list also has **Data import** controls. Download its CSV template, choose a file, then append to the current list or replace it after confirmation. The columns and boolean values match Full Course Data Import. Rows missing required values are skipped and reported; a file with no valid rows leaves the list unchanged. Resource IDs must be unique within the resulting list; leave an ID blank to generate one automatically. Imports use the normal draft autosave, revision checks and history, and are unavailable on converted (locked) courses. A save error is shown explicitly rather than reporting a successful import.
 
 ## Help extension
 
