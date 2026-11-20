@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var Alphabetical = require('../alphabetical');
 
   /**
    * Generic add/edit/reorder/remove list editor for the Light Course Editor's extension-gated
@@ -31,8 +32,7 @@ define(function(require) {
       'click .light-course-item-list-move-down': 'onMoveDownClicked',
       'change .light-course-csv-file': 'onImportFileChanged',
       'click .light-course-csv-import': 'onImportClicked',
-      'change [data-item-field]': 'onFieldChanged',
-      'blur [data-item-field]': 'onFieldChanged'
+      'change [data-item-field]': 'onFieldChanged'
     },
 
     preRender: function(options) {
@@ -52,10 +52,11 @@ define(function(require) {
     },
 
     getItems: function() {
-      return this.items;
+      return this.items.sort(Alphabetical.compare);
     },
 
     renderItems: function() {
+      this.items.sort(Alphabetical.compare);
       if (!this.isEnabled) {
         this.$el.html('<p class="light-course-item-list-disabled">' + Origin.l10n.t('app.' + this.disabledMessageKey) + '</p>');
         return;
@@ -222,8 +223,6 @@ define(function(require) {
       });
       $row.append(
         '<span class="light-course-item-list-actions">' +
-        '<button class="btn-icon light-course-item-list-move-up" title="' + Origin.l10n.t('app.lightcoursemoveup') + '"><i class="fa fa-arrow-up"></i></button>' +
-        '<button class="btn-icon light-course-item-list-move-down" title="' + Origin.l10n.t('app.lightcoursemovedown') + '"><i class="fa fa-arrow-down"></i></button>' +
         '<button class="btn-icon light-course-item-list-remove" title="' + Origin.l10n.t('app.remove') + '"><i class="fa fa-trash-o"></i></button>' +
         '</span>'
       );
@@ -234,6 +233,7 @@ define(function(require) {
       var $target = $(event.currentTarget);
       var index = $target.closest('.light-course-item-list-row').data('index');
       this.items[index][$target.data('item-field')] = $target.val();
+      this.renderItems();
       Origin.trigger('lightCourseEditor:autosave');
     },
 

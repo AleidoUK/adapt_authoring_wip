@@ -5,6 +5,7 @@ define(function(require) {
   var SchemaFilter = require('../schemaFilter');
   var LightCourseAssetContext = require('../lightCourseAssetContext');
   var ComponentLayout = require('../componentLayout');
+  var inlineListSchema = require('../inlineListSchema');
 
   /**
    * Renders the generic component field editor described in Phase 3/4's "Generic component-field
@@ -85,7 +86,7 @@ define(function(require) {
       filteredSchema.graphicsNotes = { type: 'string', inputType: 'TextArea', title: Origin.l10n.t('app.lightcoursegraphicsnotes'), lightCourseRefs: this.lightCourseRefs };
       filteredSchema.developerNotes = { type: 'string', inputType: 'TextArea', title: Origin.l10n.t('app.lightcoursedevelopernotes'), lightCourseRefs: this.lightCourseRefs };
 
-      var schema = Origin.scaffold.buildSchema(filteredSchema);
+      var schema = inlineListSchema(Origin.scaffold.buildSchema(filteredSchema));
       var fields = Object.keys(schema);
       fields = ['uniqueId', '_layout', 'title', 'screenshotAssetId'].filter(function(key) { return fields.indexOf(key) !== -1; })
         .concat(_.without(fields, 'uniqueId', '_layout', 'title', 'screenshotAssetId'));

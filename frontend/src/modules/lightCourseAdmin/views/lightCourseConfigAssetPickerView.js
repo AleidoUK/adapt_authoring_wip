@@ -1,6 +1,7 @@
 // LICENCE https://github.com/adaptlearning/adapt_authoring/blob/master/LICENSE
 define(function(require) {
   var Origin = require('core/origin');
+  var Alphabetical = require('../../lightCourseEditor/alphabetical');
 
   /**
    * A standalone (non-Backbone.Form, non-course-scoped) asset picker for the Light Course Admin
@@ -39,7 +40,7 @@ define(function(require) {
       var self = this;
       $.get('api/asset/query', { search: { assetType: { $in: [this.assetType] } } }).done(function(assets) {
         $list.empty();
-        (assets || []).forEach(function(asset) {
+        (assets || []).slice().sort(Alphabetical.compare).forEach(function(asset) {
           $list.append($('<div class="light-course-config-asset-item"></div>')
             .attr('data-asset-id', asset._id).text(asset.title || asset.filename));
         });

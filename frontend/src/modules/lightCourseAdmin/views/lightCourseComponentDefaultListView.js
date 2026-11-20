@@ -58,7 +58,9 @@ define(function(require) {
         if (!_.findWhere(types, { component: key })) types.push({ component: key, displayName: key });
       });
       if (selected && !_.findWhere(types, { component: selected })) types.push({ component: selected, displayName: selected });
-      types.forEach(function(type) {
+      types.sort(function(a, b) {
+        return (a.displayName || a.component).localeCompare(b.displayName || b.component, undefined, { sensitivity: 'base', numeric: true });
+      }).forEach(function(type) {
         $type.append($('<option>').val(type.component).text(type.displayName || type.component));
       });
       $type.val(selected);

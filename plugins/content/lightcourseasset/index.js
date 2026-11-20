@@ -284,9 +284,107 @@ function getUses(req, res, next) {
   });
 }
 
+function replaceAsset(req, res, next) {
+  var user = usermanager.getCurrentUser();
+  if (!user || !user.tenant) return res.status(401).json({ success: false, message: 'Authentication required' });
+  var plugin = new LightCourseAssetContent();
+  var search = { _id: req.params.id, _tenantId: user.tenant._id };
+  plugin.hasPermission('update', user._id, user.tenant._id, search, function(error, allowed) {
+    if (error) return next(error);
+    if (!allowed) return res.status(403).json({ success: false, message: 'You are not permitted to replace this asset' });
+    plugin.retrieve(search, {}, function(error, records) {
+      if (error) return next(error);
+      if (!records || !records.length) return res.status(404).json({ success: false, message: 'Light course asset not found' });
+      var existing = records[0], form = new IncomingForm(), temporaryFiles = [];
+      form.maxFileSize = configuration.getMaxFileUploadSize('zip');
+      form.on('file', function(name, file) { temporaryFiles.push(file.path); });
+      form.parse(req, function(parseError, fields, files) {
+        async function replace() {
+          var storage, storedFile, committed = false;
+          function fail(message, status) {
+            var error = new Error(message);
+            error.status = status;
+            throw error;
+          }
+          async function removeStored(filePath) {
+            if (!filePath || filePath === 'false') return;
+            try { await util.promisify(storage.deleteFile).call(storage, filePath); }
+            catch (error) { logger.log('error', 'Failed to clean up replaced light course asset file', error); }
+          }
+          try {
+            if (parseError) fail(form.bytesExpected > form.maxFileSize ?
+              origin().polyglot.t('app.uploadsizeerror', {
+                max: bytes.format(form.maxFileSize), size: bytes.format(form.bytesExpected)
+              }) : parseError.message, 400);
+            var file = files && files.file;
+            if (!file || Array.isArray(file)) fail('Select one replacement file.', 400);
+            if (!temporaryFiles.includes(file.path)) temporaryFiles.push(file.path);
+            var maxSize = configuration.getMaxFileUploadSize(file.type);
+            if (file.size > maxSize) fail(origin().polyglot.t('app.uploadsizeerror', {
+              max: bytes.format(maxSize), size: bytes.format(file.size)
+            }), 400);
+            var sameType = ['image', 'audio', 'video'].includes(existing.assetType) ?
+              (file.type || '').startsWith(existing.assetType + '/') : file.type === existing.mimeType;
+            if (!sameType) fail('The replacement must have the same media type as the existing asset.', 400);
+            storage = await util.promisify(filestorage.getStorage).call(filestorage, existing.repository);
+            // A unique path avoids overwriting shared/deduplicated files or a concurrent replacement.
+            var filename = crypto.randomBytes(20).toString('hex') + path.extname(file.name);
+            var directory = path.join('lightcourseassets', 'replacements', String(existing._id));
+            var destination = path.join(directory, filename);
+            storedFile = { path: destination };
+            storedFile = await util.promisify(storage.processFileUpload).call(storage, file, destination, {
+              createMetadata: true, createThumbnail: existing.assetType === 'image',
+              thumbnailOptions: { width: '?', height: '200' }
+            });
+            var delta = {
+              title: fields.title === undefined ? existing.title : fields.title,
+              description: fields.description === undefined ? existing.description : fields.description,
+              filename: filename, directory: directory, repository: existing.repository,
+              path: storedFile.path, size: storedFile.size, mimeType: storedFile.mimeType,
+              thumbnailPath: storedFile.thumbnailPath || ''
+            };
+            await util.promisify(origin().contentmanager.update).call(origin().contentmanager, 'lightcourseasset', search, delta);
+            committed = true;
+            // Old uploads can share their hash-based paths with another asset record.
+            try {
+              var db = await new Promise(function(resolve, reject) {
+                database.getDatabase(function(error, db) { if (error) reject(error); else resolve(db); }, user.tenant._id);
+              });
+              for (var oldPath of [existing.path, existing.thumbnailPath]) {
+                if (!oldPath || oldPath === 'false' || oldPath === storedFile.path || oldPath === storedFile.thumbnailPath) continue;
+                var users = await util.promisify(db.retrieve).call(db, 'lightcourseasset', {
+                  repository: existing.repository, $or: [{ path: oldPath }, { thumbnailPath: oldPath }]
+                }, { jsonOnly: true });
+                if (!users.length) await removeStored(oldPath);
+              }
+            } catch (cleanupError) {
+              logger.log('error', 'Failed to check old light course asset files for cleanup', cleanupError);
+            }
+            return { _id: existing._id, filename: filename };
+          } finally {
+            if (!committed && storage && storedFile) {
+              await removeStored(storedFile.path);
+              await removeStored(storedFile.thumbnailPath);
+            }
+            for (var temporaryFile of temporaryFiles) {
+              try { await require('fs-extra').remove(temporaryFile); }
+              catch (cleanupError) { logger.log('error', 'Failed to remove light course replacement upload', cleanupError); }
+            }
+          }
+        }
+        replace().then(function(result) { res.json(result); }, function(error) {
+          logger.log('error', 'Failed to replace light course asset', error);
+          res.status(error.status || 500).json({ success: false, message: error.message });
+        });
+      });
+    });
+  });
+}
+
 function initialize() {
   origin().once('serverStarted', function () {
     rest.post('/content/lightcourseasset/upload', uploadAsset);
+    rest.post('/content/lightcourseasset/:id/replace', replaceAsset);
     // NOTE: must be at least 2 path segments after "lightcourseasset" (not just "/content/
     // lightcourseasset/:id") - lib/contentmanager.js registers the generic `GET /content/:type/
     // :id` route well before this plugin's own serverStarted-triggered routes below, so a

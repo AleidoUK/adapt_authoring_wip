@@ -68,6 +68,28 @@ define(function(require) {
         title: Origin.l10n.t('app.lightcourseassetedit'),
         model: this.model,
         onUpdate: function(data) {
+          if (data.replacementFile) {
+            var form = new FormData();
+            form.append('file', data.replacementFile);
+            form.append('title', data.title);
+            form.append('description', data.description);
+            return $.ajax({
+              url: 'api/content/lightcourseasset/' + encodeURIComponent(self.model.id || self.model.get('_id')) + '/replace',
+              type: 'POST', data: form, processData: false, contentType: false
+            }).done(function() {
+              self.model.fetch({
+                success: function() {
+                  Origin.Notify.alert({ type: 'success', text: Origin.l10n.t('app.lightcourseassetreplaced') });
+                },
+                error: function() {
+                  Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgeneric') });
+                }
+              });
+            }).fail(function(response) {
+              Origin.Notify.alert({ type: 'error', text: response.responseJSON && response.responseJSON.message ||
+                Origin.l10n.t('app.errorgeneric') });
+            });
+          }
           self.model.save(data, {
             patch: true,
             wait: true,

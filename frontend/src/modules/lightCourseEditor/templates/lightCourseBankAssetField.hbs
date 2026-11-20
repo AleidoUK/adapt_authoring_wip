@@ -3,7 +3,11 @@
     {{#ifValueEquals assetType "audio"}}
       <audio controls src="api/content/lightcourseasset/{{assetId}}/serve"></audio>
     {{else}}
+      {{#ifValueEquals assetType "video"}}
+      <video controls preload="metadata" src="api/content/lightcourseasset/{{assetId}}/serve"></video>
+      {{else}}
       <img class="light-course-bank-asset-thumb" src="api/content/lightcourseasset/{{assetId}}/thumb">
+      {{/ifValueEquals}}
     {{/ifValueEquals}}
     <span class="light-course-bank-asset-preview-filename"></span>
   {{else}}

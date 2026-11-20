@@ -42,7 +42,7 @@ Paths are relative to the group's schema, using `[]` for each existing array ite
 }
 ```
 
-Required fields and per-item graphic placeholders can be configured. Required objects
+Required fields, all schema-declared images and supported question options can be configured. Required objects
 expand into normal controls for their nested fields. Inside item arrays, only
 required fields without a valid installed default are shown; optional fields and
 fields with usable defaults are hidden. Values such as `false` and `0` count as
@@ -72,7 +72,7 @@ Previously saved grouped fallbacks remain stored and retain their existing
 conversion behaviour; hiding a duplicate does not delete configuration.
 
 Conversion preserves valid authored values, including optional empty fields except
-for explicitly enabled per-item graphic placeholders. For missing/invalid required
+for explicitly enabled image fallbacks, Media/Immersive Video/Video Wall MP4, supported question options and Flow/Timeline navigation fallbacks. For missing/invalid required
 values, it proposes a configured Conversion Default or, if none is configured, a
 valid installed-schema default. For item fields with a usable installed default,
 that default takes precedence over older custom per-item defaults (except the
@@ -83,12 +83,23 @@ existing items unless the array itself requires a fallback.
 
 ### Graphic placeholders for all items
 
+Base images, main component graphics, mobile images and other image fields
+declared by the installed schema appear whether required or optional. Enabling
+an image fallback fills only missing/invalid values, creates a missing graphic
+object when needed, and preserves authored valid images and sibling fields such
+as alt text. Unconfigured optional images remain unchanged.
+
 Image fields inside item arrays have a separate **Graphic placeholder for all
 items** checkbox and picker, even when the image is optional. For example,
 `component:accordion` can configure `_items[]._graphic.src`. Enable each relevant
 path to fill missing, empty, schema-invalid, missing-file or wrong-MIME graphics
 in existing items. Valid authored graphics, alt text, item text, order and other
 fields remain unchanged. The source Light Course is never changed.
+
+These controls are derived only from actual image asset fields in the installed
+item schema. Components with text-only items do not get a synthetic
+`_items[]._graphic.src` placeholder. Each supported item image path has its own
+control, including plugin-specific paths.
 
 Missing graphic objects are created only as needed for this explicit setting;
 missing/empty item arrays are not populated by it. It applies to each existing
@@ -115,6 +126,45 @@ appear in preflight for approval. Valid authored `true` and `false` values are
 preserved. Unticked optional settings retain normal installed behaviour; required
 settings still use normal required-field fallback rules.
 
+### Flow and Timeline navigation
+
+Flow and Timeline expose all individually declared fields within `_navigation`,
+including enabling navigation, showing the first item, the icon, button text,
+aria label and instruction. Only fields supported by the installed schema appear;
+there is no duplicate whole-navigation editor.
+
+Enable each fallback separately. Enabled navigation fallbacks fill missing,
+empty or schema-invalid values, creating the navigation object if necessary.
+Valid authored values, including `false`, are preserved. Unticked optional fields
+retain normal installed behaviour. Icon choices come from the installed schema.
+
+### Tile Menu and Hero options
+
+Tile Menu / contentobject exposes **Display item as a button** (called
+**Display graphic as a clickable button** by older schemas) and **Remove default
+link button**, where declared by the installed schema. Hero / course and
+Hero / contentobject expose **Hide the default page header** and **Make full width**.
+Each has a separate fallback-enable checkbox and true/false setting. Enabled
+fallbacks fill missing/invalid values only, preserve authored booleans and sibling
+settings, and appear in preflight for approval. Unconfigured optional values are
+unchanged; required fields retain their normal installed defaults.
+
+### Media and Immersive Video MP4
+
+Media and Immersive Video also expose the optional `_media.mp4` field as an individual
+video-bank picker. Enabling this fallback fills a missing/empty/invalid MP4 value,
+including an unavailable managed asset or one with a non-video MIME type.
+Valid authored video references and sibling media settings are preserved.
+The placeholder is validated and migrated into Full Course Asset Management,
+like image placeholders; invalid placeholders block preflight. Leaving it
+unticked keeps the normal optional-field behaviour.
+
+Video Wall exposes `_items[]._media.mp4` as a separate video-bank picker for all
+existing items. The same opt-in missing/invalid-only rules apply; configured
+placeholders take precedence over installed defaults for missing item videos.
+Valid videos, captions, posters, text and item order are preserved. Missing media
+objects are created as needed, but no items are added or arrays replaced.
+
 Every replacement requires explicit review approval; no placeholders are silently written into the Light Course. Placeholder-bank usage counts include Conversion Defaults.
 
 ## Preflight and mapping
@@ -129,7 +179,7 @@ Preflight checks:
 - managed asset availability, tenant ownership, stored files, MIME category and checksums;
 - authored Unique IDs and per-control icons against their owning installed extension schemas.
 
-Required managed media, and optional per-item images with an explicitly configured
+Required managed media, and optional images with an explicitly configured
 graphic placeholder, may use a valid fallback when missing or of the wrong type,
 but only as a review proposal. Other invalid optional media and unresolved assets
 in rich text block conversion rather than being silently removed. External HTTP(S)

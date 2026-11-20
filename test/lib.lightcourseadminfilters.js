@@ -114,7 +114,7 @@ describe('light-course admin list filters (isolated)', function() {
   ];
   it('filters template names/descriptions literally and combines all selected tags without changing records', function() {
     var h = harness('template', templates), before = JSON.stringify(h.collection.toJSON());
-    assert.deepStrictEqual(h.visible(), ['one', 'two', 'three']);
+    assert.deepStrictEqual(h.visible(), ['one', 'three', 'two']);
     h.filter('  aLPHA ', '', '', ['red']);
     assert.deepStrictEqual(h.visible(), ['one', 'two']);
     h.filter('', '', '', ['red', 'blue']);
@@ -134,7 +134,7 @@ describe('light-course admin list filters (isolated)', function() {
     assert.deepStrictEqual(h.visible(), []);
     assert(h.picker.options.blue);
     h.view.onClearFilters();
-    assert.deepStrictEqual(h.visible(), ['two', 'three']);
+    assert.deepStrictEqual(h.visible(), ['three', 'two']);
     assert.strictEqual(h.picker.options.blue, undefined);
     assert.strictEqual(h.control('.light-course-admin-filter-clear').disabled, true);
     h.view.remove();

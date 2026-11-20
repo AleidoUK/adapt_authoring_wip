@@ -90,6 +90,7 @@ function viewHarness(options) {
     define: function(factory) {
       factory(function(name) {
         if (name === 'core/origin') return Origin;
+        if (name === '../alphabetical') return require('../frontend/src/modules/lightCourseEditor/alphabetical');
         return { extend: function(value) { definition = value; }, prototype: { remove: function() {} } };
       });
     },
@@ -181,6 +182,20 @@ describe('Light Course CSV parse routes', function() {
 });
 
 describe('Light Course CSV editor integration', function() {
+  it('sorts glossary entries by term and resource entries by title while retaining IDs and editable row indices', function() {
+    ['glossary', 'resources'].forEach(function(extension) {
+      var key = extension === 'glossary' ? 'term' : 'title';
+      var z = { _id: 'z' }, a = { _id: 'a' };
+      z[key] = 'Zebra';
+      a[key] = 'alpha';
+      var state = viewHarness({ extension: extension, items: [z, a] });
+      var rows = [];
+      state.view.renderRow = function(item, index) { rows.push([item._id, index]); return ''; };
+      state.definition.renderItems.call(state.view);
+      assert.deepStrictEqual(rows, [['a', 0], ['z', 1]]);
+      assert.deepStrictEqual(state.view.getItems().map(function(item) { return item._id; }), ['a', 'z']);
+    });
+  });
   it('displays resource IDs in copyable read-only fields outside change handlers', function() {
     var state = viewHarness({ extension: 'resources' });
     state.view.fields = [{ key: '_id', label: 'Unique ID', type: 'text', readOnly: true }];

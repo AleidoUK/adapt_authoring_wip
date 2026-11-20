@@ -7,6 +7,7 @@ define(function(require) {
   var FieldPreview = require('../fieldPreview');
   var ComponentLayout = require('../componentLayout');
   var LightCourseCommentsView = require('./lightCourseCommentsView');
+  var Alphabetical = require('../alphabetical');
 
   var HIERARCHY = { page: 'article', article: 'block', block: 'component' };
   var MAX_COMPONENTS_PER_BLOCK = 2;
@@ -88,6 +89,7 @@ define(function(require) {
     },
 
     renderTree: function() {
+      Alphabetical.tree(this.tree);
       var html = Handlebars.templates['lightCourseTreeRootNodes']({
         children: this.tree.children,
         clipboardType: this.clipboardNode && this.clipboardNode.type,
@@ -134,7 +136,7 @@ define(function(require) {
      * Returns the committed contentTree. Open component edits stay in a separate draft until Save.
      */
     getContentTree: function() {
-      return this.tree;
+      return Alphabetical.tree(this.tree);
     },
 
     findNode: function(nodeId, nodes, parent) {
@@ -182,6 +184,7 @@ define(function(require) {
         return;
       }
       found.node.title = title;
+      this.renderTree();
       Origin.trigger('lightCourseEditor:autosave');
     },
 

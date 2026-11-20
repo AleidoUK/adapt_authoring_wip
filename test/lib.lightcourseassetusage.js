@@ -244,6 +244,14 @@ function uiHarness() {
 }
 
 describe('placeholder Uses column (isolated)', function() {
+  it('recreates the asset row when refreshed replacement metadata changes', function() {
+    var h = uiHarness();
+    h.view.renderItems();
+    var previous = h.rows[0];
+    h.collection.at(0).set('filename', 'new.png');
+    assert.strictEqual(previous.removed, true);
+    assert.strictEqual(h.rows[2].options.model.get('filename'), 'new.png');
+  });
   it('loads one report per sync, refreshes rows and ignores superseded and disposed requests', function() {
     var h = uiHarness();
     h.collection.trigger('sync');

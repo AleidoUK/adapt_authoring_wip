@@ -9,7 +9,7 @@
 // in), `Backbone.Form` was sometimes still undefined here on a cold page load, throwing
 // "Cannot read properties of undefined (reading 'editors')" and aborting the whole module chain -
 // confirmed live.
-define(['core/origin', '../lightCourseAssetContext', 'backbone-forms'], function(Origin, LightCourseAssetContext) {
+define(['core/origin', '../lightCourseAssetContext', '../alphabetical', 'backbone-forms'], function(Origin, LightCourseAssetContext, Alphabetical) {
 
   /**
    * A light-course-scoped Asset editor, registered under "LightCourseAsset:<type>" (not the
@@ -84,7 +84,7 @@ define(['core/origin', '../lightCourseAssetContext', 'backbone-forms'], function
         var assets = assetsResponse[0];
         var usedAssetIds = (bankAssetsResponse[0] || []).map(function(bankAsset) { return bankAsset._assetId; });
         $bank.empty();
-        assets.forEach(function(asset) {
+        assets.slice().sort(Alphabetical.compare).forEach(function(asset) {
           var isUsed = usedAssetIds.indexOf(asset._id) !== -1;
           $bank.append(
             $('<div class="light-course-bank-asset-bank-item"></div>')

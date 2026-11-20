@@ -99,10 +99,13 @@ define(function(require) {
         var $checkbox = $('<input type="checkbox">').prop('checked', enabled);
         var label = field.itemGraphic ?
           Origin.l10n.t('app.lightcourseconversionitemgraphic', { path: field.path }) :
-          field.questionOption ? field.schema.title || field.path : field.path;
+          field.questionOption || field.pluginOption ? field.schema.title || field.path : field.path;
         $row.append($('<label></label>').append($checkbox).append(document.createTextNode(' ' + label)));
         if (field.itemGraphic) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionitemgraphichelp')));
-        if (field.questionOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionquestionhelp')));
+        else if (field.image) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionimagehelp')));
+        if (field.videoPlaceholder) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionvideohelp')));
+        if (field.questionOption || field.pluginOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionquestionhelp')));
+        if (field.navigationOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionnavigationhelp')));
         var definition = field.schema;
         var container = definition.type === 'object' || definition.type === 'array' || definition.properties;
         if (container) $row.addClass('light-course-conversion-default-container');

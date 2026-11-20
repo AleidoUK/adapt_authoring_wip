@@ -88,6 +88,123 @@ function treeHarness() {
 }
 
 var PRESET = { _id: 'text-default', name: 'Text default', isDefault: true, values: { body: 'Default body', items: [{ title: 'Item' }] } };
+
+describe('Light Editor alphabetical ordering', function() {
+  var alphabetical = require('../frontend/src/modules/lightCourseEditor/alphabetical');
+  it('sorts named values naturally, ignores case/markup and keeps blank new entries last', function() {
+    var values = [{ title: '' }, { title: '<p>zebra</p>' }, { title: 'alpha 10' }, { title: 'Alpha 2' }];
+    assert.deepStrictEqual(values.sort(alphabetical.compare).map(function(item) { return item.title; }),
+      ['Alpha 2', 'alpha 10', '<p>zebra</p>', '']);
+    assert.strictEqual(alphabetical.compare({ term: 'a' }, { term: 'B' }) < 0, true);
+    assert.strictEqual(alphabetical.compare(new Backbone.Model({ name: 'a' }), new Backbone.Model({ name: 'B' })) < 0, true);
+    assert.strictEqual(alphabetical.compare({ title: 'Same' }, { title: 'same' }), 0);
+  });
+  it('sorts each hierarchy level without changing IDs, layout assignments or content', function() {
+    var tree = { children: [
+      { _id: 'z', title: 'Zebra', children: [] },
+      { _id: 'a', title: 'Alpha', children: [
+        { title: 'Z article', children: [] },
+        { title: 'A article', children: [{ title: 'Block', children: [
+          { _id: 'left', title: 'Z component', _layout: 'left' },
+          { _id: 'right', title: 'A component', _layout: 'right', _items: [
+            { title: 'Z item' }, { title: 'A item' }
+          ] }
+        ] }] }
+      ] }
+    ] };
+    alphabetical.tree(tree);
+    assert.deepStrictEqual(tree.children.map(function(node) { return node._id; }), ['a', 'z']);
+    assert.strictEqual(tree.children[0].children[0].title, 'A article');
+    assert.deepStrictEqual(tree.children[0].children[0].children[0].children.map(function(node) {
+      return [node._id, node._layout];
+    }), [['right', 'right'], ['left', 'left']]);
+    assert.deepStrictEqual(tree.children[0].children[0].children[0].children[0]._items.map(function(item) {
+      return item.title;
+    }), ['A item', 'Z item']);
+    var h = treeHarness();
+    h.tree.tree = tree;
+    assert.strictEqual(h.tree.getContentTree(), tree);
+    assert.strictEqual(h.tree.findNode('right').node.title, 'A component');
+  });
+});
+
+describe('Light Course component inline list schemas', function() {
+  it('converts real scaffold item schemas, including nested objects and lists, into editor types', function() {
+    function List() {}
+    List.Item = function Item() {};
+    function ObjectEditor() {}
+    function TextEditor() {}
+    function TextAreaEditor() {}
+    function AssetEditor() {}
+    var editors = { Object: ObjectEditor, Text: TextEditor, TextArea: TextAreaEditor,
+      'LightCourseAsset:image': AssetEditor, List: { Modal: {} } };
+    var origin = { on: function() {}, l10n: { t: function(key) { return key; } } };
+    var mocks = {
+      'core/origin': origin, 'core/helpers': {}, './schemas': {},
+      'backbone-forms': {}, 'backbone-forms-lists': {}, './backboneFormsOverrides': {},
+      './views/scaffoldAssetView': {}, './views/scaffoldAssetItemView': {},
+      './views/scaffoldCodeEditorView': {}, './views/scaffoldColourPickerView': {},
+      './views/scaffoldDisplayTitleView': {}, './views/scaffoldItemsModalView': {},
+      './views/scaffoldListView': {}, './views/scaffoldTagsView': {}, './views/scaffoldUsersView': {}
+    };
+    editors.Checkbox = function Checkbox() {};
+    load('frontend/src/modules/scaffold/index.js', mocks, {
+      Backbone: { Form: { editors: editors, validators: { required: function() {} }, Field: { prototype: {
+        createTitle: function() { return this.key; }
+      } } } }
+    });
+    var prepare = load('frontend/src/modules/lightCourseEditor/inlineListSchema.js', {
+      'core/origin': origin,
+      './inlineListEditor': function() { return List; }
+    }, { Backbone: { Form: { editors: editors } } });
+    var refs = { resources: [] };
+    var raw = { _items: { type: 'array', items: { type: 'object', properties: {
+      title: { type: 'string', validators: ['required'] },
+      graphic: { type: 'object', properties: { src: { type: 'string', inputType: 'LightCourseAsset:image' } } },
+      children: { type: 'array', items: { type: 'object', properties: {
+        body: { type: 'string', inputType: 'TextArea', lightCourseRefs: refs }
+      } } }
+    } } } };
+    var fields = prepare(origin.scaffold.buildSchema(raw));
+    var items = fields._items;
+    assert.strictEqual(items.type, List);
+    assert.strictEqual(items.itemType, ObjectEditor);
+    assert.strictEqual(items.itemClass, List.Item);
+    assert.strictEqual(items.itemSchema.type, ObjectEditor);
+    assert.strictEqual(items.itemSchema.subSchema, items.subSchema);
+    assert.strictEqual(items.subSchema.children.type, List);
+    assert.strictEqual(items.subSchema.children.itemSchema.type, ObjectEditor);
+    assert.strictEqual(items.subSchema.title.type, 'Text');
+    assert.strictEqual(items.subSchema.title.validators[0], 'required');
+    assert.strictEqual(items.subSchema.graphic.subSchema.src.type, 'LightCourseAsset:image');
+    assert.strictEqual(items.subSchema.children.subSchema.body.type, 'TextArea');
+    assert.strictEqual(items.subSchema.children.subSchema.body.lightCourseRefs, refs);
+    assert.strictEqual(items.confirmDelete, false);
+
+    var isolatedBackbone = load('frontend/src/libraries/backbone.js', { underscore: _ });
+    var Form = load('frontend/src/libraries/backbone-forms.js', {
+      jquery: {}, underscore: _, backbone: isolatedBackbone
+    });
+    Object.assign(Form.editors, editors);
+    [items.subSchema.title, items.subSchema.graphic.subSchema.src,
+      items.subSchema.children.subSchema.body].forEach(function(field) {
+      var context = { createTitle: function() { return ''; }, createEditorId: function() { return 'item'; } };
+      context.schema = Form.Field.prototype.createSchema.call(context, field);
+      assert.doesNotThrow(function() { Form.Field.prototype.createEditor.call(context); });
+    });
+  });
+  it('uses a text editor for list items without an explicit type', function() {
+    function List() {}
+    List.Item = function Item() {};
+    function Text() {}
+    var prepare = load('frontend/src/modules/lightCourseEditor/inlineListSchema.js', {
+      'core/origin': {}, './inlineListEditor': function() { return List; }
+    }, { Backbone: { Form: { editors: { Text: Text } } } });
+    var field = prepare({ tags: { type: 'List', subSchema: { type: 'string' } } }).tags;
+    assert.strictEqual(field.itemType, Text);
+    assert.strictEqual(field.itemSchema.type, Text);
+  });
+});
 var PRESET_PICKER = '.light-course-tree-component-editor-preset-picker';
 
 describe('component comment status indicators (isolated)', function() {
@@ -177,7 +294,7 @@ describe('editing light course page titles (isolated)', function() {
     return h;
   }
 
-  it('saves page titles in the heading field without rebuilding or replacing the active input', function() {
+  it('saves page titles and refreshes the tree to apply alphabetical ordering', function() {
     var h = setup();
     var renders = 0;
     h.tree.renderTree = function() { renders++; };
@@ -187,14 +304,14 @@ describe('editing light course page titles (isolated)', function() {
     assert.strictEqual(h.page.title, 'My page <title>');
     assert.strictEqual(h.input.val(), 'My page <title>');
     assert.strictEqual(h.tree.clipboardNode, null);
-    assert.strictEqual(renders, 0);
+    assert.strictEqual(renders, 1);
     assert.deepStrictEqual(h.events, ['lightCourseEditor:autosave']);
     var Model = load('frontend/src/modules/lightCourseAdmin/models/lightCourseTemplateModel.js', { backbone: Backbone });
     var serialized = new Model({ contentTree: h.tree.getContentTree() }).toJSON();
     assert.strictEqual(new Model(serialized, { parse: true }).get('contentTree').children[0].title, h.page.title);
   });
 
-  it('clears a title without replacing the field, allowing its default placeholder to show', function() {
+  it('clears a title, allowing its default placeholder to show', function() {
     var h = setup('Old title');
     h.input.val(' ');
     h.tree.onPageTitleChanged({ currentTarget: h.input });
@@ -739,6 +856,7 @@ describe('component popup field order (isolated)', function() {
       },
       'core/views/originView': { extend: function(proto) { return proto; } },
       '../schemaFilter': filter,
+      '../inlineListSchema': function(schema) { return schema; },
       '../lightCourseAssetContext': {}
     }, { Backbone: Object.assign({}, Backbone, { Form: Form }) });
     var model = new Backbone.Model({

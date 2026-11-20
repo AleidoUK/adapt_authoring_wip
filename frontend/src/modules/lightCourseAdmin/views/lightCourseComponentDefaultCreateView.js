@@ -20,7 +20,9 @@ define(function(require) {
     postRender: function() {
       var $select = this.$('.light-course-component-default-create-type');
       $select.append($('<option></option>').attr('value', '').text(Origin.l10n.t('app.lightcoursecomponenttypeselect')));
-      this.componentTypes.forEach(function(componentType) {
+      this.componentTypes.slice().sort(function(a, b) {
+        return (a.displayName || a.component).localeCompare(b.displayName || b.component, undefined, { sensitivity: 'base', numeric: true });
+      }).forEach(function(componentType) {
         $select.append($('<option></option>').attr('value', componentType.component).text(componentType.displayName || componentType.component));
       });
     },

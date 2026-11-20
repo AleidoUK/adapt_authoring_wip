@@ -1,8 +1,8 @@
 define(function(require) {
   var Origin = require('core/origin');
   var BankAsset = require('../lightCourseEditor/views/lightCourseBankAssetFieldView');
+  var listEditor = require('../lightCourseEditor/inlineListEditor');
 
-  var List;
   var HiddenValue;
   function hiddenEditor() {
     if (HiddenValue) return HiddenValue;
@@ -19,64 +19,6 @@ define(function(require) {
     });
     return HiddenValue;
   }
-  function listEditor() {
-    if (List) return List;
-    // The full editor's list overrides depend on an active course and create courseasset joins.
-    var Base = Backbone.Form.editors.__List || Backbone.Form.editors.List;
-    var BaseItem = Base.__Item || Base.Item;
-    List = Base.extend({
-      events: {
-        'click [data-action="add"]': function(event) {
-          event.preventDefault();
-          event.stopPropagation();
-          this.addItem(undefined, true);
-        }
-      },
-      render: function() {
-        this.rendering = true;
-        try { return Base.prototype.render.apply(this, arguments); }
-        finally { this.rendering = false; }
-      },
-      addItem: function(value, userInitiated) {
-        if (this.rendering && value === undefined) return;
-        return Base.prototype.addItem.call(this, value, userInitiated);
-      },
-      removeItem: function(item) {
-        var index = this.items.indexOf(item);
-        if (index === -1) return;
-        item.remove();
-        this.items.splice(index, 1);
-        this.trigger('remove', this, item.editor);
-        this.trigger('change', this);
-      },
-      setValue: function(value) {
-        this.items.forEach(function(item) { item.remove(); });
-        this.items = [];
-        return Base.prototype.setValue.call(this, value);
-      }
-    });
-    List.Item = BaseItem.extend({
-      initialize: function(options) {
-        BaseItem.prototype.initialize.call(this, options);
-        this.schema = this.schema.itemSchema;
-      },
-      events: {
-        'click [data-action="remove"]': function(event) {
-          event.preventDefault();
-          event.stopPropagation();
-          this.list.removeItem(this);
-        },
-        'keydown input[type=text]': function(event) {
-          if (event.which !== 13) return;
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      }
-    });
-    List.Item.template = BaseItem.template;
-    return List;
-  }
-
   function build(field, key) {
     var definition = JSON.parse(JSON.stringify(field));
     if (definition.conversionHidden) return {

@@ -40,6 +40,7 @@ define(function(require) {
     this._tagRequests = this._tagRequests || [];
     this.$('.light-course-editor-tags-input').selectize({
       valueField: '_id', labelField: 'title', searchField: ['title'],
+      sortField: 'title',
       loadingClass: 'selectize-loading', maxItems: null, preload: true,
       options: tags.map(function(tag) { return typeof tag === 'string' ? { _id: tag, title: tag } : tag; }),
       items: tags.map(id),

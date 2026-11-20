@@ -34,6 +34,22 @@ syntax, the review workflow, locking and interrupted-conversion recovery.
 
 ### Placeholder asset uses
 
+In **Light Course Placeholder Assets**, choose **Edit** and select a file under
+**Replace file (optional)**, then save the dialog. The replacement must have the
+same media type (image, audio or video). Leave the file input blank for a
+metadata-only edit.
+
+Replacement retains the asset ID and existing links/usage in courses, templates,
+component defaults and Conversion Defaults. Saved Light Course versions that
+reference this ID also serve the replacement; they do not retain a private copy
+of the old file. Already-converted Full Course asset copies are unchanged.
+After a successful replacement, the placeholder list refreshes its preview.
+The new file is stored before metadata is updated, and failures leave the old
+asset usable. Old files/thumbnails are removed only if no other placeholder
+record uses them. Replacement uses the normal content-update hooks/history.
+The tenant-scoped `POST /api/content/lightcourseasset/:id/replace` endpoint requires
+asset-update permission, enforces upload limits and rejects a different media type.
+
 The **Light Course Placeholder Assets** list has a **Uses** column. Expand a
 non-zero count to see linked courses, templates, component defaults and conversion defaults, with a
 per-editor count; hover over an entry for its saved field paths. Each distinct
@@ -118,6 +134,19 @@ Component Defaults also include the layout choice, restricted by the component
 type's supported layouts. Applying a default that cannot fit a paired block keeps
 the current layout and shows a warning while applying the other preset values.
 Older templates/defaults without a layout remain usable.
+
+Component Defaults and Light Course component forms use inline Add/Remove controls
+for item arrays, including nested items. Select an item's heading to expand or
+collapse its options, or use its Delete button to remove it. Existing items start
+collapsed; new and duplicated items open for editing. The duplicate icon copies
+the current item values, including nested items. These editors do not require an open
+Full Course or create Full Course asset associations. Item values and bank asset
+selections are included when the template/default is saved.
+
+Course, template, component-default and placeholder-asset lists are alphabetical,
+as are their selection lists. Authored content and inline item lists also use
+alphabetical ordering; saved item values use that order. Blank new items appear
+last. History and audit records retain their chronological order.
 
 - [test/lib.schemawalker.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.schemawalker.js): new assertions for `requiredTranslatablePaths`/`requiredAssetPaths` against the existing fixtures (none of which happen to have a required field that's also translatable/an asset) plus a new synthetic-schema test that does exercise both.
 - [test/lib.lightcourseadmin.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcourseadmin.js): new tests for `iconDefaults`/`defaultPluginSelections` validation on the config PUT route (reject an invalid icon, reject a non-array `extensions`), the `iconDefaults` -> new-course `headerData.iconChoices` wiring, and the `requireddefaultschema` route's response shape against the real installed component/extension types.

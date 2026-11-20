@@ -52,7 +52,9 @@ define(function(require) {
         $container.html('<p class="light-course-icon-picker-empty">' + Origin.l10n.t('app.lightcoursedrawericonpickernone') + '</p>');
         return;
       }
-      icons.forEach(function(icon) {
+      icons.slice().sort(function(a, b) {
+        return a.className.localeCompare(b.className, undefined, { sensitivity: 'base', numeric: true });
+      }).forEach(function(icon) {
         var $item = $('<button type="button" class="light-course-icon-picker-item"></button>')
           .attr('data-icon-class', icon.className)
           .attr('title', icon.className);

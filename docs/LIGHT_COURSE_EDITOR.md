@@ -40,7 +40,18 @@ At the top of every light course sits a set of header sections aimed at reviewer
 
 ## Building the course
 
-A course contains pages, pages contain articles, articles contain blocks, and blocks contain up to two components. Blocks and components can be reordered inside the tool.
+A course contains pages, pages contain articles, articles contain blocks, and blocks contain up to two components.
+
+Light Course lists and pickers are alphabetical (case-insensitive, with natural
+number ordering). This includes courses, templates, component defaults, assets,
+reference pickers and authored content. Pages, articles, blocks and components
+are sorted by title within their parent; glossary entries use their term,
+resources/help entries and component items use their title (or body when untitled).
+Blank new entries stay at the end. Alphabetical order is used when saving edited
+content, so previews and exports of that saved content use the same order.
+Manual move buttons are no longer shown. Explicit left/right component layouts
+are unchanged. Version history, comments and audit events retain chronological
+ordering rather than being alphabetised.
 
 Each component has a **Layout** choice: **full**, **left** or **right**, subject to its installed component type's supported layouts. A block can contain one full-width component or up to two half-width components, one left and one right. Adding or pasting a second component beside a full-width component asks for confirmation before changing it to left and placing the new component on the right. Full-width-only types cannot be paired. Changing a paired component's side swaps its sibling to the opposite side. Components appear side by side in the tree, stacking on narrower screens. These controls are shared by course and template editors; component defaults can also record a layout.
 
@@ -62,7 +73,7 @@ If a plugin is later removed, its saved information will remain visible but read
 
 ## Glossary and resources
 
-Where a course uses the glossary and resources extensions, light editors can maintain their lists directly in the tool instead of opening full plugin settings. A glossary entry has its term and definition. A resource entry has its details plus a resource ID value, which is used elsewhere to link to that resource. Editors can add, edit, reorder and remove entries in both lists.
+Where a course uses the glossary and resources extensions, light editors can maintain their lists directly in the tool instead of opening full plugin settings. A glossary entry has its term and definition. A resource entry has its details plus a resource ID value, which is used elsewhere to link to that resource. Editors can add, edit and remove entries in both lists; entries are ordered alphabetically.
 
 Each resource row displays its **Unique ID** in a read-only, copyable field. New resources receive their ID when saved.
 
@@ -191,7 +202,7 @@ Markdown exports/imports do not transfer discussions.
 
 Only a full administrator can convert a light course, and only its latest saved version can be converted. Save current edits and create a new version if the draft has changed since that version.
 
-Administrators configure missing required values under **Light Course > Conversion Defaults**, separately from Component Defaults. These settings never change existing light content. Only missing or invalid required values receive proposed fallbacks; valid authored values and optional empty fields are preserved. The explicit **Graphic placeholder for all items** setting is an exception for optional item images: it can fill missing/invalid graphics while preserving valid images, item text and order. It does not replace the items array.
+Administrators configure missing required values under **Light Course > Conversion Defaults**, separately from Component Defaults. These settings never change existing light content. All schema-declared images, including optional main and mobile graphics, are available as explicit fallbacks. Enabled image fallbacks fill only missing/invalid images, preserving valid authored images. **Graphic placeholder for all items** appears only for image fields declared in the component's item schema; it preserves item text and order without replacing the array. Optional fields remain unchanged unless an image, Media/Immersive Video/Video Wall MP4, supported question-option or Flow/Timeline navigation fallback is explicitly enabled.
 
 Select **Convert to Full Course** to run a read-only check of installed plugins, required fields, layouts, navigation icons and assets. The review shows all errors and any proposed fallback values. Resolve errors and explicitly approve the review before conversion can start.
 

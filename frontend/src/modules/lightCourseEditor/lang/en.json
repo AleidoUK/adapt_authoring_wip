@@ -1,5 +1,6 @@
 {
   "app": {
+    "lightcourseinlineitemuntitled": "Untitled item",
     "lightcourseconvert": "Convert to Full Course",
     "lightcourseconversionrunning": "Conversion is in progress. This Light Course is temporarily read-only. If the operation was interrupted, ask an administrator to inspect its conversion attempt before retrying.",
     "lightcourseconversionchecking": "Checking the latest saved version...",

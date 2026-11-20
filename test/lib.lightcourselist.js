@@ -68,6 +68,7 @@ function harness(data) {
     backbone: Backbone, '../models/lightCourseModel': Model
   });
   var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseListView.js', {
+    '../alphabetical': require('../frontend/src/modules/lightCourseEditor/alphabetical'),
     'core/origin': origin,
     'core/views/originView': { extend: function(proto) { return proto; }, prototype: {
       remove: function() { this.stopListening(); state.parentRemoved = true; }
@@ -102,7 +103,7 @@ function harness(data) {
 }
 
 describe('light course list filters (isolated)', function() {
-  it('keeps the full collection and updated-date order with no filters', function() {
+  it('shows the full collection alphabetically with no filters', function() {
     var state = harness();
     assert.deepStrictEqual(state.visible, ['a', 'b', 'c', 'd']);
     assert.strictEqual(state.collection.length, 4);
@@ -111,6 +112,14 @@ describe('light course list filters (isolated)', function() {
     assert.strictEqual(state.settings.maxItems, null);
     assert.strictEqual(state.controls['aria-label'], 'app.lightcoursetags');
     assert.strictEqual(state.controls['aria-describedby'], 'light-course-list-tag-help');
+  });
+
+  it('sorts unsorted courses by title without changing the backing collection', function() {
+    var state = harness(courses().reverse());
+    assert.deepStrictEqual(state.visible, ['a', 'b', 'c', 'd']);
+    state.collection.get('d').set('title', 'Aardvark');
+    assert.deepStrictEqual(state.visible, ['d', 'a', 'b', 'c']);
+    assert.strictEqual(state.settings.sortField, 'title');
   });
 
   it('matches trimmed, case-insensitive literal title substrings without treating punctuation as regex', function() {

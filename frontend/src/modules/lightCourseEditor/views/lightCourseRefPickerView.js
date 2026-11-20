@@ -2,6 +2,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
+  var Alphabetical = require('../alphabetical');
 
   /**
    * "Insert glossary/resource reference" picker, opened by lightCourseRefPlugin.js's toolbar
@@ -48,7 +49,7 @@ define(function(require) {
         return;
       }
       var self = this;
-      items.forEach(function(item) {
+      items.slice().sort(Alphabetical.compare).forEach(function(item) {
         var label = self.refType === 'glossary' ? item.term : item.title;
         var description = item.description || '';
         var $item = $('<button type="button" class="light-course-ref-picker-item"></button>')

@@ -3,6 +3,7 @@ define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
   var LightCourseListItemView = require('./lightCourseListItemView');
+  var Alphabetical = require('../alphabetical');
 
   function tagId(tag) {
     return typeof tag === 'string' ? tag : tag && tag._id;
@@ -33,6 +34,7 @@ define(function(require) {
         searchField: ['title'],
         maxItems: null,
         create: false,
+        sortField: 'title',
         options: this.getTagOptions(),
         onChange: function() { self.onFiltersChanged(); }
       });
@@ -120,7 +122,7 @@ define(function(require) {
       var $container = this.$('.light-course-list-items');
       this.removeItems();
       $container.empty();
-      var matches = this.collection.filter(this.matchesFilters, this);
+      var matches = this.collection.filter(this.matchesFilters, this).sort(Alphabetical.compare);
       this.$('.light-course-list-results').text(Origin.l10n.t('app.lightcourselistresults', {
         shown: matches.length, total: this.collection.length
       }));

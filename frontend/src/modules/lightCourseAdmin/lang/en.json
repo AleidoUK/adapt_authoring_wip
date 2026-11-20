@@ -1,10 +1,16 @@
 {
   "app": {
+    "lightcourseassetreplacefile": "Replace file (optional)",
+    "lightcourseassetreplacehelp": "Choose a file of the same media type to replace this asset. Saving keeps its ID and all existing uses and links, including saved Light Course versions. Leave blank to update only the title and description. Full Course copies are unchanged.",
+    "lightcourseassetreplaced": "Placeholder asset replaced. Existing uses and links have been retained.",
     "lightcourseconversiondefaults": "Conversion Defaults",
+    "lightcourseconversionimagehelp": "Fills this image only if it is missing or invalid, even when optional. Valid authored images are preserved. Tick the checkbox to enable the fallback.",
     "lightcourseconversionquestionhelp": "Tick the first checkbox to enable this fallback. The setting checkbox below selects its true/false value. Valid authored settings, including false, are preserved.",
+    "lightcourseconversionnavigationhelp": "Tick the first checkbox to enable this navigation fallback for missing or invalid values. For boolean options, the setting checkbox selects true/false. Valid authored settings are preserved.",
+    "lightcourseconversionvideohelp": "Tick the checkbox to enable this MP4 fallback for missing or invalid video values, even when optional. Paths with [] apply to each existing item without replacing or adding items. Valid authored videos are preserved.",
     "lightcourseconversionitemgraphic": "Graphic placeholder for all items: %{path}",
     "lightcourseconversionitemgraphichelp": "Fills missing or invalid graphics in existing items, including optional graphics. Valid images, item text and item order are preserved. No items are added or replaced by this setting.",
-    "lightcourseconversiondefaultshelp": "Fallbacks used only when converting a saved Light Course to a Full Course. Tick a required field to configure a fallback. Valid authored values are preserved. Optional empty fields stay empty unless you explicitly enable a graphic placeholder for all items. Array-item paths ([]) apply to existing items; configure the whole array to supply missing items. All proposed changes must be reviewed before conversion.",
+    "lightcourseconversiondefaultshelp": "Fallbacks used only when converting a saved Light Course to a Full Course. Tick a field to configure a fallback. All schema-declared images are available, including optional base and mobile images. Valid authored values are preserved. Optional empty fields stay empty unless you explicitly enable an image, MP4, question, navigation, Tile Menu button or Hero header/width fallback. Array-item paths ([]) apply to existing items. All proposed changes must be reviewed before conversion.",
     "lightcourseconversiongrouphelp": "Choose an entry from one of the groups below to edit its conversion defaults. Only one entry is shown at a time; changes are kept when switching groups. Use Save to store all changes.",
     "lightcourseconversioncontenttypes": "Content types",
     "lightcourseconversioncomponents": "Components",

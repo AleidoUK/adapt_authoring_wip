@@ -2,6 +2,7 @@ define(function(require) {
   var Origin = require('core/origin');
   var OriginView = require('core/views/originView');
   var Tags = require('../../lightCourseEditor/tagEditor');
+  var Alphabetical = require('../../lightCourseEditor/alphabetical');
 
   return OriginView.extend({
     events: {
@@ -24,6 +25,7 @@ define(function(require) {
       if ($tags.length) {
         $tags.selectize({
           valueField: '_id', labelField: 'title', searchField: ['title'], maxItems: null, create: false,
+          sortField: 'title',
           options: Tags.options(this.collection),
           onChange: function() { self.onFiltersChanged(); }
         });
@@ -99,7 +101,7 @@ define(function(require) {
       this.itemViews.forEach(function(view) { view.remove(); });
       this.itemViews = [];
       var $container = this.$(this.listSelector + '-items').empty();
-      var matches = this.collection.filter(this.matchesFilters, this);
+      var matches = this.collection.filter(this.matchesFilters, this).sort(Alphabetical.compare);
       this.$('.light-course-admin-filter-results').text(Origin.l10n.t('app.lightcoursefilterresults', {
         shown: matches.length, total: this.collection.length
       }));
