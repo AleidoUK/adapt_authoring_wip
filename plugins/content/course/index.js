@@ -293,6 +293,10 @@ function initialize () {
  * @param {callback} next (function (err, isAllowed))
  */
 CourseContent.prototype.hasPermission = function (action, userId, tenantId, contentItem, next) {
+  if (action === 'create' && !contentItem._courseId) {
+    var createResource = permissions.buildResourceString(tenantId, '/api/content/course/*');
+    return permissions.hasPermission(userId, action, createResource, next);
+  }
   helpers.hasCoursePermission(action, userId, tenantId, contentItem, function(err, isAllowed) {
     if (err) {
       return next(err);

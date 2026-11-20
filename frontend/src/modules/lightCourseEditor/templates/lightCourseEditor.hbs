@@ -17,7 +17,6 @@
 
   <div class="light-course-editor-toolbar">
     <a href="#" class="light-course-editor-back-to-list action-secondary">&laquo; {{t 'app.lightcoursebacktolist'}}</a>
-    {{!-- <h1>{{title}}</h1> --}}
     <span class="light-course-editor-save-status" data-state="saved">{{t 'app.lightcoursesavestatussaved'}}</span>
     <div class="light-course-editor-toolbar-actions">
       <button class="btn primary light-course-editor-create-minor-version"></button>
@@ -27,11 +26,18 @@
       <button class="btn secondary-hollow light-course-editor-word">{{t 'app.lightcourseword'}}</button>
       <button class="btn secondary-hollow light-course-editor-versions">{{t 'app.lightcoursesavedversions'}}</button>
       <button class="btn secondary-hollow light-course-editor-auditlog">{{t 'app.editorauditlog'}}</button>
-      <button class="btn secondary-hollow light-course-editor-convert" hidden>{{t 'app.lightcourseconvert'}}</button>
+      <button class="btn secondary-hollow light-course-editor-convert" hidden disabled aria-describedby="light-course-convert-help">{{t 'app.lightcourseconvert'}}</button>
+      <span id="light-course-convert-help" class="light-course-editor-convert-help" hidden>{{t 'app.lightcourseconversionneedversion'}}</span>
     </div>
   </div>
 
   <fieldset class="light-course-editor-editable-fields">
+  <section class="light-course-editor-title">
+    <label for="light-course-title-{{_id}}">{{t 'app.lightcoursecoursetitle'}}</label>
+    <input type="text" id="light-course-title-{{_id}}" class="light-course-editor-menu-title" value="{{title}}" required aria-describedby="light-course-title-help-{{_id}}">
+    <p id="light-course-title-help-{{_id}}">{{t 'app.lightcoursecoursetitlehelp'}}</p>
+  </section>
+
   <section class="light-course-editor-tags">
     <label for="light-course-tags-{{_id}}">{{t 'app.lightcoursetags'}}</label>
     <input type="text" id="light-course-tags-{{_id}}" class="light-course-editor-tags-input">
@@ -63,10 +69,6 @@
       <section class="light-course-editor-section light-course-editor-menu-section">
         <h1>{{t 'app.lightcoursemenusection'}}</h1>
         <p>{{t 'app.lightcoursemenusectionhelp'}}</p>
-        <div class="field-row column">
-          <label>{{t 'app.lightcoursemenutitle'}}</label>
-          <input type="text" class="light-course-editor-menu-title" value="{{title}}">
-        </div>
         <div class="field-row column">
           <label>{{t 'app.lightcoursemenubody'}}</label>
           <textarea class="light-course-editor-menu-body">{{body}}</textarea>

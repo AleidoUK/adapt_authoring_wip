@@ -10,7 +10,7 @@ Part of the [Light Course Editor implementation plan](LIGHT_COURSE_IMPLEMENTATIO
 4. Resolve all reported errors. Review the proposed replacements, including the original value, fallback and field path.
 5. Explicitly approve the review and conversion. Successful conversion opens the new course in the normal Full Course editor.
 
-Both conversion endpoints require tenant-wide administrator update permission, not merely Light Editor access. Changes affecting the proposed conversion, including draft content, required defaults or managed asset state, invalidate the review and require preflight again.
+Both conversion endpoints require tenant-wide administrator update permission, not merely Light Editor access. Conversion also requires the usual permission to create a Full Course; the administrator who converts it becomes its creator. Changes affecting the proposed conversion, including draft content, required defaults or managed asset state, invalidate the review and require preflight again.
 
 ## Separate Conversion Defaults
 
@@ -138,16 +138,53 @@ empty or schema-invalid values, creating the navigation object if necessary.
 Valid authored values, including `false`, are preserved. Unticked optional fields
 retain normal installed behaviour. Icon choices come from the installed schema.
 
-### Tile Menu and Hero options
+### Splash navigation
+
+Splash exposes **Navigate to the main menu** and **Navigate to the next page/menu**
+as individual boolean fallbacks where supported by its installed schema. Valid
+authored settings are preserved except for the first-page and last-page cases below. When the custom navigation ID is empty,
+conversion fills it with the newly created ID of the next page in the saved
+structure. On the last page, where no custom target is present, conversion instead
+sets main-menu navigation on and next-page navigation off, even if configured
+fallbacks differ. An existing custom ID is never replaced. The installed Splash
+runtime must support the main-menu option for that last-page fallback to work.
+When the first page contains Splash, its menu tile is hidden, selected Footer is
+disabled and selected Hero is enabled with its background image disabled on that page.
+These settings override existing values on the first Splash page. Course
+Start settings are enabled with forced routing to the new first-page ID. The
+Splash uses its custom target instead of automatic next-page navigation, since
+hidden pages are excluded from the available runtime's next-page calculation.
+Existing custom targets are preserved. Other pages and course-level extension
+settings are unchanged; these changes do not apply without a first-page Splash.
+
+### Footer navigation
+
+When Footer is selected, conversion sets each page's Previous and Next button
+enabled state and custom link from the saved page order, replacing existing
+values for those fields. Next links to the following page except on the last page.
+Previous links to the preceding page except on the first page, and the first page
+after a Splash does not link back to the Splash. Without a Splash, only the first
+page has no Previous button. Conversion blocks if Splash occurs on more than one
+page or outside the first page. Individual circular-button fallbacks are available
+for Previous, Next and Menu where the installed Footer schema supports them.
+Page-level Footer enablement is unchanged except on a first page containing
+Splash, as described above; other authored settings are unchanged.
+
+### Tile Menu, Hero and Styling options
 
 Tile Menu / contentobject exposes **Display item as a button** (called
 **Display graphic as a clickable button** by older schemas) and **Remove default
 link button**, where declared by the installed schema. Hero / course and
-Hero / contentobject expose **Hide the default page header** and **Make full width**.
+Hero / contentobject expose **Hide the default page header**, **Make full width** and **Enable background image**.
+Styling / contentobject exposes **Set the content full width**.
 Each has a separate fallback-enable checkbox and true/false setting. Enabled
 fallbacks fill missing/invalid values only, preserve authored booleans and sibling
 settings, and appear in preflight for approval. Unconfigured optional values are
-unchanged; required fields retain their normal installed defaults.
+filled from the selected menu's installed settings. Selected extensions and the
+selected theme also receive their normal installed settings where values are
+missing, after configured overrides have been applied. Extension globals and
+explicit theme variable defaults are initialized too.
+Authored values are preserved.
 
 ### Media and Immersive Video MP4
 

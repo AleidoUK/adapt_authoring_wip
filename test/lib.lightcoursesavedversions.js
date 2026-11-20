@@ -124,6 +124,184 @@ function renderTemplate(name, data) {
     'frontend/src/modules/lightCourseEditor/templates/' + name + '.hbs'), 'utf8'))(data);
 }
 
+describe('conversion review dialog', function() {
+  function harness() {
+    var elements = {}, requests = [], events = [], confirmations = [], alerts = [], routes = [];
+    var blobs = [], downloads = [], appended = [], removed = [], timers = [], revoked = [];
+    function element(tag) {
+      return {
+        tag: tag, children: [], props: {},
+        empty: function() { this.children = []; return this; },
+        append: function(child) { this.children.push(child); return this; },
+        text: function(value) { this.value = value; return this; },
+        prop: function(key, value) { this.props[key] = value; return this; }
+      };
+    }
+    function $(selector) {
+      if (selector.charAt(0) === '<') return element(selector);
+      return elements[selector] || (elements[selector] = element(selector));
+    }
+    $.ajax = function(options) {
+      var request = { options: options, done: function(callback) { this.success = callback; return this; },
+        fail: function(callback) { this.failure = callback; return this; } };
+      requests.push(request);
+      return request;
+    };
+    var origin = {
+      l10n: { t: function(key, data) { return key + (data && data.count !== undefined ? ':' + data.count : ''); } },
+      Notify: { confirm: function(options) { confirmations.push(options); }, alert: function(options) { alerts.push(options); } },
+      trigger: function(event) { events.push(event); },
+      router: { navigateTo: function(route) { routes.push(route); } }
+    };
+    var proto = loadAMD('frontend/src/modules/lightCourseEditor/views/lightCourseConversionView.js', {
+      'core/origin': origin,
+      'core/views/originView': { extend: function(methods) { return methods; }, prototype: { remove: function() {} } }
+    }, {
+      $: $,
+      Blob: function(parts, options) { this.parts = parts; this.type = options.type; blobs.push(this); },
+      URL: { createObjectURL: function() { return 'blob:csv'; }, revokeObjectURL: function(url) { revoked.push(url); } },
+      document: {
+        createElement: function() { return { click: function() { downloads.push(this); } }; },
+        body: {
+          appendChild: function(link) { appended.push(link); link.parentNode = this; },
+          removeChild: function(link) { removed.push(link); link.parentNode = null; }
+        }
+      },
+      setTimeout: function(callback) { timers.push(callback); }
+    });
+    var model = new Backbone.Model({ _id: 'course' }); model.id = 'course';
+    var view = Object.assign(Object.create(proto), { model: model, $: $ });
+    return { view: view, $: $, requests: requests, events: events, confirmations: confirmations, alerts: alerts, routes: routes,
+      blobs: blobs, downloads: downloads, appended: appended, removed: removed, timers: timers, revoked: revoked };
+  }
+  function texts(element) {
+    return [element.value || ''].concat.apply([element.value || ''], element.children.map(texts));
+  }
+  it('shows readable, separate issues and values from the saved version without raw JSON', function() {
+    var h = harness();
+    h.view.review();
+    h.requests[0].success({ versionNumber: '1.0', ready: false, locations: {
+      c: [{ type: 'page', title: 'Welcome' }, { type: 'component', title: 'Intro', component: 'text' }]
+    }, errors: [{ node: 'c', path: '_items[0].title', message: 'A title is required.' }],
+    proposals: [{ node: 'c', path: '_items[0].enabled', value: false, source: 'Installed schema' }] });
+    var results = h.$('.light-course-conversion-results');
+    var rendered = texts(results).join(' ');
+    assert(rendered.includes('app.lightcourseconversionpage: Welcome / app.lightcourseconversioncomponent (text): Intro - Items / Item 1 / Title'));
+    assert(rendered.includes('A title is required.'));
+    assert(rendered.includes('app.lightcourseconversionno'));
+    assert(rendered.includes('app.lightcourseconversionsourceschema'));
+    assert(rendered.includes('app.lightcourseconversiondefaultsreview:1'));
+    assert(!rendered.includes('"fallback"'));
+    assert(results.children[1].children[2].tag.includes('light-course-conversion-issue'));
+    assert(!results.children[1].children[2].tag.includes('class="error"'));
+    assert.strictEqual(h.$('.light-course-conversion-create').props.disabled, true);
+    h.view.review();
+    assert.strictEqual(results.children.length, 0);
+    h.requests[1].failure({ responseJSON: { message: 'Check failed' } });
+    assert.strictEqual(h.$('.light-course-conversion-status').value, 'Check failed');
+    assert.strictEqual(h.alerts[0].text, 'Check failed');
+    assert.strictEqual(h.alerts[0].type, 'error');
+    assert.strictEqual(h.alerts[0].html, false);
+    assert.deepStrictEqual(Object.keys(h.view.getData()), []);
+  });
+  it('exports the current issues as spreadsheet-safe UTF-8 CSV and cleans up the download', function() {
+    var h = harness();
+    h.view.review();
+    h.requests[0].success({ versionNumber: '1.2', ready: false, locations: {
+      '=node': [{ type: 'page', title: 'Café, "welcome"' }, { type: 'component', title: 'Intro\nnext', component: 'text' }]
+    }, errors: [
+      { node: '=node', path: '_items[0].title', message: '  =SUM(1,2)' },
+      { node: 'config', path: '+danger', message: '\tunsafe' }
+    ], proposals: [{ node: 'course', path: 'secret', value: 'not an issue' }] });
+    var issues = h.$('.light-course-conversion-results').children[1];
+    assert(issues.children[1].tag.includes('light-course-conversion-export'));
+    h.view.exportIssues(event());
+    assert.strictEqual(h.blobs[0].type, 'text/csv;charset=utf-8');
+    var csv = h.blobs[0].parts[0];
+    assert.strictEqual(csv.charAt(0), '\ufeff');
+    assert(csv.includes('Café, ""welcome""'));
+    var rows = require('../lib/helpers').parseCsv(csv);
+    assert.deepStrictEqual(Object.values(rows[0]), ['1.2',
+      'app.lightcourseconversionpage: Café, "welcome" / app.lightcourseconversioncomponent (text): Intro\nnext',
+      'Items / Item 1 / Title', "'  =SUM(1,2)", "'=node", '_items[0].title']);
+    assert.deepStrictEqual(Object.values(rows[1]), ['1.2', 'app.lightcourseconversionconfig', "'+danger",
+      "'\tunsafe", 'config', "'+danger"]);
+    assert.strictEqual(rows.length, 2);
+    assert.strictEqual(h.downloads[0].download, 'light-course-conversion-issues-v1.2.csv');
+    assert.strictEqual(h.downloads[0].href, 'blob:csv');
+    assert.strictEqual(h.appended[0], h.removed[0]);
+    assert.deepStrictEqual(h.revoked, []);
+    h.timers[0]();
+    assert.deepStrictEqual(h.revoked, ['blob:csv']);
+  });
+  it('does not export without issues or while a new review is pending or has failed', function() {
+    var h = harness();
+    h.view.exportIssues(event());
+    h.view.review();
+    h.view.exportIssues(event());
+    h.requests[0].success({ versionNumber: '1.0', ready: true, errors: [], proposals: [] });
+    assert(!h.$('.light-course-conversion-results').children.some(function(child) {
+      return child.tag.includes('light-course-conversion-issues');
+    }));
+    h.view.exportIssues(event());
+    h.view.review();
+    h.view.exportIssues(event());
+    h.requests[1].success({ versionNumber: '1.1', ready: false, errors: [{ node: 'course', message: 'Fix' }], proposals: [] });
+    h.view.review();
+    h.view.exportIssues(event());
+    h.requests[2].failure({ responseJSON: { message: 'Check failed' } });
+    h.view.exportIssues(event());
+    assert.strictEqual(h.downloads.length, 0);
+  });
+  it('closes the modal on success and keeps cancel available after a failed conversion', function() {
+    var h = harness();
+    h.view.review();
+    h.requests[0].success({ versionNumber: '1.0', ready: true, hash: 'reviewed', errors: [], proposals: [] });
+    assert.strictEqual(h.$('.light-course-conversion-create').props.disabled, false);
+    h.view.confirmConversion(event());
+    h.confirmations[0].callback(true);
+    assert.strictEqual(h.events[0], 'modal:disableCancelButton');
+    assert.deepStrictEqual(JSON.parse(h.requests[1].options.data), { hash: 'reviewed', approved: true });
+    h.requests[1].failure({ responseJSON: { message: 'Conversion failed' } });
+    assert.strictEqual(h.events[1], 'modal:enableCancelButton');
+    h.timers[0]();
+    assert.strictEqual(h.alerts[0].text, 'Conversion failed');
+    assert.strictEqual(h.alerts[0].html, false);
+    assert.strictEqual(h.$('.light-course-conversion-status').value, 'Conversion failed');
+    h.view.review();
+    h.requests[2].success({ versionNumber: '1.0', ready: true, hash: 'new', errors: [], proposals: [] });
+    h.view.confirmConversion(event());
+    h.confirmations[1].callback(true);
+    h.requests[3].success({ courseId: 'full-course' });
+    assert(h.events.includes('modal:onCancel'));
+    assert.deepStrictEqual(h.routes, ['editor/full-course/menu']);
+  });
+  it('uses a generic overlay for missing error details and suppresses alerts after closing', function() {
+    var h = harness();
+    h.view.review();
+    h.requests[0].failure({});
+    assert.strictEqual(h.alerts[0].text, 'app.errorgeneric');
+    h.view.review();
+    h.view.remove();
+    h.requests[1].failure({ responseJSON: { message: 'Late failure' } });
+    assert.strictEqual(h.alerts.length, 1);
+  });
+  it('ignores a pending check after the dialog is cancelled and does not approve a different review', function() {
+    var h = harness();
+    h.view.review();
+    h.view.remove();
+    h.requests[0].success({ versionNumber: '1.0', ready: true, hash: 'late', errors: [], proposals: [] });
+    assert.strictEqual(h.view.plan, null);
+    h = harness();
+    h.view.review();
+    h.requests[0].success({ versionNumber: '1.0', ready: true, hash: 'first', errors: [], proposals: [] });
+    h.view.confirmConversion(event());
+    h.view.plan = { ready: true, hash: 'different' };
+    h.confirmations[0].callback(true);
+    assert.strictEqual(h.requests.length, 1);
+  });
+});
+
 describe('saved light course versions (isolated)', function() {
   it('sorts major/minor versions numerically, handles empty lists and surfaces failures', function() {
     var h = uiHarness(), view = h.view('lightCourseVersionsView'), callbacks;
@@ -443,6 +621,95 @@ describe('saved light course versions (isolated)', function() {
     view.model.save = function() { assert.fail('Viewing must not trigger a new save'); };
     view.onVersionsClicked(event());
     assert.strictEqual(h.navigations[1], 'lightCourseEditor/course/versions');
+  });
+
+  it('shows one labelled course title above the tags inside the conversion-locked fieldset', function() {
+    var handlebars = Handlebars.create();
+    handlebars.registerHelper('t', function(key) { return key; });
+    handlebars.registerHelper('ifValueEquals', function(value, expected, options) {
+      return value === expected ? options.fn(this) : options.inverse(this);
+    });
+    var html = handlebars.compile(fs.readFileSync(path.join(ROOT,
+      'frontend/src/modules/lightCourseEditor/templates/lightCourseEditor.hbs'), 'utf8'))({
+      _id: 'course', title: 'Copy of Original', conversionStatus: 'converted'
+    });
+    assert.strictEqual((html.match(/class="light-course-editor-menu-title"/g) || []).length, 1);
+    assert(html.indexOf('light-course-editor-editable-fields') < html.indexOf('light-course-title-course'));
+    assert(html.indexOf('light-course-title-course') < html.indexOf('light-course-editor-tags'));
+    assert(html.includes('for="light-course-title-course"'));
+    assert(html.includes('value="Copy of Original"'));
+  });
+
+  it('autosaves renamed course titles and rejects an empty title without changing the model', function() {
+    var h = uiHarness(), alerts = [], saves = 0;
+    h.origin.Notify = { alert: function(alert) { alerts.push(alert); } };
+    var proto = loadAMD('frontend/src/modules/lightCourseEditor/views/lightCourseEditorView.js', h.deps,
+      { $: function(target) { return target; } });
+    var view = Object.assign(Object.create(proto), {
+      model: new Backbone.Model({ title: 'Copy of Original', body: 'Original body' }),
+      autosave: function() { saves++; }
+    });
+    var input = {
+      value: 'New course title',
+      hasClass: function(name) { return name === 'light-course-editor-menu-title'; },
+      val: function(value) { if (!arguments.length) return this.value; this.value = value; return this; }
+    };
+    view.onMenuFieldChanged({ currentTarget: input });
+    assert.strictEqual(view.model.get('title'), 'New course title');
+    assert.strictEqual(saves, 1);
+    input.value = '   ';
+    view.onMenuFieldChanged({ currentTarget: input });
+    assert.strictEqual(input.value, 'New course title');
+    assert.strictEqual(view.model.get('title'), 'New course title');
+    assert.strictEqual(alerts[0].text, 'app.lightcoursetitlerequired');
+    assert.strictEqual(saves, 1);
+  });
+
+  it('enables conversion only after a version exists and blocks direct clicks without one', function() {
+    var h = uiHarness(), view = h.view('lightCourseEditorView'), opened = 0;
+    h.origin.permissions = { hasPermissions: function() { return true; } };
+    h.origin.trigger = function() { opened++; };
+    view.model.isLocked = function() { return false; };
+    view.autosave = function(callback) { callback(); };
+    view.model.unset('currentVersionNumber');
+    view.updateVersionButtonLabels();
+    assert.strictEqual(h.$('.light-course-editor-convert').props.disabled, true);
+    assert.strictEqual(h.$('.light-course-editor-convert-help').props.hidden, false);
+    view.onConvertClicked(event());
+    assert.strictEqual(opened, 0);
+    view.model.set('currentVersionNumber', '0.1');
+    view.updateVersionButtonLabels();
+    assert.strictEqual(h.$('.light-course-editor-convert').props.disabled, false);
+    assert.strictEqual(h.$('.light-course-editor-convert-help').props.hidden, true);
+    view.onConvertClicked(event());
+    assert.strictEqual(opened, 1);
+  });
+
+  it('opens the converted Full Course instead of starting another conversion', function() {
+    var h = uiHarness(), view = h.view('lightCourseEditorView');
+    h.origin.permissions = { hasPermissions: function() { return true; } };
+    view.model.set({ conversionStatus: 'converted', _convertedCourseId: 'full-course' });
+    view.model.unset('currentVersionNumber');
+    view.updateVersionButtonLabels();
+    assert.strictEqual(h.$('.light-course-editor-convert').valueText, 'app.lightcoursejumptofullcourse');
+    assert.strictEqual(h.$('.light-course-editor-convert').props.disabled, false);
+    assert.strictEqual(h.$('.light-course-editor-convert-help').props.hidden, true);
+    view.onConvertClicked(event());
+    assert.deepStrictEqual(h.navigations, ['editor/full-course/menu']);
+    assert.strictEqual(h.modals.length, 0);
+  });
+
+  it('reports a missing converted-course link and respects conversion permissions', function() {
+    var h = uiHarness(), view = h.view('lightCourseEditorView'), alerts = [];
+    h.origin.permissions = { hasPermissions: function() { return true; } };
+    h.origin.Notify = { alert: function(alert) { alerts.push(alert); } };
+    view.model.set('conversionStatus', 'converted');
+    view.onConvertClicked(event());
+    assert.strictEqual(alerts[0].text, 'app.lightcourseconvertedlinkmissing');
+    view.model.set('_convertedCourseId', 'full-course');
+    h.origin.permissions.hasPermissions = function() { return false; };
+    view.onConvertClicked(event());
+    assert.strictEqual(h.navigations.length, 0);
   });
 
   it('includes the selected version in audit requests and prevents late rendering after disposal', function() {

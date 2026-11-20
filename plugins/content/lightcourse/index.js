@@ -164,7 +164,10 @@ LightCourseContent.prototype.create = function (data, next) {
   var user = usermanager.getCurrentUser();
   var self = this;
   var templateId = data._templateId;
+  var cloneId = data._cloneCourseId;
   delete data._templateId; // not a lightcourse model field
+  delete data._cloneCourseId;
+  if (cloneId !== undefined && templateId) return next(new Error('Choose a course or a template, not both.'));
 
   database.getDatabase(function (error, db) {
     if (error) {
@@ -183,6 +186,36 @@ LightCourseContent.prototype.create = function (data, next) {
           return next(new Error(validationError));
         }
         ContentPlugin.prototype.create.call(self, data, next);
+      });
+    }
+
+    if (cloneId !== undefined) {
+      if (typeof cloneId !== 'string' || !cloneId) return next(new Error('A source course is required.'));
+      return self.retrieve({ _id: cloneId }, { jsonOnly: true }, function (err, results) {
+        if (err) return next(err);
+        if (!results || results.length !== 1) return next(new Error('Source course not found.'));
+        var source = results[0];
+        if (!source._tenantId || source._tenantId.toString() !== user.tenant._id.toString()) {
+          return next(new ContentPermissionError());
+        }
+        var snapshot = idRegeneration.regenerateSnapshotIds(source);
+        var header = Object.assign({}, snapshot.headerData || {});
+        delete header.versionHistory;
+        data = {
+          title: data.title,
+          body: snapshot.body || '',
+          tags: (snapshot.tags || []).map(function(tag) { return String(tag._id || tag); }),
+          contentTree: snapshot.contentTree || {},
+          pluginSelections: snapshot.pluginSelections || {},
+          headerData: header,
+          glossaryItems: snapshot.glossaryItems || [],
+          resourceItems: snapshot.resourceItems || [],
+          helpContent: snapshot.helpContent || {},
+          createdBy: user._id,
+          revision: 0,
+          conversionStatus: 'none'
+        };
+        proceed();
       });
     }
 

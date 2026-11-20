@@ -102,6 +102,53 @@ function harness(data) {
   return state;
 }
 
+describe('light course clone action', function() {
+  function cloneHarness() {
+    var state = { alerts: [], saves: [] };
+    var origin = {
+      l10n: { t: function(key, values) { return key === 'app.lightcourseclonetitle' ? 'Copy of ' + values.title : key; } },
+      Notify: { alert: function(alert) { state.alerts.push(alert); } },
+      router: { navigateTo: function(route) { state.route = route; } }
+    };
+    function Model() {}
+    Model.prototype.save = function(data, options) { state.saves.push({ data: data, options: options }); };
+    var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseListItemView.js', {
+      'core/origin': origin,
+      'core/views/originView': { extend: function(value) { return value; } },
+      '../tagEditor': {},
+      '../models/lightCourseModel': Model
+    });
+    state.button = { prop: function(key, value) { this[key] = value; } };
+    state.view = Object.assign(Object.create(proto), {
+      model: new Backbone.Model({ _id: 'source', title: 'Converted', conversionStatus: 'converted' }),
+      $: function() { return state.button; }
+    });
+    return state;
+  }
+
+  it('creates one clone and opens it after success', function() {
+    var h = cloneHarness();
+    h.view.onCloneClicked();
+    h.view.onCloneClicked();
+    assert.strictEqual(h.saves.length, 1);
+    assert.strictEqual(h.saves[0].data.title, 'Copy of Converted');
+    assert.strictEqual(h.saves[0].data._cloneCourseId, 'source');
+    assert.strictEqual(h.button.disabled, true);
+    h.saves[0].options.success({ get: function() { return 'new-course'; } });
+    assert.strictEqual(h.route, 'lightCourseEditor/new-course');
+  });
+
+  it('shows errors and permits retry', function() {
+    var h = cloneHarness();
+    h.view.onCloneClicked();
+    h.saves[0].options.error(null, { responseJSON: { message: 'Not permitted' } });
+    assert.strictEqual(h.button.disabled, false);
+    assert.strictEqual(h.alerts[0].text, 'Not permitted');
+    h.view.onCloneClicked();
+    assert.strictEqual(h.saves.length, 2);
+  });
+});
+
 describe('light course list filters (isolated)', function() {
   it('shows the full collection alphabetically with no filters', function() {
     var state = harness();

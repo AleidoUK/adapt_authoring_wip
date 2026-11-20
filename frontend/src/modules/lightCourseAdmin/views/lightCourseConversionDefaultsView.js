@@ -91,6 +91,9 @@ define(function(require) {
       var group = _.findWhere(this.groups, { key: key }), self = this;
       var $container = this.$('.light-course-conversion-fields').empty();
       if (!group) return;
+      if (group.key === 'extension:footer:contentobject') {
+        $container.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionfooternavigationhelp')));
+      }
       var values = this.values[key] || {};
       group.fields.forEach(function(field) {
         if (field.hidden) return;
@@ -100,11 +103,20 @@ define(function(require) {
         var label = field.itemGraphic ?
           Origin.l10n.t('app.lightcourseconversionitemgraphic', { path: field.path }) :
           field.questionOption || field.pluginOption ? field.schema.title || field.path : field.path;
+        if (group.key === 'extension:footer:contentobject' && field.pluginOption) {
+          var buttonKeys = {
+            '_footer._previous._isRound': 'lightcoursefooterpreviousround',
+            '_footer._next._isRound': 'lightcoursefooternextround',
+            '_footer._parent._isRound': 'lightcoursefootermenuround'
+          };
+          if (buttonKeys[field.path]) label = Origin.l10n.t('app.' + buttonKeys[field.path]);
+        }
         $row.append($('<label></label>').append($checkbox).append(document.createTextNode(' ' + label)));
         if (field.itemGraphic) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionitemgraphichelp')));
         else if (field.image) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionimagehelp')));
         if (field.videoPlaceholder) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionvideohelp')));
         if (field.questionOption || field.pluginOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionquestionhelp')));
+        if (group.key === 'component:splash' && field.pluginOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionsplashhelp')));
         if (field.navigationOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionnavigationhelp')));
         var definition = field.schema;
         var container = definition.type === 'object' || definition.type === 'array' || definition.properties;

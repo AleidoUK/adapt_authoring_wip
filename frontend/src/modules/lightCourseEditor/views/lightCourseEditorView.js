@@ -63,6 +63,14 @@ define(function(require) {
       event.preventDefault();
       var self = this;
       if (!Origin.permissions.hasPermissions(['*/*:update'])) return;
+      if (this.model.get('conversionStatus') === 'converted') {
+        var courseId = this.model.get('_convertedCourseId');
+        if (!courseId) return Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcourseconvertedlinkmissing') });
+        return this.afterPendingSave(function(error) {
+          if (!error && !self._removed) Origin.router.navigateTo('editor/' + courseId + '/menu');
+        });
+      }
+      if (!this.model.get('currentVersionNumber')) return;
       function open(error) {
         if (error || self._removed) return;
         Origin.trigger('modal:open', LightCourseConversionView, {
@@ -162,6 +170,7 @@ define(function(require) {
 
       this.listenTo(Origin, 'lightCourseEditor:autosave', this.autosave);
       this.listenTo(Origin, 'lightCourseEditor:showVersions', this.onVersionsClicked);
+      this.listenTo(this.model, 'change:currentVersionNumber change:conversionStatus change:_convertedCourseId', this.updateVersionButtonLabels);
       this.initializeTags();
 
       this.fetchComponentTypes();
@@ -309,31 +318,31 @@ define(function(require) {
       this.autosave();
     },
 
-    /**
-     * The course's own "Menu Title"/"Menu Body" fields - these map directly to the real Adapt
-     * course schema's `title`/`body` (the heading/intro text shown on the course's actual menu
-     * screen, confirmed against plugins/content/course/model.schema), not anything Light-Course-
-     * specific. `title` already existed as a model attribute (used as the course's name
-     * everywhere else in the app - dashboard list, this editor's own heading, etc.) but was
-     * never editable from within the editor itself before now; `body` is a new field.
-     */
     onMenuFieldChanged: function(event) {
       var $target = $(event.currentTarget);
       var field = $target.hasClass('light-course-editor-menu-title') ? 'title' : 'body';
-      this.model.set(field, $target.val(), { silent: true });
-      if (field === 'title') {
-        this.$('.light-course-editor-toolbar h1').text($target.val());
+      var value = $target.val();
+      if (field === 'title' && !value.trim()) {
+        $target.val(this.model.get('title'));
+        return Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcoursetitlerequired') });
       }
+      this.model.set(field, value, { silent: true });
       this.autosave();
     },
     updateVersionButtonLabels: function() {
       var hasPublished = !!this.model.get('currentVersionNumber');
+      var converted = this.model.get('conversionStatus') === 'converted';
       var major = this.model.get('versionMajor') || 0;
       var minor = this.model.get('versionMinor') || 0;
       var minorLabel = hasPublished ? (major + '.' + (minor + 1)) : '0.1';
       var majorLabel = hasPublished ? ((major + 1) + '.0') : '1.0';
       this.$('.light-course-editor-create-minor-version').text(Origin.l10n.t('app.lightcoursecreateversion', { version: minorLabel }));
       this.$('.light-course-editor-create-major-version').text(Origin.l10n.t('app.lightcoursecreatemajorversion', { version: majorLabel }));
+      this.$('.light-course-editor-convert')
+        .text(Origin.l10n.t(converted ? 'app.lightcoursejumptofullcourse' : 'app.lightcourseconvert'))
+        .prop('disabled', !converted && !hasPublished);
+      this.$('.light-course-editor-convert-help').prop('hidden',
+        converted || hasPublished || !Origin.permissions.hasPermissions(['*/*:update']));
     },
 
     /**

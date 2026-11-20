@@ -75,6 +75,271 @@ function planFixture(change) {
   return planner.build(f.draft, f.version, f.catalog, f.defaults);
 }
 
+function splashFixture(f) {
+  f.catalog.component.splash = f.catalog.component.graphic;
+  f.catalog.component.splash.component = 'splash';
+  f.catalog.component.splash.name = 'adapt-aleido-splash';
+  Object.assign(f.catalog.component.splash.properties, {
+    _naviagteHome: { type: 'boolean', default: false, title: 'Navigate to the main menu' },
+    _naviagteToNextPage: { type: 'boolean', default: true, title: 'Navigate to the next page/menu' },
+    _naviageTo: { type: 'string', default: '', title: 'Custom page/menu ID to navigate to' }
+  });
+  delete f.catalog.component.graphic;
+  component(f.draft)._component = 'splash';
+  f.defaults['component:splash'] = f.defaults['component:graphic'];
+  delete f.defaults['component:graphic'];
+  f.version.contentSnapshot = copy(f.draft);
+}
+
+function footerLocation() {
+  function button() {
+    return { type: 'object', properties: {
+      _isEnabled: { type: 'boolean', required: true, default: false },
+      _customLink: { type: 'string', default: '' },
+      _isRound: { type: 'boolean', default: false, title: 'Use circular button' }
+    } };
+  }
+  return { properties: { _footer: { type: 'object', properties: {
+    _isEnabled: { type: 'boolean', default: false },
+    _previous: button(), _next: button(), _parent: button()
+  } } } };
+}
+function configureFooter(f) {
+  f.catalog.extension.footer = { _id: 'footer-id', name: 'adapt-aleido-footer', version: '1',
+    properties: { pluginLocations: { properties: { contentobject: footerLocation() } } } };
+  f.draft.pluginSelections.extensions = ['footer'];
+  f.version.contentSnapshot = copy(f.draft);
+}
+
+function heroFixture() {
+  return { _id: 'hero-id', name: 'adapt-aleido-hero', properties: { pluginLocations: { properties: {
+    course: { properties: { _hero: { type: 'object', properties: { _isEnabled: { type: 'boolean', default: false } } } } },
+    contentobject: { properties: { _hero: { type: 'object', properties: {
+      _isEnabled: { type: 'boolean', default: false }, _hideHeader: { type: 'boolean', default: false },
+      _backgroundImage: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', default: true }, _opacity: { type: 'number', default: 1 }
+      } }
+    } } } }
+  } } } };
+}
+describe('Splash page extension settings', function() {
+  it('disables Footer and enables Hero without its background image on a first Splash page', function() {
+    var f = fixture();
+    splashFixture(f);
+    configureFooter(f);
+    f.catalog.extension.hero = heroFixture();
+    f.draft.pluginSelections.extensions.push('hero');
+    f.draft.contentTree.children[0]._extensions = {
+      _footer: { _isEnabled: true }, _hero: { _isEnabled: false, _hideHeader: true,
+        _backgroundImage: { _isEnabled: true, _opacity: 0.5 } }
+    };
+    f.draft.contentTree.children.push({ _id: 'second', type: 'page', title: 'Second', children: [],
+      _extensions: { _footer: { _isEnabled: true }, _hero: { _isEnabled: true, _backgroundImage: { _isEnabled: true } } } });
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var first = plan.records.find(function(record) { return record.id === 'page'; }).data;
+    var second = plan.records.find(function(record) { return record.id === 'second'; }).data;
+    assert.strictEqual(first._extensions._footer._isEnabled, false);
+    assert.strictEqual(first._extensions._hero._isEnabled, true);
+    assert.deepStrictEqual(first._extensions._hero._backgroundImage, { _isEnabled: false, _opacity: 0.5 });
+    assert.strictEqual(first._isHidden, true);
+    assert.strictEqual(first._extensions._hero._hideHeader, true);
+    assert.strictEqual(second._extensions._footer._isEnabled, true);
+    assert.strictEqual(second._extensions._hero._isEnabled, true);
+    assert.strictEqual(second._extensions._hero._backgroundImage._isEnabled, true);
+    assert.notStrictEqual(second._isHidden, true);
+    assert.strictEqual(plan.records[0].data._start._isEnabled, true);
+    assert.strictEqual(plan.records[0].data._start._force, true);
+    assert.strictEqual(plan.records[0].startTarget, 'page');
+    assert.strictEqual(plan.records[0].data._extensions._hero._isEnabled, true);
+    [['_extensions._footer._isEnabled', true, false], ['_extensions._hero._isEnabled', false, true],
+      ['_extensions._hero._backgroundImage._isEnabled', true, false]].forEach(function(setting) {
+      assert(plan.proposals.some(function(item) {
+        return item.node === 'page' && item.path === setting[0] &&
+          item.previous === setting[1] && item.value === setting[2] && item.source === 'First page contains Splash';
+      }));
+    });
+  });
+  it('reports an incompatible Hero background image schema on the first Splash page', function() {
+    var f = fixture();
+    splashFixture(f);
+    f.catalog.extension.hero = heroFixture();
+    delete f.catalog.extension.hero.properties.pluginLocations.properties.contentobject.properties._hero.properties._backgroundImage;
+    f.draft.pluginSelections.extensions = ['hero'];
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(plan.errors.some(function(item) {
+      return item.node === 'page' && item.path === '_extensions._hero._backgroundImage._isEnabled';
+    }));
+  });
+  it('leaves unselected extensions and first pages without Splash unchanged', function() {
+    var f = fixture();
+    splashFixture(f);
+    f.catalog.extension.hero = heroFixture();
+    f.draft.contentTree.children.push({ _id: 'second', type: 'page', title: 'Second', children: [] });
+    f.version.contentSnapshot = copy(f.draft);
+    var page = planner.build(f.draft, f.version, f.catalog, f.defaults).records.find(function(record) { return record.id === 'page'; });
+    assert(!page.data._extensions || !page.data._extensions._hero);
+    assert.strictEqual(page.data._isHidden, true);
+    f.draft.pluginSelections.extensions = ['hero'];
+    f.draft.contentTree.children.unshift({ _id: 'first', type: 'page', title: 'First', children: [] });
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'first'; }).data._extensions._hero._isEnabled, true);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; }).data._extensions._hero._isEnabled, true);
+    assert.notStrictEqual(plan.records.find(function(record) { return record.id === 'first'; }).data._isHidden, true);
+    assert.strictEqual(plan.records[0].startTarget, undefined);
+  });
+});
+
+describe('Footer navigation conversion', function() {
+  it('uses the structure for Next and Previous, excluding the Splash page as a previous target', function() {
+    var f = fixture();
+    splashFixture(f);
+    configureFooter(f);
+    f.draft.contentTree.children.push(
+      { _id: 'first', type: 'page', title: 'First', children: [],
+        _extensions: { _footer: { _isEnabled: false, _previous: { _isEnabled: true, _customLink: 'old' },
+          _next: { _isEnabled: false, _customLink: 'old', _isRound: false } } } },
+      { _id: 'second', type: 'page', title: 'Second', children: [] }
+    );
+    f.defaults['extension:footer:contentobject'] = {
+      '_footer._previous._isRound': true, '_footer._next._isRound': true, '_footer._parent._isRound': true
+    };
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var splash = plan.records.find(function(record) { return record.id === 'page'; });
+    var first = plan.records.find(function(record) { return record.id === 'first'; });
+    var second = plan.records.find(function(record) { return record.id === 'second'; });
+    assert.strictEqual(splash.data._extensions._footer._previous._isEnabled, false);
+    assert.strictEqual(splash.footerTargets._next, 'first');
+    assert.strictEqual(first.data._extensions._footer._previous._isEnabled, false);
+    assert.strictEqual(first.data._extensions._footer._previous._customLink, '');
+    assert.strictEqual(first.data._extensions._footer._next._isEnabled, true);
+    assert.strictEqual(first.footerTargets._next, 'second');
+    assert.strictEqual(first.data._extensions._footer._isEnabled, false);
+    assert.strictEqual(second.data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(second.footerTargets._previous, 'first');
+    assert.strictEqual(first.data._extensions._footer._previous._isRound, true);
+    assert.strictEqual(first.data._extensions._footer._next._isRound, false);
+    assert.strictEqual(first.data._extensions._footer._parent._isRound, true);
+    assert(plan.proposals.some(function(entry) {
+      return entry.node === 'first' && entry.path === '_extensions._footer._next._customLink' &&
+        entry.previous === 'old' && entry.value.includes('Second');
+    }));
+    var fields = catalogs.definitions(f.catalog).find(function(group) { return group.key === 'extension:footer:contentobject'; }).fields;
+    assert.deepStrictEqual(fields.filter(function(field) { return field.pluginOption; }).map(function(field) { return field.path; }),
+      ['_footer._previous._isRound', '_footer._next._isRound', '_footer._parent._isRound']);
+  });
+  it('handles one page and courses without Splash, without applying Footer when unselected', function() {
+    var f = fixture();
+    configureFooter(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    var first = plan.records.find(function(record) { return record.id === 'page'; });
+    assert.strictEqual(first.data._extensions._footer._previous._isEnabled, false);
+    assert.strictEqual(first.data._extensions._footer._next._isEnabled, false);
+    f.draft.contentTree.children.push({ _id: 'second', type: 'page', title: 'Second', children: [] });
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'second'; }).footerTargets._previous, 'page');
+    f.draft.pluginSelections.extensions = [];
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; }).footerTargets, undefined);
+  });
+  it('blocks Footer conversion when Splash appears after the first page or on multiple pages', function() {
+    var f = fixture();
+    splashFixture(f);
+    configureFooter(f);
+    var splashPage = f.draft.contentTree.children[0];
+    f.draft.contentTree.children.unshift({ _id: 'first', type: 'page', title: 'First', children: [] });
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(plan.errors.some(function(entry) { return entry.message.includes('must be the first page'); }));
+    f.draft.contentTree.children.shift();
+    var duplicate = copy(splashPage);
+    duplicate._id = 'another-page';
+    duplicate.children[0]._id = 'another-article';
+    duplicate.children[0].children[0]._id = 'another-block';
+    duplicate.children[0].children[0].children[0]._id = 'another-component';
+    f.draft.contentTree.children.push(duplicate);
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(plan.errors.some(function(entry) { return entry.message.includes('at most one Splash page'); }));
+  });
+});
+
+describe('Splash navigation conversion', function() {
+  it('exposes only declared Splash navigation options and preserves authored choices', function() {
+    var f = fixture();
+    splashFixture(f);
+    f.draft.contentTree.children.push({ _id: 'next-page', type: 'page', title: 'Next', children: [] });
+    component(f.draft)._naviagteHome = false;
+    f.defaults['component:splash']._naviagteHome = true;
+    f.defaults['component:splash']._naviagteToNextPage = false;
+    f.version.contentSnapshot = copy(f.draft);
+    var fields = catalogs.definitions(f.catalog).find(function(group) { return group.key === 'component:splash'; }).fields;
+    assert.deepStrictEqual(fields.filter(function(field) { return field.pluginOption; }).map(function(field) { return field.path; }),
+      ['_naviagteHome', '_naviagteToNextPage']);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var record = plan.records.find(function(entry) { return entry.id === 'component'; });
+    assert.strictEqual(record.data._naviagteHome, false);
+    assert.strictEqual(record.data._naviagteToNextPage, false);
+    assert.strictEqual(record.splashTarget, 'next-page');
+    assert(plan.proposals.some(function(entry) { return entry.path === '_naviageTo' && entry.value.includes('Next'); }));
+    delete f.catalog.component.splash.properties._naviagteHome;
+    fields = catalogs.definitions(f.catalog).find(function(group) { return group.key === 'component:splash'; }).fields;
+    assert(!fields.some(function(field) { return field.path === '_naviagteHome'; }));
+  });
+  it('preserves an authored custom target and does not apply the last-page fallback', function() {
+    var f = fixture();
+    splashFixture(f);
+    component(f.draft)._naviageTo = 'authored-target';
+    component(f.draft)._naviagteHome = false;
+    component(f.draft)._naviagteToNextPage = false;
+    f.version.contentSnapshot = copy(f.draft);
+    var record = planner.build(f.draft, f.version, f.catalog, f.defaults).records.find(function(entry) {
+      return entry.id === 'component';
+    });
+    assert.strictEqual(record.data._naviageTo, 'authored-target');
+    assert.strictEqual(record.data._naviagteHome, false);
+    assert.strictEqual(record.data._naviagteToNextPage, false);
+    assert.strictEqual(record.splashTarget, undefined);
+  });
+  it('uses the custom target instead of automatic next-page navigation on a first Splash page', function() {
+    var f = fixture();
+    splashFixture(f);
+    f.draft.contentTree.children.push({ _id: 'next-page', type: 'page', title: 'Next', children: [] });
+    component(f.draft)._naviageTo = 'authored-target';
+    component(f.draft)._naviagteToNextPage = true;
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var record = plan.records.find(function(entry) { return entry.id === 'component'; });
+    assert.strictEqual(record.data._naviageTo, 'authored-target');
+    assert.strictEqual(record.data._naviagteToNextPage, false);
+    assert(plan.proposals.some(function(entry) { return entry.path === '_naviagteToNextPage' && entry.value === false; }));
+  });
+  it('uses the main-menu setting on the last page even when configured defaults differ', function() {
+    var f = fixture();
+    splashFixture(f);
+    f.defaults['component:splash']._naviagteHome = false;
+    f.defaults['component:splash']._naviagteToNextPage = true;
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var record = plan.records.find(function(entry) { return entry.id === 'component'; });
+    assert.strictEqual(record.data._naviagteHome, true);
+    assert.strictEqual(record.data._naviagteToNextPage, false);
+    assert(plan.proposals.some(function(entry) { return entry.path === '_naviagteHome' && entry.source === 'Last-page main menu'; }));
+    delete f.catalog.component.splash.properties._naviagteHome;
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(plan.errors.some(function(entry) { return entry.path === '_naviageTo' && entry.message.includes('main-menu'); }));
+  });
+});
+
 describe('Flow and Timeline navigation conversion defaults', function() {
   function navigationFixture(type) {
     var f = fixture();
@@ -231,7 +496,7 @@ describe(componentType + ' MP4 conversion defaults', function() {
     assert(review.body.proposals.some(function(proposal) { return proposal.path === '_media.mp4' && proposal.value === VIDEO; }));
     var converted = await h.request(true, { hash: review.body.hash, approved: true });
     assert.strictEqual(converted.status, 200, converted.body.message);
-    assert.strictEqual(h.records.component[0]._media.mp4, 'course/assets/copied.png');
+    assert.strictEqual(h.records.component[0].properties._media.mp4, 'course/assets/copied.png');
   });
   it('blocks an invalid video placeholder rather than reporting a successful preflight', async function() {
     var h = videoHarness();
@@ -331,12 +596,12 @@ describe('Video Wall item MP4 conversion defaults', function() {
     }).length, 2);
     var converted = await h.request(true, { hash: review.body.hash, approved: true });
     assert.strictEqual(converted.status, 200, converted.body.message);
-    assert.deepStrictEqual(h.records.component[0]._items.map(function(item) { return item._media.mp4; }),
+    assert.deepStrictEqual(h.records.component[0].properties._items.map(function(item) { return item._media.mp4; }),
       ['course/assets/copied.png', 'course/assets/copied.png', 'https://example.test/keep.mp4']);
   });
 });
 
-describe('Tile Menu and Hero conversion options', function() {
+describe('Tile Menu, Hero and Styling conversion options', function() {
   function pluginFixture() {
     var f = fixture();
     var tile = { type: 'object', properties: { _tileMenu: { type: 'object', properties: {
@@ -346,13 +611,25 @@ describe('Tile Menu and Hero conversion options', function() {
     } } } };
     var hero = { type: 'object', properties: { _hero: { type: 'object', properties: {
       _hideHeader: { type: 'boolean', required: true, default: true, title: 'Hide the default page header' },
-      _isFullWidth: { type: 'boolean', default: false, title: 'Make full width' }
+      _isFullWidth: { type: 'boolean', default: false, title: 'Make full width' },
+      _backgroundImage: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', default: false, title: 'Enable background image' },
+        _opacity: { type: 'number', required: true, default: 1 }
+      } }
     } } } };
     f.catalog.menu.tileMenu = { name: 'adapt-aleido-tileMenu', properties: {
       pluginLocations: { properties: { contentobject: tile } }
     } };
     f.catalog.extension.hero = { _id: 'hero-type', name: 'adapt-aleido-hero', properties: {
       pluginLocations: { properties: { course: copy(hero), contentobject: copy(hero) } }
+    } };
+    f.catalog.extension.styling = { _id: 'styling-type', name: 'adapt-aleido-styling', properties: {
+      pluginLocations: { properties: { contentobject: { type: 'object', properties: {
+        _styling: { type: 'object', properties: {
+          _isContentFullWidth: { type: 'boolean', default: false, title: 'Set the content full width' },
+          unrelated: { type: 'boolean', default: false }
+        } }
+      } } } }
     } };
     f.draft.pluginSelections.menu = 'tileMenu';
     f.draft.pluginSelections.extensions = ['hero'];
@@ -368,14 +645,25 @@ describe('Tile Menu and Hero conversion options', function() {
     ['menu:tileMenu:contentobject', 'extension:hero:course', 'extension:hero:contentobject'].forEach(function(key) {
       var fields = groups.find(function(group) { return group.key === key; }).fields;
       var options = fields.filter(function(field) { return field.pluginOption; });
-      assert.strictEqual(options.length, 2);
+      assert.strictEqual(options.length, key.startsWith('extension:hero:') ? 3 : 2);
       assert(options.every(function(field) { return !field.hidden; }));
-      assert.strictEqual(new Set(options.map(function(field) { return field.path; })).size, 2);
+      assert.strictEqual(new Set(options.map(function(field) { return field.path; })).size, options.length);
+      if (key.startsWith('extension:hero:')) {
+        assert(options.some(function(field) {
+          return field.path === '_hero._backgroundImage._isEnabled' && field.schema.title === 'Enable background image';
+        }));
+      }
     });
     assert.strictEqual(schema.pluginOption({ type: 'boolean', title: 'Remove default link button' },
       '_tileMenu.removeLink', 'menu:other:contentobject'), false);
     assert.strictEqual(schema.pluginOption({ type: 'string' }, '_hero._isFullWidth', 'extension:hero:course'), false);
     assert.strictEqual(schema.pluginOption({ type: 'boolean' }, '_hero._isFullWidth', 'extension:hero:block'), false);
+    var styling = groups.find(function(group) { return group.key === 'extension:styling:contentobject'; });
+    var fullWidth = styling.fields.filter(function(field) { return field.path === '_styling._isContentFullWidth'; });
+    assert.strictEqual(fullWidth.length, 1);
+    assert.strictEqual(fullWidth[0].pluginOption, true);
+    assert(!fullWidth[0].hidden);
+    assert.strictEqual(schema.pluginOption({ type: 'boolean' }, '_styling._isContentFullWidth', 'extension:styling:course'), false);
   });
   it('applies configured true/false values and preserves authored page options and siblings', function() {
     var f = pluginFixture(), page = f.draft.contentTree.children[0];
@@ -385,7 +673,7 @@ describe('Tile Menu and Hero conversion options', function() {
     var original = JSON.stringify(f), plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
     assert.deepStrictEqual(plan.errors, []);
     var output = plan.records.find(function(record) { return record.id === 'page'; }).data;
-    assert.deepStrictEqual(output.menuSettings._tileMenu, { _isItemButton: false, other: 'Keep', removeLink: true });
+    assert.deepStrictEqual(output.menuSettings._tileMenu, { _isItemButton: false, other: 'Keep', removeLink: true, unrelated: false });
     assert.strictEqual(output._extensions._hero._hideHeader, true);
     assert.strictEqual(output._extensions._hero._isFullWidth, false);
     var course = plan.records.find(function(record) { return record.id === 'course'; }).data;
@@ -396,7 +684,7 @@ describe('Tile Menu and Hero conversion options', function() {
       return proposal.path === 'menuSettings._tileMenu.removeLink' && proposal.value === true;
     }));
   });
-  it('leaves unconfigured optional fields alone while retaining installed required defaults', function() {
+  it('uses installed menu and extension defaults for unconfigured settings', function() {
     var f = pluginFixture();
     delete f.defaults['menu:tileMenu:contentobject'];
     delete f.defaults['extension:hero:course'];
@@ -404,10 +692,221 @@ describe('Tile Menu and Hero conversion options', function() {
     var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
     assert.deepStrictEqual(plan.errors, []);
     var page = plan.records.find(function(record) { return record.id === 'page'; }).data;
-    assert.strictEqual(page.menuSettings._tileMenu._isItemButton, undefined);
-    assert.strictEqual(page.menuSettings._tileMenu.removeLink, undefined);
-    assert.strictEqual(page._extensions._hero._isFullWidth, undefined);
+    assert.strictEqual(page.menuSettings._tileMenu._isItemButton, false);
+    assert.strictEqual(page.menuSettings._tileMenu.removeLink, false);
+    assert.strictEqual(page._extensions._hero._isFullWidth, false);
+    assert.deepStrictEqual(page._extensions._hero._backgroundImage, { _isEnabled: false, _opacity: 1 });
     assert.strictEqual(page._extensions._hero._hideHeader, true);
+  });
+  it('applies the background-image setting only when configured and preserves authored choices', function() {
+    var f = pluginFixture(), page = f.draft.contentTree.children[0];
+    f.defaults['extension:hero:course']['_hero._backgroundImage._isEnabled'] = true;
+    f.defaults['extension:hero:contentobject']['_hero._backgroundImage._isEnabled'] = true;
+    page._extensions = { _hero: { _backgroundImage: { _isEnabled: false, _opacity: 0.5 } } };
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    assert.deepStrictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._hero._backgroundImage, { _isEnabled: false, _opacity: 0.5 });
+    assert.deepStrictEqual(plan.records.find(function(record) { return record.id === 'course'; })
+      .data._extensions._hero._backgroundImage, { _isEnabled: true, _opacity: 1 });
+    assert(plan.proposals.some(function(proposal) {
+      return proposal.node === 'course' && proposal.path === '_extensions._hero._backgroundImage._isEnabled' && proposal.value === true;
+    }));
+    f.defaults['extension:hero:course']['_hero._backgroundImage._isEnabled'] = false;
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'course'; })
+      .data._extensions._hero._backgroundImage._isEnabled, false);
+  });
+  it('does not apply configured extension overrides when the extension is not selected', function() {
+    var f = pluginFixture();
+    f.defaults['extension:hero:course']['_hero._backgroundImage._isEnabled'] = true;
+    f.defaults['extension:hero:contentobject']['_hero._backgroundImage._isEnabled'] = true;
+    f.draft.pluginSelections.extensions = [];
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    assert(!plan.proposals.some(function(proposal) { return proposal.path.indexOf('_hero') !== -1; }));
+    assert(plan.records.every(function(record) {
+      return !record.data._extensions || !record.data._extensions._hero;
+    }));
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'config'; }).data._enabledExtensions.hero, undefined);
+  });
+  it('applies Styling full width only when selected and configured, preserving authored choices', function() {
+    var f = pluginFixture(), page = f.draft.contentTree.children[0];
+    f.draft.pluginSelections.extensions.push('styling');
+    f.defaults['extension:styling:contentobject'] = { '_styling._isContentFullWidth': true };
+    page._extensions = { _styling: { _isContentFullWidth: false, unrelated: true } };
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    assert.deepStrictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._styling, { _isContentFullWidth: false, unrelated: true });
+    delete page._extensions._styling._isContentFullWidth;
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._styling._isContentFullWidth, true);
+    assert(plan.proposals.some(function(proposal) {
+      return proposal.node === 'page' && proposal.path === '_extensions._styling._isContentFullWidth' && proposal.value === true;
+    }));
+    f.defaults['extension:styling:contentobject']['_styling._isContentFullWidth'] = false;
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._styling._isContentFullWidth, false);
+    delete f.defaults['extension:styling:contentobject'];
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._styling._isContentFullWidth, false);
+    f.defaults['extension:styling:contentobject'] = { '_styling._isContentFullWidth': true };
+    f.draft.pluginSelections.extensions = ['hero'];
+    delete page._extensions;
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(!plan.proposals.some(function(proposal) { return proposal.path.indexOf('_styling') !== -1; }));
+    assert(!plan.records.find(function(record) { return record.id === 'page'; }).data._extensions._styling);
+  });
+});
+
+describe('selected menu and theme initialization', function() {
+  function settings(f) {
+    f.catalog.menu.tile.version = '1';
+    f.catalog.menu.tile.properties = { pluginLocations: { properties: {
+      contentobject: { properties: { _tileMenu: { type: 'object', properties: {
+        _isItemButton: { type: 'boolean', default: false },
+        _styling: { type: 'object', properties: {
+          _detailsAlignment: { type: 'string', default: 'left' },
+          _buttonAlignment: { type: 'string', default: 'left' }
+        } }
+      } } } }
+    } } };
+    f.catalog.menu.tileMenu = f.catalog.menu.tile;
+    delete f.catalog.menu.tile;
+    f.draft.pluginSelections.menu = 'tileMenu';
+    f.catalog.theme.theme.properties = {
+      variables: {
+        _fonts: { type: 'object', properties: {
+          titleFont: { type: 'string', default: "'https://example.test/font'" },
+          bodyFont: { type: 'string', default: "'https://example.test/body'" },
+          invalid: { type: 'string', enum: ['valid'], default: 'invalid' },
+          absent: { type: 'string' }
+        } },
+        color: { type: 'string', default: '#fff' }
+      },
+      pluginLocations: { properties: { course: { properties: {
+        _aleido: { type: 'object', properties: { _enabled: { type: 'boolean', default: false } } }
+      } } } }
+    };
+  }
+  it('fills missing runtime settings while preserving configured and authored menu values', function() {
+    var f = fixture();
+    settings(f);
+    f.defaults['menu:tileMenu:contentobject'] = { '_tileMenu._isItemButton': true };
+    f.draft.contentTree.children[0].menuSettings = { _tileMenu: { _styling: { _detailsAlignment: 'right' } } };
+    f.version.contentSnapshot = copy(f.draft);
+    var original = JSON.stringify(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var course = plan.records.find(function(record) { return record.id === 'course'; }).data;
+    var page = plan.records.find(function(record) { return record.id === 'page'; }).data;
+    assert.deepStrictEqual(page.menuSettings._tileMenu, {
+      _isItemButton: true, _styling: { _detailsAlignment: 'right', _buttonAlignment: 'left' }
+    });
+    assert.deepStrictEqual(course.themeVariables, {
+      _fonts: { titleFont: "'https://example.test/font'", bodyFont: "'https://example.test/body'" }, color: '#fff'
+    });
+    assert.strictEqual(course.themeSettings._aleido._enabled, false);
+    var mongoose = require('mongoose');
+    var Stored = mongoose.models.ConversionMenuThemeDefaultsTest ||
+      mongoose.model('ConversionMenuThemeDefaultsTest', new mongoose.Schema({}, { strict: false }));
+    assert.strictEqual(new Stored(page).toObject().menuSettings._tileMenu._styling._detailsAlignment, 'right');
+    assert.strictEqual(new Stored(course).toObject().themeVariables._fonts.titleFont, "'https://example.test/font'");
+    assert.strictEqual(JSON.stringify(f), original);
+    course.themeVariables._fonts.titleFont = 'changed';
+    assert.strictEqual(planner.build(f.draft, f.version, f.catalog, f.defaults).records[0]
+      .data.themeVariables._fonts.titleFont, "'https://example.test/font'");
+  });
+  it('uses only the selected menu and theme', function() {
+    var f = fixture();
+    settings(f);
+    f.version.contentSnapshot = copy(f.draft);
+    f.catalog.menu.other = { name: 'other', properties: { pluginLocations: { properties: {
+      contentobject: { properties: { _other: { type: 'string', default: 'unexpected' } } }
+    } } } };
+    f.catalog.theme.other = { name: 'other-theme', properties: { variables: {
+      unexpected: { type: 'string', default: 'unexpected' }
+    } } };
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; }).data.menuSettings._other, undefined);
+    assert.strictEqual(plan.records[0].data.themeVariables.unexpected, undefined);
+  });
+});
+
+describe('selected extension initialization', function() {
+  it('fills missing nested Resources and Footer settings and globals without replacing authored values', function() {
+    var f = fixture();
+    f.catalog.extension.resources = { name: 'test-resources', version: '1', globals: {
+      _types: { default: { link: 'Link' } }
+    }, properties: { pluginLocations: { properties: { course: { properties: {
+      _resources: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', default: false },
+        _resourcesItems: { type: 'array', default: [] },
+        _invalidChoice: { type: 'string', inputType: { type: 'Select', options: ['one', 'two'] } },
+        _graphic: { type: 'string', inputType: 'Asset:image', default: ASSET },
+        _filterButtons: { type: 'object', properties: {
+          _showAll: { type: 'boolean', default: true }, all: { type: 'string', default: 'All' }
+        } }
+      } }
+    } } } } } };
+    f.catalog.extension.footer = { name: 'test-footer', version: '1', globals: {
+      next: { default: 'Next' }
+    }, properties: { pluginLocations: { properties: { contentobject: { properties: {
+      _footer: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', default: false },
+        _styling: { type: 'object', properties: { _textAlignment: { type: 'string', default: 'center' } } },
+        _buttons: { type: 'object', properties: { _showNext: { type: 'boolean', default: true } } },
+        _previous: copy(footerLocation().properties._footer.properties._previous),
+        _next: copy(footerLocation().properties._footer.properties._next)
+      } }
+    } } } } } };
+    f.catalog.extension.unselected = { name: 'test-unselected', globals: { text: { default: 'No' } },
+      properties: { pluginLocations: { properties: { course: { properties: {
+        _unselected: { type: 'object', properties: { _isEnabled: { type: 'boolean', default: true } } }
+      } } } } } };
+    f.draft.pluginSelections.extensions = ['resources', 'footer'];
+    f.draft.contentTree.children[0]._extensions = { _footer: { _isEnabled: false, _buttons: { _showNext: false } } };
+    f.version.contentSnapshot = copy(f.draft);
+    var original = JSON.stringify(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var course = plan.records.find(function(record) { return record.id === 'course'; }).data;
+    var page = plan.records.find(function(record) { return record.id === 'page'; }).data;
+    assert.deepStrictEqual(course._extensions._resources._filterButtons, { _showAll: true, all: 'All' });
+    assert.deepStrictEqual(course._extensions._resources._resourcesItems, []);
+    assert.strictEqual(course._extensions._resources._invalidChoice, undefined);
+    assert(plan.assets.some(function(asset) {
+      return asset.node === 'course' && asset.path === '_extensions._resources._graphic' && asset.source === ASSET;
+    }));
+    assert.deepStrictEqual(page._extensions._footer, {
+      _isEnabled: false, _buttons: { _showNext: false }, _styling: { _textAlignment: 'center' },
+      _previous: { _isEnabled: false, _customLink: '', _isRound: false },
+      _next: { _isEnabled: false, _customLink: '', _isRound: false }
+    });
+    assert.deepStrictEqual(course._globals._extensions, { _resources: { _types: { link: 'Link' } }, _footer: { next: 'Next' } });
+    assert.strictEqual(course._extensions._unselected, undefined);
+    var mongoose = require('mongoose');
+    var Stored = mongoose.models.ConversionExtensionDefaultsTest ||
+      mongoose.model('ConversionExtensionDefaultsTest', new mongoose.Schema({}, { strict: false }));
+    var storedCourse = new Stored(course).toObject(), storedPage = new Stored(page).toObject();
+    assert.strictEqual(storedCourse._extensions._resources._filterButtons.all, 'All');
+    assert.strictEqual(storedCourse._globals._extensions._footer.next, 'Next');
+    assert.strictEqual(storedPage._extensions._footer._styling._textAlignment, 'center');
+    assert.strictEqual(JSON.stringify(f), original);
+    course._globals._extensions._resources._types.link = 'Changed';
+    course._extensions._resources._filterButtons.all = 'Changed';
+    var next = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(next.records[0].data._extensions._resources._filterButtons.all, 'All');
+    assert.strictEqual(next.records[0].data._globals._extensions._resources._types.link, 'Link');
   });
 });
 
@@ -760,6 +1259,7 @@ function harness(options) {
   options = options || {};
   var f = fixture();
   var state = { writes: [], files: [], allowed: !options.denied, failType: options.failType };
+  var coursePlugin, courseHelpers;
   var records = {
     lightcourse: [copy(f.draft)], lightcourseversion: [f.version],
     lightcourseconfig: [{ _tenantId: 'tenant', conversionDefaults: f.defaults }],
@@ -803,21 +1303,58 @@ function harness(options) {
       _contentSchemas: f.catalog.core,
       create: function(type, data, next) {
         state.writes.push(type);
-        records[type] = records[type] || [];
-        var stored = copy(data);
-        if (options.dropField && type === 'component') delete stored._graphic.large;
-        records[type].push(stored);
-        if (type === 'course') records.config = [{ _id: 'dddddddddddddddddddddddd', _courseId: data._id }];
-        if (type === state.failType) return next(new Error('Write failed'));
-        next(null, data);
+        function store(error) {
+          if (error) return next(error);
+          records[type] = records[type] || [];
+          var stored = copy(data);
+          if (options.dropField && type === 'component') delete stored.properties._graphic.large;
+          if (options.minimizeCourse && type === 'course') {
+            var mongoose = require('mongoose');
+            var MinimizedCourse = mongoose.models.ConversionMinimizedCourse ||
+              mongoose.model('ConversionMinimizedCourse', new mongoose.Schema({}, { strict: false }));
+            stored = copy(new MinimizedCourse(stored).toObject());
+          }
+          if (options.componentModel && type === 'component') stored = copy(new options.componentModel(stored).toObject());
+          if (options.dropExtension && type === 'course') delete stored._extensions._active;
+          records[type].push(stored);
+          if (type === 'course') records.config = [{ _id: 'dddddddddddddddddddddddd', _courseId: data._id }];
+          if (type === state.failType) return next(new Error('Write failed'));
+          next(null, data);
+        }
+        if (coursePlugin && type === 'course') {
+          return coursePlugin.create(data, function(error) {
+            if (error) return next(error);
+            records.config = [{ _id: 'dddddddddddddddddddddddd', _courseId: data._id }];
+            next(null, data);
+          });
+        }
+        if (courseHelpers && type !== 'courseasset') {
+          return courseHelpers.hasCoursePermission('create', 'admin', 'tenant', data, function(error, allowed) {
+            store(error || (!allowed && new Error('Course owner permission denied')));
+          });
+        }
+        store();
       },
       update: function(type, query, data, next) {
-        var record = records[type].find(function(record) { return matches(record, query); });
-        Object.assign(record, copy(data)); next(null, record);
+        function update(error) {
+          if (error) return next(error);
+          var record = records[type].find(function(record) { return matches(record, query); });
+          Object.assign(record, copy(data)); next(null, record);
+        }
+        if (courseHelpers) {
+          return courseHelpers.hasCoursePermission('update', 'admin', 'tenant', data, function(error, allowed) {
+            update(error || (!allowed && new Error('Course owner permission denied')));
+          });
+        }
+        update();
       }
     },
     assetmanager: {
       _createAssetFromFile: function(storage, file, metadata, user, repository, next) {
+        if (options.validateAsset) {
+          var error = options.validateAsset(metadata, file, repository);
+          if (error) return next(error);
+        }
         var record = { _id: 'eeeeeeeeeeeeeeeeeeeeeeee', filename: 'copied.png' };
         records.asset = records.asset || [];
         records.asset.push(record);
@@ -825,9 +1362,41 @@ function harness(options) {
       },
       destroyAsset: function(id, next) { records.asset = records.asset.filter(function(record) { return record._id !== id; }); next(); }
     },
-    emit: function() {}
+    emit: function() {},
+    once: function() {}
   };
-  var user = { _id: 'admin', tenant: { _id: 'tenant' } };
+  var user = { _id: options.componentModel ? '111111111111111111111111' : 'admin', tenant: { _id: 'tenant' } };
+  if (options.realCoursePermissions) {
+    var dbModule = { getDatabase: function(next) { next(null, db); } };
+    var userModule = { getCurrentUser: function() { return user; } };
+    var permissionModule = {
+      buildResourceString: function(tenant, resource) { return tenant + resource; },
+      hasPermission: function(userId, action, resource, next) {
+        if (resource === 'tenant/api/content/course/*') {
+          if (options.coursePermissionError) return next(new Error('Permission service unavailable'));
+          return next(null, !options.denyCourseCreate);
+        }
+        next(null, false);
+      },
+      createPolicy: function(id, next) { next(null, {}); },
+      addStatement: function(policy, actions, resource, effect, next) { next(); }
+    };
+    var logger = { log: function() {} };
+    courseHelpers = load('lib/helpers.js', {
+      './database': dbModule, './permissions': permissionModule, './logger': logger
+    });
+    var contentmanager = load('lib/contentmanager.js', {
+      './database': dbModule, './usermanager': userModule, './permissions': permissionModule,
+      './helpers': courseHelpers, './logger': logger, '../': function() { return app; }
+    });
+    app.contentmanager.addContentHook = function() {};
+    var Course = load('plugins/content/course/index.js', {
+      '../../../lib/contentmanager': contentmanager, '../../../lib/database': dbModule,
+      '../../../lib/usermanager': userModule, '../../../lib/permissions': permissionModule,
+      '../../../lib/helpers': courseHelpers, '../../../lib/logger': logger, '../../../': function() { return app; }
+    });
+    coursePlugin = new Course();
+  }
   var storage = { getFileContents: function(file, next) { next(options.missingFile ? new Error('Missing file') : null, Buffer.from('image')); } };
   var service = load('lib/lightcourse/conversion.js', {
     '../database': { getDatabase: function(next, tenant) { assert.strictEqual(tenant, 'tenant'); next(null, db); } },
@@ -860,11 +1429,242 @@ function harness(options) {
 }
 
 describe('reviewed Light Course conversion', function() {
+  it('retains the Splash start entry in the actual course schema and published JSON', async function() {
+    var mongoose = require('mongoose');
+    var MongooseDB = require('../lib/dml/mongoose');
+    var db = new MongooseDB();
+    var definition = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins/content/course/model.schema')));
+    var imported = await new Promise(function(resolve, reject) {
+      db.importSchema('http://localhost/system/course.schema', definition, function(error, result) {
+        if (error) reject(error); else resolve(result);
+      });
+    });
+    db.conn = mongoose.createConnection();
+    db._models = {};
+    try {
+      db.addSchema('course', imported);
+      var Course = db.getModel('course');
+      var course = new Course({ _start: { _isEnabled: true, _force: true, _startIds: [
+        { _id: '000000000000000000000001', _className: '', _skipIfComplete: false }
+      ] } });
+      assert.strictEqual(course.validateSync(), undefined);
+      var output = course.toJSON({ transform: true, forExport: true })._start;
+      assert.strictEqual(output._isEnabled, true);
+      assert.strictEqual(output._force, true);
+      assert.strictEqual(output._startIds[0]._id, '000000000000000000000001');
+    } finally {
+      await db.conn.close();
+    }
+  });
+  it('stores Footer disabled and Hero enabled without a background image on the first Splash page', async function() {
+    var h = harness();
+    splashFixture(h.fixture);
+    configureFooter(h.fixture);
+    h.fixture.catalog.extension.hero = heroFixture();
+    h.fixture.draft.pluginSelections.extensions.push('hero');
+    h.fixture.draft.contentTree.children[0]._extensions = {
+      _hero: { _isEnabled: false, _backgroundImage: { _isEnabled: true, _opacity: 0.5 } }
+    };
+    h.fixture.draft.contentTree.children.push({ _id: 'second', type: 'page', title: 'Second', children: [] });
+    h.fixture.version.contentSnapshot = copy(h.fixture.draft);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.componenttype[0] = copy(h.fixture.catalog.component.splash);
+    h.records.extensiontype = ['footer', 'hero'].map(function(key) {
+      return Object.assign({ extension: key }, copy(h.fixture.catalog.extension[key]));
+    });
+    h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    var first = h.records.contentobject.find(function(page) { return page.title === 'Page'; });
+    var second = h.records.contentobject.find(function(page) { return page.title === 'Second'; });
+    assert.strictEqual(first._extensions._footer._isEnabled, false);
+    assert.strictEqual(first._extensions._hero._isEnabled, true);
+    assert.deepStrictEqual(first._extensions._hero._backgroundImage, { _isEnabled: false, _opacity: 0.5 });
+    assert.strictEqual(first._isHidden, true);
+    assert.strictEqual(h.records.course[0]._start._isEnabled, true);
+    assert.strictEqual(h.records.course[0]._start._force, true);
+    assert.strictEqual(h.records.course[0]._start._startIds[0]._id, first._id);
+    assert.strictEqual(h.records.course[0]._start._startIds[0]._className, '');
+    assert.strictEqual(second._extensions._footer._isEnabled, true);
+    assert.strictEqual(second._extensions._hero._isEnabled, true);
+    assert.strictEqual(second._extensions._hero._backgroundImage._isEnabled, true);
+  });
+  it('stores Footer links to the generated adjacent Full Course page IDs', async function() {
+    var h = harness();
+    configureFooter(h.fixture);
+    h.fixture.draft.contentTree.children.push(
+      { _id: 'second', type: 'page', title: 'Second', children: [] },
+      { _id: 'third', type: 'page', title: 'Third', children: [] }
+    );
+    h.fixture.version.contentSnapshot = copy(h.fixture.draft);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.extensiontype = [Object.assign({ extension: 'footer' }, copy(h.fixture.catalog.extension.footer))];
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    var pages = h.records.contentobject;
+    var first = pages.find(function(page) { return page.title === 'Page'; });
+    var second = pages.find(function(page) { return page.title === 'Second'; });
+    var third = pages.find(function(page) { return page.title === 'Third'; });
+    assert.strictEqual(first._extensions._footer._next._customLink, second._id);
+    assert.strictEqual(second._extensions._footer._previous._customLink, first._id);
+    assert.strictEqual(second._extensions._footer._next._customLink, third._id);
+    assert.strictEqual(third._extensions._footer._previous._customLink, second._id);
+    assert.strictEqual(third._extensions._footer._next._isEnabled, false);
+  });
+  it('stores the generated next Full Course page ID in the Splash custom target', async function() {
+    var h = harness();
+    splashFixture(h.fixture);
+    h.fixture.draft.contentTree.children.push({ _id: 'next-page', type: 'page', title: 'Next', children: [] });
+    h.fixture.version.contentSnapshot = copy(h.fixture.draft);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.componenttype[0] = copy(h.fixture.catalog.component.splash);
+    h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    var target = h.records.contentobject.find(function(page) { return page.title === 'Next'; });
+    assert(target);
+    assert.strictEqual(h.records.component[0].properties._naviageTo, target._id);
+    assert.strictEqual(h.records.component[0].properties._naviagteToNextPage, false);
+    assert.notStrictEqual(target._id, 'next-page');
+  });
+  it('stores the last-page main-menu exception in the converted Splash', async function() {
+    var h = harness();
+    splashFixture(h.fixture);
+    h.fixture.defaults['component:splash']._naviagteHome = false;
+    h.fixture.defaults['component:splash']._naviagteToNextPage = true;
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.componenttype[0] = copy(h.fixture.catalog.component.splash);
+    h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    assert.strictEqual(h.records.component[0].properties._naviagteHome, true);
+    assert.strictEqual(h.records.component[0].properties._naviagteToNextPage, false);
+  });
+  function footerFixture(options) {
+    var h = harness(options);
+    h.records.extensiontype = [
+      { _id: 'footer-id', extension: 'footer', name: 'adapt-aleido-footer', version: '1.0.0', targetAttribute: '_footer',
+        properties: { pluginLocations: { properties: { course: { properties: {
+          _footer: { type: 'object', properties: {
+            _styling: { type: 'object', required: true, default: {}, properties: {} }
+          } }
+        } } } } } },
+      { _id: 'active-id', extension: 'active', name: 'adapt-active', version: '2.0.0', targetAttribute: '_active',
+        properties: { pluginLocations: { properties: { course: { properties: {
+          _active: { type: 'object', properties: { _isEnabled: { type: 'boolean', default: false } } }
+        } } } } } }
+    ];
+    h.records.extensiontype[0].properties.pluginLocations.properties.contentobject = footerLocation();
+    h.records.lightcourse[0].pluginSelections.extensions = ['footer', 'active'];
+    h.records.lightcourseversion[0].contentSnapshot = copy(h.records.lightcourse[0]);
+    return h;
+  }
+  it('accepts MongoDB minimizing empty extension objects while retaining enabled plugin metadata', async function() {
+    var h = footerFixture({ minimizeCourse: true });
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    assert.strictEqual(h.records.course[0]._extensions._footer, undefined);
+    assert.strictEqual(h.records.course[0]._extensions._active._isEnabled, true);
+    assert.deepStrictEqual(h.records.config[0]._enabledExtensions.footer, {
+      _id: 'footer-id', name: 'adapt-aleido-footer', version: '1.0.0', targetAttribute: '_footer'
+    });
+  });
+  it('still rejects missing non-empty extension settings', async function() {
+    var h = footerFixture({ minimizeCourse: true, dropExtension: true });
+    var review = await h.request(false);
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 500);
+    assert(result.body.message.includes('course._extensions._active'));
+    assert.strictEqual(h.records.lightcourse[0].conversionStatus, 'none');
+  });
+  it('stores component-specific values in the actual Full Course component schema', async function() {
+    var mongoose = require('mongoose');
+    var MongooseDB = require('../lib/dml/mongoose');
+    var definition = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins/content/component/model.schema')));
+    var imported = await new Promise(function(resolve, reject) {
+      new MongooseDB().importSchema('http://localhost/system/component.schema', definition, function(error, result) {
+        if (error) reject(error); else resolve(result);
+      });
+    });
+    var Component = mongoose.model('ConversionStoredComponentTest', new mongoose.Schema(imported));
+    var h = harness({ componentModel: Component });
+    var review = await h.request(false);
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    assert.strictEqual(h.records.component[0].properties._graphic.large, 'course/assets/copied.png');
+    assert.strictEqual(h.records.component[0]._graphic, undefined);
+  });
+  it('creates a preassigned course ID with normal create permission and grants its creator ownership', async function() {
+    var h = harness({ realCoursePermissions: true });
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    assert.strictEqual(h.records.course[0]._id, result.body.courseId);
+    assert.strictEqual(h.records.course[0].createdBy, 'admin');
+    assert.strictEqual(h.records.component[0].createdBy, 'admin');
+    assert.strictEqual(h.records.lightcourse[0].conversionStatus, 'converted');
+  });
+  it('rejects denied course creation and surfaces permission lookup failures without leaving a converted course', async function() {
+    for (var options of [{ realCoursePermissions: true, denyCourseCreate: true },
+      { realCoursePermissions: true, coursePermissionError: true }]) {
+      var h = harness(options);
+      var review = await h.request(false);
+      var result = await h.request(true, { hash: review.body.hash, approved: true });
+      assert.strictEqual(result.status, options.denyCourseCreate ? 403 : 500);
+      if (options.coursePermissionError) assert.strictEqual(result.body.message, 'Permission service unavailable');
+      assert.strictEqual((h.records.course || []).length, 0);
+      assert.strictEqual(h.records.lightcourse[0].conversionStatus, 'none');
+    }
+  });
+  it('converts placeholder assets with an empty description without inventing metadata', async function() {
+    var mongoose = require('mongoose');
+    var MongooseDB = require('../lib/dml/mongoose');
+    var assetSchema = JSON.parse(fs.readFileSync(path.join(ROOT, 'lib/dml/schema/system/asset.schema')));
+    var imported = await new Promise(function(resolve, reject) {
+      new MongooseDB().importSchema('http://localhost/system/asset.schema', assetSchema, function(error, result) {
+        if (error) reject(error); else resolve(result);
+      });
+    });
+    var Asset = mongoose.model('ConversionAssetDescriptionTest', new mongoose.Schema(imported));
+    for (var description of [undefined, '', 'Original caption']) {
+      var metadata;
+      var h = harness({ validateAsset: function(data, file, repository) {
+        metadata = data;
+        return new Asset({ title: data.title, description: data.description, assetType: 'image',
+          path: 'image.png', filename: file.name, thumbnailPath: 'thumb.png', repository: repository }).validateSync();
+      } });
+      h.records.lightcourseasset[0].description = description;
+      var review = await h.request(false);
+      assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+      var result = await h.request(true, { hash: review.body.hash, approved: true });
+      assert.strictEqual(result.status, 200, result.body.message);
+      assert.strictEqual(metadata.description, description || '');
+      assert.strictEqual(h.records.lightcourse[0].conversionStatus, 'converted');
+    }
+  });
   it('performs read-only preflight and converts parent-first with a single config and asset copy', async function() {
     var h = harness(), original = copy(h.records.lightcourseversion);
     var review = await h.request(false);
     assert.strictEqual(review.status, 200, review.body.message);
     assert.strictEqual(review.body.ready, true);
+    assert.deepStrictEqual(Array.from(review.body.locations.component, function(item) { return item.title; }),
+      ['Page', 'Article', 'Block', 'Graphic']);
+    assert.strictEqual(review.body.locations.component[3].component, 'graphic');
     assert.deepStrictEqual(h.writes, []);
     var result = await h.request(true, { hash: review.body.hash, approved: true });
     assert.strictEqual(result.status, 200, result.body.message);
@@ -872,7 +1672,7 @@ describe('reviewed Light Course conversion', function() {
     assert.strictEqual(h.records.config.length, 1);
     assert.strictEqual(h.records.config[0]._menu, 'adapt-menu');
     assert.strictEqual(h.records.component[0]._parentId, h.records.block[0]._id);
-    assert.strictEqual(h.records.component[0]._graphic.large, 'course/assets/copied.png');
+    assert.strictEqual(h.records.component[0].properties._graphic.large, 'course/assets/copied.png');
     assert.strictEqual(h.records.courseasset[0]._contentType, 'component');
     assert.strictEqual(h.records.courseasset[0]._contentTypeId, h.records.component[0]._id);
     assert.strictEqual(h.records.courseasset[0]._contentTypeParentId, h.records.block[0]._id);
@@ -890,6 +1690,15 @@ describe('reviewed Light Course conversion', function() {
   it('requires admin permissions and authentication', async function() {
     assert.strictEqual((await harness({ denied: true }).request(false)).status, 403);
     assert.strictEqual((await harness({ loggedOut: true }).request(false)).status, 401);
+  });
+  it('describes issue locations using the saved version even when the draft has changed', async function() {
+    var h = harness();
+    component(h.records.lightcourse[0]).title = 'Unsaved version title';
+    var review = await h.request(false);
+    assert.strictEqual(review.status, 200);
+    assert.strictEqual(review.body.ready, false);
+    assert.strictEqual(review.body.locations.component[3].title, 'Graphic');
+    assert(review.body.errors.some(function(error) { return /draft has changes/.test(error.message); }));
   });
   it('rewrites resource and help assets while retaining resource IDs and ownership joins', async function() {
     var h = harness(), resourceId = 'ffffffffffffffffffffffff';
@@ -981,7 +1790,7 @@ describe('reviewed Light Course conversion', function() {
     assert(!proposals.some(function(proposal) { return proposal.path === '_items[0]._graphic.src'; }));
     var result = await h.request(true, { hash: review.body.hash, approved: true });
     assert.strictEqual(result.status, 200, result.body.message);
-    var items = h.records.component[0]._items;
+    var items = h.records.component[0].properties._items;
     assert.deepStrictEqual(items.map(function(item) { return item.title; }), ['Valid', 'Missing file', 'Wrong type', 'Empty']);
     items.forEach(function(item) { assert.strictEqual(item._graphic.src, 'course/assets/copied.png'); });
     assert.strictEqual(items[1]._graphic.alt, 'Missing alt');
@@ -1300,9 +2109,9 @@ describe('optional base image conversion defaults', function() {
     }));
     var converted = await h.request(true, { hash: review.body.hash, approved: true });
     assert.strictEqual(converted.status, 200, converted.body.message);
-    assert.strictEqual(h.records.component[0]._graphic.large, 'course/assets/copied.png');
-    assert.strictEqual(h.records.component[0]._graphic.small, 'https://example.test/keep.png');
-    assert.strictEqual(h.records.component[0]._mobile.image, 'course/assets/copied.png');
+    assert.strictEqual(h.records.component[0].properties._graphic.large, 'course/assets/copied.png');
+    assert.strictEqual(h.records.component[0].properties._graphic.small, 'https://example.test/keep.png');
+    assert.strictEqual(h.records.component[0].properties._mobile.image, 'course/assets/copied.png');
   });
 });
 
