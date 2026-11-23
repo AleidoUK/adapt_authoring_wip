@@ -98,6 +98,14 @@
                       "validators": [],
                       "help": "The alternative text for the button",
                       "translatable": true
+                    },
+                    "_customLink": {
+                      "type": "string",
+                      "required": false,
+                      "default": "",
+                      "title": "Custom Link ID",
+                      "inputType": "Text",
+                      "validators": []
                     }
                   }
                 },

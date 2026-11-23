@@ -112,6 +112,63 @@ function configureFooter(f) {
   f.version.contentSnapshot = copy(f.draft);
 }
 
+function configureProgress(f) {
+  var locations = {};
+  ['course', 'contentobject', 'article', 'block', 'component'].forEach(function(type) {
+    locations[type] = { properties: { _pageLevelProgress: { type: 'object', properties: {
+      _isEnabled: { type: 'boolean', required: true, default: !['article', 'block'].includes(type) },
+      _isCompletionIndicatorEnabled: { type: 'boolean', required: true, default: false }
+    } } } };
+  });
+  f.catalog.extension.pageLevelProgress = { _id: 'progress-id', name: 'adapt-contrib-pageLevelProgress', version: '8.3.0',
+    properties: { pluginLocations: { properties: locations } } };
+  f.draft.pluginSelections.extensions.push('pageLevelProgress');
+  f.version.contentSnapshot = copy(f.draft);
+}
+
+function configureIntroductionProgress(f) {
+  ['sectionProgress', 'overallProgress'].forEach(function(key) {
+    var plugin = { type: 'object', properties: {
+      _isEnabled: { type: 'boolean', required: true, default: true },
+      label: { type: 'string', required: true, default: 'keep' }
+    } };
+    var fields = {};
+    fields['_' + key] = plugin;
+    f.catalog.extension[key] = { _id: key + '-id', name: 'adapt-aleido-' + key, version: '1',
+      properties: { pluginLocations: { properties: {
+        course: { properties: copy(fields) }, contentobject: { properties: copy(fields) }
+      } } } };
+    f.draft.pluginSelections.extensions.push(key);
+  });
+  f.version.contentSnapshot = copy(f.draft);
+}
+
+function configureMenuButton(f) {
+  f.catalog.extension.menuButton = { _id: 'menu-button-id', name: 'adapt-aleido-menuButton', version: '1',
+    properties: { pluginLocations: { properties: { contentobject: { properties: {
+      _menuButton: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', required: true, default: true },
+        _icon: { type: 'string', required: true, default: 'home' }
+      } }
+    } } } } } };
+  f.draft.pluginSelections.extensions.push('menuButton');
+  f.version.contentSnapshot = copy(f.draft);
+}
+
+function configureCompletion(f) {
+  f.catalog.extension.completion = { _id: 'completion-id', name: 'adapt-aleido-completion', version: '1',
+    properties: { pluginLocations: { properties: { course: { properties: {
+      _completion: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', required: true, default: false },
+        title: { type: 'string', required: false, default: '', title: 'Title', inputType: 'Text' },
+        body: { type: 'string', required: false, default: '', title: 'Body', inputType: 'TextArea' },
+        instruction: { type: 'string', required: false, default: '' }
+      } }
+    } } } } } };
+  f.draft.pluginSelections.extensions.push('completion');
+  f.version.contentSnapshot = copy(f.draft);
+}
+
 function configureHelp(f) {
   var properties = JSON.parse(fs.readFileSync(path.join(ROOT,
     'test/fixtures/lightcourse/adapt-aleido-help/properties.schema'), 'utf8'));
@@ -205,6 +262,55 @@ describe('Splash page extension settings', function() {
 });
 
 describe('Footer navigation conversion', function() {
+  it('skips the Help page for Next in standard courses only when Help is selected', function() {
+    var f = fixture();
+    configureFooter(f);
+    configureHelp(f);
+    f.draft.contentTree.children.push(
+      { _id: 'help-page', type: 'page', title: 'Help', children: [] },
+      { _id: 'after-help', type: 'page', title: 'After Help', children: [] }
+    );
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var first = plan.records.find(function(record) { return record.id === 'page'; });
+    var help = plan.records.find(function(record) { return record.id === 'help-page'; });
+    var after = plan.records.find(function(record) { return record.id === 'after-help'; });
+    assert.strictEqual(first.data._extensions._footer._next._isEnabled, true);
+    assert.strictEqual(first.footerTargets._next, 'after-help');
+    assert.strictEqual(help.data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(help.data._extensions._footer._next._customLink, '');
+    assert(!help.footerTargets || !help.footerTargets._next);
+    assert.strictEqual(after.footerTargets._previous, 'help-page');
+
+    f.draft.contentTree.children.pop();
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    first = plan.records.find(function(record) { return record.id === 'page'; });
+    assert.strictEqual(first.data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(first.data._extensions._footer._next._customLink, '');
+    assert(!first.footerTargets || !first.footerTargets._next);
+
+    f.draft.pluginSelections.extensions = ['footer'];
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; }).footerTargets._next, 'help-page');
+  });
+
+  it('keeps submenu course Next navigation unchanged when Help is selected', function() {
+    var f = fixture();
+    configureFooter(f);
+    configureHelp(f);
+    f.draft.contentTree.children.push(
+      { _id: 'help-page', type: 'page', title: 'Help', children: [] },
+      { _id: 'menu', type: 'submenu', title: 'Menu', children: [] }
+    );
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; }).footerTargets._next, 'help-page');
+  });
+
   it('uses the structure for Next and Previous, excluding the Splash page as a previous target', function() {
     var f = fixture();
     splashFixture(f);
@@ -373,7 +479,269 @@ describe('submenu conversion', function() {
     f.version.contentSnapshot = copy(f.draft);
   }
 
-  it('creates menu and page hierarchy, sends Splash to the first submenu and links Footer across boundaries', function() {
+  function addHelpPage(f) {
+    var source = f.draft.contentTree.children.find(function(node) { return node._id === 'page'; });
+    var help = copy(source);
+    help._id = 'help-page';
+    help.title = 'Help';
+    help.children[0]._id = 'help-article';
+    help.children[0].title = 'Help article';
+    help.children[0].children[0]._id = 'help-block';
+    help.children[0].children[0].title = 'Help block';
+    var helpComponent = help.children[0].children[0].children[0];
+    helpComponent._id = 'help-component';
+    helpComponent.title = 'Help component';
+    helpComponent._component = 'graphic';
+    if (f.catalog.component.splash) {
+      f.catalog.component.graphic = copy(f.catalog.component.splash);
+      f.catalog.component.graphic._id = 'help-graphic-id';
+      f.catalog.component.graphic.component = 'graphic';
+      f.catalog.component.graphic.name = 'adapt-contrib-graphic';
+      f.defaults['component:graphic'] = copy(f.defaults['component:splash']);
+    }
+    f.draft.contentTree.children.push(help);
+    f.version.contentSnapshot = copy(f.draft);
+  }
+
+  it('disables the main menu only in submenu courses and makes Help content optional in both', function() {
+    var f = fixture();
+    withMenus(f);
+    addHelpPage(f);
+    f.draft.contentTree.children[1].children.push(f.draft.contentTree.children.pop());
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var course = plan.records.find(function(record) { return record.id === 'course'; });
+    assert.strictEqual(course.data._start._isMenuDisabled, true);
+    assert.strictEqual(course.startTarget, 'page');
+    ['help-page', 'help-article', 'help-block', 'help-component'].forEach(function(id) {
+      var record = plan.records.find(function(entry) { return entry.id === id; });
+      assert.strictEqual(record.data._isOptional, true, id);
+      assert(plan.proposals.some(function(proposal) {
+        return proposal.node === id && proposal.path === '_isOptional' &&
+          proposal.value === true && proposal.source === 'Help page';
+      }));
+    });
+    assert.notStrictEqual(plan.records.find(function(record) { return record.id === 'article'; }).data._isOptional, true);
+    var help = f.draft.contentTree.children[1].children.pop();
+    f.draft.contentTree.children = f.draft.contentTree.children.filter(function(node) { return node.type !== 'submenu'; });
+    f.draft.contentTree.children.push(help);
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.notStrictEqual(plan.records.find(function(record) { return record.id === 'course'; })
+      .data._start._isMenuDisabled, true);
+    ['help-page', 'help-article', 'help-block', 'help-component'].forEach(function(id) {
+      assert.strictEqual(plan.records.find(function(record) { return record.id === id; }).data._isOptional, true);
+    });
+    assert.notStrictEqual(plan.records.find(function(record) { return record.id === 'article'; }).data._isOptional, true);
+  });
+
+  it('starts on the first saved page when a submenu course has no Splash', function() {
+    var f = fixture();
+    f.draft.contentTree.children.unshift({ _id: 'menu', type: 'submenu', title: 'Menu', children: [
+      { _id: 'first-menu-page', type: 'page', title: 'First submenu page', children: [] }
+    ] });
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var course = plan.records.find(function(record) { return record.id === 'course'; });
+    assert.strictEqual(course.data._start._isEnabled, true);
+    assert.strictEqual(course.data._start._isMenuDisabled, true);
+    assert.notStrictEqual(course.data._start._force, true);
+    assert.strictEqual(course.startTarget, 'first-menu-page');
+  });
+
+  it('reports incompatible main menu and Help optional schemas before conversion', function() {
+    var f = fixture();
+    withMenus(f);
+    addHelpPage(f);
+    delete f.catalog.core.course.properties._start.properties._isMenuDisabled;
+    delete f.catalog.core.block.properties._isOptional;
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(plan.errors.some(function(entry) { return entry.path === '_start._isMenuDisabled'; }));
+    assert(plan.errors.some(function(entry) { return entry.node === 'help-block' && entry.path === '_isOptional'; }));
+  });
+
+  it('disables Menu Button on submenu pages but not on menu containers or root pages', function() {
+    var f = fixture();
+    withMenus(f);
+    configureMenuButton(f);
+    f.draft.contentTree.children[0].children[1]._extensions = {
+      _menuButton: { _isEnabled: true, _icon: 'grid' }
+    };
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    function record(id) { return plan.records.find(function(entry) { return entry.id === id; }); }
+    ['page-a', 'page-b', 'page-c'].forEach(function(id) {
+      assert.strictEqual(record(id).data._extensions._menuButton._isEnabled, false);
+      assert(plan.proposals.some(function(proposal) {
+        return proposal.node === id && proposal.path === '_extensions._menuButton._isEnabled' &&
+          proposal.value === false && proposal.source === 'Submenu page';
+      }));
+    });
+    ['menu-a', 'menu-b', 'page', 'page-d'].forEach(function(id) {
+      assert.strictEqual(record(id).data._extensions._menuButton._isEnabled, true);
+    });
+    assert.strictEqual(record('page-b').data._extensions._menuButton._icon, 'grid');
+  });
+
+  it('disables Menu Button on submenu pages without a Splash page', function() {
+    var f = fixture();
+    f.draft.contentTree.children = [{ _id: 'menu', type: 'submenu', title: 'Menu',
+      children: f.draft.contentTree.children }];
+    configureMenuButton(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._menuButton._isEnabled, false);
+  });
+
+  it('disables Overall Progress on Help pages in standard and submenu courses only when selected', function() {
+    [false, true].forEach(function(withSubmenu) {
+      var f = fixture();
+      if (withSubmenu) withMenus(f);
+      addHelpPage(f);
+      if (withSubmenu) f.draft.contentTree.children[1].children.push(f.draft.contentTree.children.pop());
+      configureIntroductionProgress(f);
+      var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+      assert.deepStrictEqual(plan.errors, []);
+      var help = plan.records.find(function(record) { return record.id === 'help-page'; });
+      assert.strictEqual(help.data._extensions._overallProgress._isEnabled, false);
+      assert.strictEqual(help.data._extensions._sectionProgress._isEnabled, true);
+      assert.strictEqual(help.data._extensions._overallProgress.label, 'keep');
+      assert(plan.proposals.some(function(proposal) {
+        return proposal.node === 'help-page' && proposal.path === '_extensions._overallProgress._isEnabled' &&
+          proposal.value === false && proposal.source === 'Help page';
+      }));
+      f.draft.pluginSelections.extensions = f.draft.pluginSelections.extensions.filter(function(key) {
+        return key !== 'overallProgress';
+      });
+      f.version.contentSnapshot = copy(f.draft);
+      plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+      help = plan.records.find(function(record) { return record.id === 'help-page'; });
+      assert.strictEqual(help.data._extensions._overallProgress, undefined);
+    });
+  });
+
+  it('reports incompatible Menu Button and Overall Progress page schemas before conversion', function() {
+    var f = fixture();
+    withMenus(f);
+    addHelpPage(f);
+    configureMenuButton(f);
+    configureIntroductionProgress(f);
+    delete f.catalog.extension.menuButton.properties.pluginLocations.properties.contentobject
+      .properties._menuButton.properties._isEnabled;
+    delete f.catalog.extension.overallProgress.properties.pluginLocations.properties.contentobject
+      .properties._overallProgress.properties._isEnabled;
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(plan.errors.some(function(entry) {
+      return entry.node === 'page-b' && entry.path === '_extensions._menuButton._isEnabled';
+    }));
+    assert(plan.errors.some(function(entry) {
+      return entry.node === 'help-page' && entry.path === '_extensions._overallProgress._isEnabled';
+    }));
+  });
+
+  it('preserves article and block progress indicator defaults in submenu courses, with or without Splash', function() {
+    [false, true].forEach(function(hasSplash) {
+      var f = fixture();
+      if (hasSplash) withMenus(f);
+      else f.draft.contentTree.children = [
+        { _id: 'menu', type: 'submenu', title: 'Menu', children: f.draft.contentTree.children }
+      ];
+      configureProgress(f);
+      var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+      assert.deepStrictEqual(plan.errors, []);
+      plan.records.filter(function(record) {
+        return ['course', 'contentobject', 'article', 'block', 'component'].includes(record.type);
+      }).forEach(function(record) {
+        var progress = record.data._extensions._pageLevelProgress;
+        var disabled = ['article', 'block'].includes(record.type);
+        assert.strictEqual(progress._isEnabled, !disabled, record.id);
+        assert.strictEqual(progress._isCompletionIndicatorEnabled, false);
+      });
+    });
+  });
+
+  it('leaves standard courses and unselected progress extensions unchanged', function() {
+    var f = fixture();
+    configureProgress(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    assert.strictEqual(plan.records.find(function(record) { return record.type === 'article'; })
+      .data._extensions._pageLevelProgress._isEnabled, false);
+    assert.strictEqual(plan.records.find(function(record) { return record.type === 'block'; })
+      .data._extensions._pageLevelProgress._isEnabled, false);
+    withMenus(f);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    assert(!plan.proposals.some(function(proposal) { return proposal.source === 'Submenu progress indicators'; }));
+  });
+
+  it('disables selected progress extensions only on the submenu Splash and first submenu page', function() {
+    var f = fixture();
+    withMenus(f);
+    configureIntroductionProgress(f);
+    f.draft.contentTree.children[2]._extensions = { _sectionProgress: { _isEnabled: true, label: 'authored' } };
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    function record(id) { return plan.records.find(function(entry) { return entry.id === id; }); }
+    ['sectionProgress', 'overallProgress'].forEach(function(key) {
+      ['page', 'page-a'].forEach(function(id) {
+        assert.strictEqual(record(id).data._extensions['_' + key]._isEnabled, false);
+        assert(plan.proposals.some(function(proposal) {
+          return proposal.node === id && proposal.path === '_extensions._' + key + '._isEnabled' &&
+            proposal.value === false && proposal.source === 'Submenu introduction';
+        }));
+      });
+      ['course', 'page-b', 'page-c', 'page-d', 'menu-a'].forEach(function(id) {
+        assert.strictEqual(record(id).data._extensions['_' + key]._isEnabled, true);
+      });
+    });
+    assert.strictEqual(record('page').data._extensions._sectionProgress.label, 'authored');
+  });
+
+  it('leaves progress unchanged without both a submenu and Splash and reports unsupported page settings', function() {
+    var f = fixture();
+    splashFixture(f);
+    configureIntroductionProgress(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._sectionProgress._isEnabled, true);
+    f = fixture();
+    f.draft.contentTree.children = [{ _id: 'menu', type: 'submenu', title: 'Menu',
+      children: f.draft.contentTree.children }];
+    configureIntroductionProgress(f);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'page'; })
+      .data._extensions._overallProgress._isEnabled, true);
+    f = fixture();
+    withMenus(f);
+    configureIntroductionProgress(f);
+    delete f.catalog.extension.sectionProgress.properties.pluginLocations.properties.contentobject
+      .properties._sectionProgress.properties._isEnabled;
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert(plan.errors.some(function(entry) {
+      return entry.node === 'page' && entry.path === '_extensions._sectionProgress._isEnabled';
+    }));
+  });
+
+  it('only changes selected progress extensions', function() {
+    var f = fixture();
+    withMenus(f);
+    configureIntroductionProgress(f);
+    f.draft.pluginSelections.extensions = ['footer', 'sectionProgress'];
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var page = plan.records.find(function(record) { return record.id === 'page-a'; });
+    assert.strictEqual(page.data._extensions._sectionProgress._isEnabled, false);
+    assert.strictEqual(page.data._extensions._overallProgress, undefined);
+  });
+
+  it('creates menu and page hierarchy, sends Splash to the first submenu and stops Next at submenu boundaries', function() {
     var f = fixture();
     withMenus(f);
     f.catalog.extension.hero = heroFixture();
@@ -398,9 +766,12 @@ describe('submenu conversion', function() {
     assert.strictEqual(record('page-a').data._extensions._footer._previous._isEnabled, false);
     assert.strictEqual(record('page-a').data._extensions._footer._next._isEnabled, false);
     assert.strictEqual(record('page-b').data._extensions._footer._previous._isEnabled, false);
-    assert.strictEqual(record('page-b').footerTargets._next, 'page-c');
+    assert.strictEqual(record('page-b').data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(record('page-b').data._extensions._footer._next._customLink, '');
+    assert(!record('page-b').footerTargets || !record('page-b').footerTargets._next);
     assert.strictEqual(record('page-c').footerTargets._previous, 'page-b');
-    assert.strictEqual(record('page-c').footerTargets._next, 'page-d');
+    assert.strictEqual(record('page-c').data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(record('page-c').data._extensions._footer._next._customLink, '');
     assert.strictEqual(record('page-d').data._extensions._footer._next._isEnabled, false);
     assert.strictEqual(record('menu-a').data._extensions._footer._isEnabled, true);
     assert.strictEqual(record('menu-a').data._extensions._footer._previous._isEnabled, true);
@@ -429,12 +800,13 @@ describe('submenu conversion', function() {
     }));
   });
 
-  it('links Footer through root and submenu pages when there is no Splash', function() {
+  it('stops Next at the last submenu page without Splash while preserving other page links', function() {
     var f = fixture();
     configureFooter(f);
     f.draft.contentTree.children.push(
       { _id: 'menu', type: 'submenu', title: 'Menu', children: [
-        { _id: 'child', type: 'page', title: 'Child', children: [] }
+        { _id: 'child', type: 'page', title: 'Child', children: [] },
+        { _id: 'last-child', type: 'page', title: 'Last child', children: [] }
       ] },
       { _id: 'after', type: 'page', title: 'After', children: [] }
     );
@@ -443,7 +815,12 @@ describe('submenu conversion', function() {
     assert.deepStrictEqual(plan.errors, []);
     var child = plan.records.find(function(record) { return record.id === 'child'; });
     assert.strictEqual(child.footerTargets._previous, 'page');
-    assert.strictEqual(child.footerTargets._next, 'after');
+    assert.strictEqual(child.footerTargets._next, 'last-child');
+    var lastChild = plan.records.find(function(record) { return record.id === 'last-child'; });
+    assert.strictEqual(lastChild.footerTargets._previous, 'child');
+    assert.strictEqual(lastChild.data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(lastChild.data._extensions._footer._next._customLink, '');
+    assert.strictEqual(lastChild.footerTargets._next, undefined);
   });
 
   it('links the Help button and uses native previous navigation on a standard Help page', function() {
@@ -484,18 +861,84 @@ describe('submenu conversion', function() {
     assert.strictEqual(course.helpTarget, 'help-page');
   });
 
-  it('persists generated submenu, page and navigation IDs', async function() {
+  it('persists the Page Level Progress location defaults when converting a submenu course', async function() {
     var h = harness();
     withMenus(h.fixture);
-    configureHelp(h.fixture);
-    h.fixture.catalog.extension.hero = heroFixture();
-    h.fixture.draft.pluginSelections.extensions.push('hero');
-    h.fixture.draft.contentTree.children.push({ _id: 'help-page', type: 'page', title: 'Help', children: [] });
-    h.fixture.version.contentSnapshot = copy(h.fixture.draft);
+    configureProgress(h.fixture);
     h.records.lightcourse[0] = copy(h.fixture.draft);
     h.records.lightcourseversion[0] = copy(h.fixture.version);
     h.records.componenttype[0] = copy(h.fixture.catalog.component.splash);
-    h.records.extensiontype = ['footer', 'hero', 'help'].map(function(key) {
+    h.records.extensiontype = ['footer', 'pageLevelProgress'].map(function(key) {
+      return Object.assign({ extension: key }, copy(h.fixture.catalog.extension[key]));
+    });
+    h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    assert.strictEqual(h.records.article[0]._extensions._pageLevelProgress._isEnabled, false);
+    assert.strictEqual(h.records.block[0]._extensions._pageLevelProgress._isEnabled, false);
+    assert.strictEqual(h.records.component[0]._extensions._pageLevelProgress._isEnabled, true);
+    assert.strictEqual(h.records.contentobject[0]._extensions._pageLevelProgress._isEnabled, true);
+  });
+
+  it('persists the first page start target for a submenu course without Splash', async function() {
+    var h = harness();
+    h.fixture.draft.contentTree.children.unshift({ _id: 'menu', type: 'submenu', title: 'Menu', children: [
+      { _id: 'first-menu-page', type: 'page', title: 'First submenu page', children: [] }
+    ] });
+    h.fixture.version.contentSnapshot = copy(h.fixture.draft);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    var firstPage = h.records.contentobject.find(function(node) { return node.title === 'First submenu page'; });
+    assert.strictEqual(h.records.course[0]._start._isEnabled, true);
+    assert.strictEqual(h.records.course[0]._start._isMenuDisabled, true);
+    assert.strictEqual(h.records.course[0]._start._startIds[0]._id, firstPage._id);
+  });
+
+  it('persists optional Help content in a standard course without the Help extension', async function() {
+    var h = harness();
+    addHelpPage(h.fixture);
+    configureIntroductionProgress(h.fixture);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.extensiontype = ['sectionProgress', 'overallProgress'].map(function(key) {
+      return Object.assign({ extension: key }, copy(h.fixture.catalog.extension[key]));
+    });
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    ['contentobject', 'article', 'block', 'component'].forEach(function(type) {
+      var node = h.records[type].find(function(item) { return item.title === (type === 'contentobject' ?
+        'Help' : 'Help ' + type); });
+      assert.strictEqual(node._isOptional, true, type);
+    });
+    assert.strictEqual(h.records.contentobject.find(function(node) { return node.title === 'Help'; })
+      ._extensions._overallProgress._isEnabled, false);
+    assert.strictEqual(h.records.contentobject.find(function(node) { return node.title === 'Page'; })
+      ._extensions._overallProgress._isEnabled, true);
+    assert.notStrictEqual(h.records.course[0]._start && h.records.course[0]._start._isMenuDisabled, true);
+    assert.notStrictEqual(h.records.component.find(function(node) { return node.title === 'Graphic'; })._isOptional, true);
+  });
+
+  it('persists generated submenu, page and navigation IDs', async function() {
+    var h = harness();
+    withMenus(h.fixture);
+    configureIntroductionProgress(h.fixture);
+    configureMenuButton(h.fixture);
+    configureHelp(h.fixture);
+    h.fixture.catalog.extension.hero = heroFixture();
+    h.fixture.draft.pluginSelections.extensions.push('hero');
+    addHelpPage(h.fixture);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.componenttype = [copy(h.fixture.catalog.component.splash), copy(h.fixture.catalog.component.graphic)];
+    h.records.extensiontype = ['footer', 'hero', 'help', 'sectionProgress', 'overallProgress', 'menuButton'].map(function(key) {
       return Object.assign({ extension: key }, copy(h.fixture.catalog.extension[key]));
     });
     h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
@@ -507,18 +950,28 @@ describe('submenu conversion', function() {
     var page = h.records.contentobject.find(function(node) { return node.title === 'A page'; });
     var second = h.records.contentobject.find(function(node) { return node.title === 'B page'; });
     var third = h.records.contentobject.find(function(node) { return node.title === 'C page'; });
+    var splash = h.records.contentobject.find(function(node) { return node.title === 'Page'; });
     var help = h.records.contentobject.find(function(node) { return node.title === 'Help'; });
     assert.strictEqual(menu._type, 'menu');
     assert.strictEqual(menu._parentId, h.records.course[0]._id);
     assert.strictEqual(page._parentId, menu._id);
     assert.strictEqual(h.records.component[0].properties._naviageTo, page._id);
     assert.strictEqual(page._isHidden, true);
+    ['sectionProgress', 'overallProgress'].forEach(function(key) {
+      assert.strictEqual(splash._extensions['_' + key]._isEnabled, false);
+      assert.strictEqual(page._extensions['_' + key]._isEnabled, false);
+      assert.strictEqual(second._extensions['_' + key]._isEnabled, true);
+      assert.strictEqual(h.records.course[0]._extensions['_' + key]._isEnabled, true);
+    });
     assert.strictEqual(page._extensions._footer._parent._isEnabled, true);
     assert.strictEqual(page._extensions._footer._previous._isEnabled, false);
     assert.strictEqual(page._extensions._footer._next._isEnabled, false);
     assert.strictEqual(second._extensions._footer._previous._isEnabled, false);
-    assert.strictEqual(second._extensions._footer._next._customLink, third._id);
+    assert.strictEqual(second._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(second._extensions._footer._next._customLink, '');
     assert.strictEqual(third._extensions._footer._previous._customLink, second._id);
+    assert.strictEqual(third._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(third._extensions._footer._next._customLink, '');
     assert.strictEqual(menu._extensions._footer._previous._isEnabled, true);
     assert.strictEqual(menu._extensions._footer._previous._customLink, page._id);
     assert.strictEqual(menu._extensions._footer._previous.title, 'Select here to return to the introduction screen.');
@@ -527,6 +980,18 @@ describe('submenu conversion', function() {
     assert.strictEqual(menu._extensions._footer._next._isEnabled, false);
     assert.strictEqual(menu._extensions._hero._isEnabled, false);
     assert.strictEqual(h.records.course[0]._extensions._help._navItem._customLink, help._id);
+    assert.strictEqual(help._extensions._overallProgress._isEnabled, false);
+    [page, second, third].forEach(function(node) {
+      assert.strictEqual(node._extensions._menuButton._isEnabled, false);
+    });
+    assert.strictEqual(splash._extensions._menuButton._isEnabled, true);
+    assert.strictEqual(menu._extensions._menuButton._isEnabled, true);
+    assert.strictEqual(h.records.course[0]._start._isMenuDisabled, true);
+    assert.strictEqual(h.records.course[0]._start._startIds[0]._id, splash._id);
+    assert.strictEqual(help._isOptional, true);
+    assert.strictEqual(h.records.article.find(function(node) { return node.title === 'Help article'; })._isOptional, true);
+    assert.strictEqual(h.records.block.find(function(node) { return node.title === 'Help block'; })._isOptional, true);
+    assert.strictEqual(h.records.component.find(function(node) { return node.title === 'Help component'; })._isOptional, true);
     assert.strictEqual(help._extensions._footer._previous._isEnabled, true);
     assert.strictEqual(help._extensions._footer._previous._customLink, '');
     assert.strictEqual(help._extensions._footer._next._isEnabled, false);
@@ -792,6 +1257,71 @@ describe('Video Wall item MP4 conversion defaults', function() {
     assert.strictEqual(converted.status, 200, converted.body.message);
     assert.deepStrictEqual(h.records.component[0].properties._items.map(function(item) { return item._media.mp4; }),
       ['course/assets/copied.png', 'course/assets/copied.png', 'https://example.test/keep.mp4']);
+  });
+});
+
+describe('Completion conversion defaults', function() {
+  it('exposes only the installed course-level title and body as optional text fallbacks', function() {
+    var f = fixture();
+    configureCompletion(f);
+    var group = catalogs.definitions(f.catalog).find(function(entry) {
+      return entry.key === 'extension:completion:course';
+    });
+    var fields = group.fields.filter(function(field) { return field.pluginOption; });
+    assert.deepStrictEqual(fields.map(function(field) { return field.path; }), ['_completion.title', '_completion.body']);
+    assert(fields.every(function(field) { return !field.hidden; }));
+    assert.strictEqual(fields[1].schema.inputType, 'TextArea');
+    assert.strictEqual(schema.pluginOption({ type: 'string' }, '_completion.instruction', group.key), false);
+    assert.strictEqual(schema.pluginOption({ type: 'string' }, '_completion.title', 'extension:completion:contentobject'), false);
+    assert.strictEqual(schema.pluginOption({ type: 'boolean' }, '_completion.title', group.key), false);
+  });
+
+  it('reviews configured text including HTML and leaves unconfigured or unselected fields alone', function() {
+    var f = fixture();
+    configureCompletion(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    var completion = plan.records.find(function(record) { return record.id === 'course'; }).data._extensions._completion;
+    assert.strictEqual(completion.title, '');
+    assert.strictEqual(completion.body, '');
+    f.defaults['extension:completion:course'] = {
+      '_completion.title': 'Great job!', '_completion.body': '<p>You have completed this <em>module</em>.</p>'
+    };
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    completion = plan.records.find(function(record) { return record.id === 'course'; }).data._extensions._completion;
+    assert.strictEqual(completion.title, 'Great job!');
+    assert.strictEqual(completion.body, '<p>You have completed this <em>module</em>.</p>');
+    ['title', 'body'].forEach(function(key) {
+      assert(plan.proposals.some(function(proposal) {
+        return proposal.node === 'course' && proposal.path === '_extensions._completion.' + key &&
+          proposal.value === f.defaults['extension:completion:course']['_completion.' + key] &&
+          proposal.source === 'Conversion Defaults';
+      }));
+    });
+    assert.strictEqual(completion.instruction, '');
+    f.draft.pluginSelections.extensions = [];
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.strictEqual(plan.records.find(function(record) { return record.id === 'course'; }).data._extensions._completion, undefined);
+  });
+
+  it('persists approved Completion title and body in the converted Full Course', async function() {
+    var h = harness();
+    configureCompletion(h.fixture);
+    h.fixture.defaults['extension:completion:course'] = {
+      '_completion.title': 'Great job!', '_completion.body': '<p>Well done!</p>'
+    };
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.extensiontype = [Object.assign({ extension: 'completion' }, copy(h.fixture.catalog.extension.completion))];
+    h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    var completion = h.records.course[0]._extensions._completion;
+    assert.strictEqual(completion.title, 'Great job!');
+    assert.strictEqual(completion.body, '<p>Well done!</p>');
   });
 });
 
@@ -1638,13 +2168,14 @@ describe('reviewed Light Course conversion', function() {
     try {
       db.addSchema('course', imported);
       var Course = db.getModel('course');
-      var course = new Course({ _start: { _isEnabled: true, _force: true, _startIds: [
+      var course = new Course({ _start: { _isEnabled: true, _force: true, _isMenuDisabled: true, _startIds: [
         { _id: '000000000000000000000001', _className: '', _skipIfComplete: false }
       ] } });
       assert.strictEqual(course.validateSync(), undefined);
       var output = course.toJSON({ transform: true, forExport: true })._start;
       assert.strictEqual(output._isEnabled, true);
       assert.strictEqual(output._force, true);
+      assert.strictEqual(output._isMenuDisabled, true);
       assert.strictEqual(output._startIds[0]._id, '000000000000000000000001');
     } finally {
       await db.conn.close();
@@ -1710,6 +2241,32 @@ describe('reviewed Light Course conversion', function() {
     assert.strictEqual(second._extensions._footer._next._customLink, third._id);
     assert.strictEqual(third._extensions._footer._previous._customLink, second._id);
     assert.strictEqual(third._extensions._footer._next._isEnabled, false);
+  });
+  it('stores the page after Help as the preceding page Next target', async function() {
+    var h = harness();
+    configureFooter(h.fixture);
+    configureHelp(h.fixture);
+    h.fixture.draft.contentTree.children.push(
+      { _id: 'help-page', type: 'page', title: 'Help', children: [] },
+      { _id: 'after-help', type: 'page', title: 'After Help', children: [] }
+    );
+    h.fixture.version.contentSnapshot = copy(h.fixture.draft);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.extensiontype = ['footer', 'help'].map(function(key) {
+      return Object.assign({ extension: key }, copy(h.fixture.catalog.extension[key]));
+    });
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    var pages = h.records.contentobject;
+    var first = pages.find(function(page) { return page.title === 'Page'; });
+    var help = pages.find(function(page) { return page.title === 'Help'; });
+    var after = pages.find(function(page) { return page.title === 'After Help'; });
+    assert.strictEqual(first._extensions._footer._next._customLink, after._id);
+    assert.strictEqual(help._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(help._extensions._footer._next._customLink, '');
   });
   it('stores the generated next Full Course page ID in the Splash custom target', async function() {
     var h = harness();
@@ -2664,7 +3221,7 @@ describe('Conversion Defaults backend validation', function() {
       '../../../lib/lightcourse/conversionCatalog': {
         load: async function() { if (options.catalogError) throw new Error('Catalogue unavailable'); return {}; },
         definitions: function() {
-          return [{ key: 'component:sample', label: 'Sample', fields: [
+          return options.groups || [{ key: 'component:sample', label: 'Sample', fields: [
             { path: 'count', schema: { type: 'number', required: true, minimum: 1 } }
           ] }];
         }
@@ -2697,6 +3254,16 @@ describe('Conversion Defaults backend validation', function() {
       assert.strictEqual(await h.write(method, { 'component:sample': { count: 2 } }), null);
       assert.strictEqual(h.writes(), 1);
     }
+  });
+  it('accepts Completion text defaults and rejects invalid values', async function() {
+    var f = fixture();
+    configureCompletion(f);
+    var h = configHarness({ groups: catalogs.definitions(f.catalog) });
+    assert.strictEqual(await h.write('update', { 'extension:completion:course': {
+      '_completion.title': 'Great job!', '_completion.body': '<p>Well done!</p>'
+    } }), null);
+    assert(await h.write('update', { 'extension:completion:course': { '_completion.body': 123 } }));
+    assert.strictEqual(h.writes(), 1);
   });
   it('rejects non-required paths in installed groups but retains unavailable plugin groups', async function() {
     var h = configHarness();

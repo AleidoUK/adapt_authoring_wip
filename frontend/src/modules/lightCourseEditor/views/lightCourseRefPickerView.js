@@ -52,6 +52,9 @@ define(function(require) {
       items.slice().sort(Alphabetical.compare).forEach(function(item) {
         var label = self.refType === 'glossary' ? item.term : item.title;
         var description = item.description || '';
+        if (self.refType === 'glossary') {
+          description = new DOMParser().parseFromString(description, 'text/html').body.textContent;
+        }
         var $item = $('<button type="button" class="light-course-ref-picker-item"></button>')
           .attr('data-ref-id', item._id);
         $item.append($('<span class="light-course-ref-picker-item-label"></span>').text(label || ''));

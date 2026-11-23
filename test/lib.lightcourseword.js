@@ -82,6 +82,24 @@ describe('submenu Word round-trip', function() {
     assert.strictEqual(result.snapshot.contentTree.children[0].title, 'Menu');
   });
 });
+describe('Glossary rich-text Word imports', function() {
+  it('imports description formatting even when the glossary originally contained plain text', async function() {
+    var snapshot = fixture();
+    var parsed = await edited(snapshot, function(xml) {
+      return replaceBoxContent(xml, 'Description',
+        '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Formatted definition</w:t></w:r></w:p>' +
+        '<w:p><w:r><w:rPr><w:i/></w:rPr><w:t>Second paragraph</w:t></w:r></w:p>');
+    });
+    assert.deepStrictEqual(parsed.errors, []);
+    assert.strictEqual((await apply(parsed, snapshot)).success, true);
+    assert.strictEqual(snapshot.glossaryItems[0].description,
+      '<p><strong>Formatted definition</strong></p><p><em>Second paragraph</em></p>');
+    assert.strictEqual(snapshot.glossaryItems[0].term, 'Term');
+    var expected = JSON.stringify(snapshot);
+    assert.strictEqual((await apply(await parse(await generate(snapshot)), snapshot)).success, true);
+    assert.strictEqual(JSON.stringify(snapshot), expected);
+  });
+});
 async function edited(snapshot, edit, editStyles, editRelationships) {
   return editedBuffer(await generate(snapshot), edit, editStyles, editRelationships);
 }
@@ -786,7 +804,7 @@ describe('mapped Word text round-trip', function() {
     assert.strictEqual(snapshot.contentTree.children[0].instruction, '<p>Reviewer instruction</p>');
     assert.strictEqual(node._graphic.alt, 'Reviewer alt text');
     assert.strictEqual(node._items[0].body, '<p>Reviewer nested body</p>');
-    assert.strictEqual(snapshot.glossaryItems[0].description, 'Reviewer definition');
+    assert.strictEqual(snapshot.glossaryItems[0].description, '<p>Reviewer definition</p>');
     node.body = 'Add body here';
     assert.strictEqual((await apply(await parse(await generate(snapshot)), snapshot)).success, true);
     assert.strictEqual(node.body, 'Add body here');

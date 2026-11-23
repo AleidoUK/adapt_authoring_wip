@@ -28,6 +28,10 @@ Values are grouped by:
 - `extension:<extension>:<location>`, for example `extension:help:course`;
 - `menu:<menu>:<location>` and `theme:<theme>:<location>`.
 
+The Completion extension's course-level **Title** and **Body** can be enabled
+as optional text fallbacks. They fill missing or empty values during conversion
+and appear in the review; existing text is preserved.
+
 Paths are relative to the group's schema, using `[]` for each existing array item. For example:
 
 ```json
@@ -161,7 +165,24 @@ In a course with submenus, there may be at most one Splash page and it must be
 at the root. Conversion makes it the forced start regardless of where the
 submenu appears in the saved structure and replaces its custom target with the
 ID of the first page in the first submenu. The first submenu must contain a page;
-that page is hidden from the menu.
+that page is hidden from the menu. If selected, Section Progress and Overall
+Progress are disabled on both the Splash page and that first submenu page.
+Other pages and course-level progress settings are unchanged.
+The top-level menu is disabled. A submenu course without Splash starts at the
+first page in saved course order instead.
+
+In standard and submenu courses, if a page is titled "Help", conversion marks it
+and all its articles, blocks and components optional, regardless of whether the
+Help extension is selected. Selected Overall Progress is disabled on the Help
+page. The installed Overall Progress extension can still count optional pages
+in the course percentage, because it adds a page-completion point independently
+of the page's optional and enabled settings.
+
+Selected Menu Button is disabled on pages inside submenus. Root pages and menu
+containers are unchanged.
+
+Conversion preserves the installed Page Level Progress defaults for article and
+block indicators rather than automatically enabling them.
 
 ### Footer navigation
 
@@ -184,12 +205,15 @@ that hidden first page, with the title "Select here to return to the
 introduction screen." and `_isRound: false`; Parent and Next are disabled. Hero
 is disabled on the submenu menu. The hidden page is excluded from normal
 Previous/Next traversal, so the following page has no Previous link back to it.
-Other pages use the normal saved page order across submenu boundaries.
+Other pages use the normal saved page order, except that Next is disabled and
+its custom link cleared on the last page of each submenu, even without Splash.
 
 When Help is selected and a course page is titled "Help", conversion writes that
 page's generated ID to the Help extension's Navigation Button Custom Link ID.
 That page's Footer has native Previous enabled without a custom link; Parent and
-Next are disabled.
+Next are disabled. In standard courses, the preceding page's Next skips Help and
+links to the page after it; if Help is last, Next is disabled and its link is
+cleared. Submenu navigation is unchanged.
 
 ### Tile Menu, Hero and Styling options
 

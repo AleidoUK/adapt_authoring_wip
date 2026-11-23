@@ -18,6 +18,18 @@ define(function(require) {
   var GLOSSARY_EXTENSION = 'glossary';
   var RESOURCES_EXTENSION = 'resources';
   var HELP_EXTENSION = 'help';
+  var FULL_COURSE_ACCESS_PERMISSIONS = [
+    '*/*:update',
+    '{{tenantid}}/content/*:read',
+    '{{tenantid}}/content/course/*:read'
+  ];
+
+  function hasFullCourseAccess() {
+    for (var i = 0; i < FULL_COURSE_ACCESS_PERMISSIONS.length; i++) {
+      if (Origin.permissions.hasPermissions([FULL_COURSE_ACCESS_PERMISSIONS[i]])) return true;
+    }
+    return false;
+  }
 
   /**
    * Editor shell (Phase 3's "Editor shell and tree" section): header sections + plugin
@@ -62,7 +74,7 @@ define(function(require) {
     onConvertClicked: function(event) {
       event.preventDefault();
       var self = this;
-      if (!Origin.permissions.hasPermissions(['*/*:update'])) return;
+      if (!hasFullCourseAccess()) return;
       if (this.model.get('conversionStatus') === 'converted') {
         var courseId = this.model.get('_convertedCourseId');
         if (!courseId) return Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcourseconvertedlinkmissing') });
@@ -158,7 +170,9 @@ define(function(require) {
     },
 
     postRender: function() {
-      this.$('.light-course-editor-convert').prop('hidden', !Origin.permissions.hasPermissions(['*/*:update']));
+      this.$('.light-course-editor-convert')
+        .prop('hidden', !hasFullCourseAccess())
+        .prop('disabled', true);
       this.$('.light-course-editor-editable-fields').prop('disabled', this.model.isLocked());
       this.headerView = new LightCourseHeaderView({ model: this.model });
       this.$('.light-course-editor-header-container').append(this.headerView.$el);
@@ -216,7 +230,7 @@ define(function(require) {
         disabledMessageKey: 'lightcourseglossarydisabled',
         fields: [
           { key: 'term', label: Origin.l10n.t('app.lightcourseterm'), type: 'text' },
-          { key: 'description', label: Origin.l10n.t('app.lightcoursedescription'), type: 'textarea' }
+          { key: 'description', label: Origin.l10n.t('app.lightcoursedescription'), type: 'richtext' }
         ],
         emptyItem: function() { return { term: '', description: '' }; }
       });
@@ -234,7 +248,7 @@ define(function(require) {
           { key: 'title', label: Origin.l10n.t('app.title'), type: 'text' },
           { key: 'description', label: Origin.l10n.t('app.lightcoursedescription'), type: 'textarea' },
           { key: '_link', label: Origin.l10n.t('app.lightcourselink'), type: 'text' },
-          { key: '_id', label: Origin.l10n.t('app.lightcoursefielduniqueid'), type: 'text', readOnly: true }
+          { key: '_id', label: Origin.l10n.t('app.lightcoursefielduniqueid'), type: 'text' }
         ],
         emptyItem: function() { return { _type: 'document', title: '', description: '', _link: '' }; }
       });
@@ -340,9 +354,10 @@ define(function(require) {
       this.$('.light-course-editor-create-major-version').text(Origin.l10n.t('app.lightcoursecreatemajorversion', { version: majorLabel }));
       this.$('.light-course-editor-convert')
         .text(Origin.l10n.t(converted ? 'app.lightcoursejumptofullcourse' : 'app.lightcourseconvert'))
-        .prop('disabled', !converted && !hasPublished);
+        .prop('hidden', !hasFullCourseAccess())
+        .prop('disabled', !hasFullCourseAccess() || (!converted && !hasPublished));
       this.$('.light-course-editor-convert-help').prop('hidden',
-        converted || hasPublished || !Origin.permissions.hasPermissions(['*/*:update']));
+        converted || hasPublished || !hasFullCourseAccess());
     },
 
     /**

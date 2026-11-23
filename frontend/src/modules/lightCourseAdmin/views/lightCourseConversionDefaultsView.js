@@ -115,7 +115,11 @@ define(function(require) {
         if (field.itemGraphic) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionitemgraphichelp')));
         else if (field.image) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionimagehelp')));
         if (field.videoPlaceholder) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionvideohelp')));
-        if (field.questionOption || field.pluginOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionquestionhelp')));
+        if (field.questionOption || field.pluginOption && field.schema.type === 'boolean') {
+          $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionquestionhelp')));
+        } else if (field.pluginOption) {
+          $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversiontexthelp')));
+        }
         if (group.key === 'component:splash' && field.pluginOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionsplashhelp')));
         if (field.navigationOption) $row.append($('<p></p>').text(Origin.l10n.t('app.lightcourseconversionnavigationhelp')));
         var definition = field.schema;

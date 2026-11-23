@@ -289,6 +289,8 @@
     "lightcoursedescription": "Description",
     "lightcourseresources": "Resources",
     "lightcourseresourcesdisabled": "The resources extension isn't selected for this course - select it under Plugin selections to add resource entries.",
+    "lightcourseresourceidinvalid": "Enter a non-empty Unique ID that is not already used by another resource.",
+    "lightcourseresourceidwarning": "The resource Unique ID has changed from \"%{previousId}\" to \"%{newId}\". Existing resource links and markers are not updated automatically. Update any references to the old ID manually.",
     "lightcoursetype": "Type",
     "lightcourselink": "Link",
     "lightcoursehelp": "Help",

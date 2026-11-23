@@ -699,6 +699,22 @@ describe('saved light course versions (isolated)', function() {
     assert.strictEqual(h.modals.length, 0);
   });
 
+  it('hides conversion and Full Course navigation from Light Editor-only users', function() {
+    var h = uiHarness(), view = h.view('lightCourseEditorView'), opened = 0;
+    h.origin.permissions = { hasPermissions: function(permission) {
+      return permission[0] === '{{tenantid}}/content/lightcourse/*:read';
+    } };
+    h.origin.trigger = function() { opened++; };
+    view.model.set({ conversionStatus: 'converted', _convertedCourseId: 'full-course' });
+    view.updateVersionButtonLabels();
+    assert.strictEqual(h.$('.light-course-editor-convert').props.hidden, true);
+    assert.strictEqual(h.$('.light-course-editor-convert').props.disabled, true);
+    assert.strictEqual(h.$('.light-course-editor-convert-help').props.hidden, true);
+    view.onConvertClicked(event());
+    assert.strictEqual(opened, 0);
+    assert.strictEqual(h.navigations.length, 0);
+  });
+
   it('reports a missing converted-course link and respects conversion permissions', function() {
     var h = uiHarness(), view = h.view('lightCourseEditorView'), alerts = [];
     h.origin.permissions = { hasPermissions: function() { return true; } };

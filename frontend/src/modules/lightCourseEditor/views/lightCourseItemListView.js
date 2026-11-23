@@ -17,7 +17,7 @@ define(function(require) {
    *
    * options:
    *   - items: the array to edit (mutated in place; this.getItems() also returns it)
-   *   - fields: [{ key, label, type: 'text'|'textarea'|'select', options: [] }]
+   *   - fields: [{ key, label, type: 'text'|'textarea'|'richtext'|'select', options: [] }]
    *   - isEnabled: boolean
    *   - disabledMessageKey: l10n key shown instead of the editor when isEnabled is false
    *   - emptyItem: function returning a new blank item's extra fields (merged with a fresh _id)
@@ -32,6 +32,7 @@ define(function(require) {
       'click .light-course-item-list-move-down': 'onMoveDownClicked',
       'change .light-course-csv-file': 'onImportFileChanged',
       'click .light-course-csv-import': 'onImportClicked',
+      'focusout .light-course-item-list-rich-text': 'onRichTextBlur',
       'change [data-item-field]': 'onFieldChanged'
     },
 
@@ -44,6 +45,7 @@ define(function(require) {
       this.importExtension = options.importExtension;
       this.courseModel = options.courseModel;
       this.saveImport = options.saveImport;
+      this.richTextForms = [];
     },
 
     postRender: function() {
@@ -52,10 +54,13 @@ define(function(require) {
     },
 
     getItems: function() {
+      this.flushRichTextForms();
       return this.items.sort(Alphabetical.compare);
     },
 
     renderItems: function() {
+      this.flushRichTextForms();
+      this.removeRichTextForms();
       this.items.sort(Alphabetical.compare);
       if (!this.isEnabled) {
         this.$el.html('<p class="light-course-item-list-disabled">' + Origin.l10n.t('app.' + this.disabledMessageKey) + '</p>');
@@ -135,9 +140,14 @@ define(function(require) {
 
     updateItemsFromModel: function() {
       var saved = this.courseModel.get(this.importExtension === 'glossary' ? 'glossaryItems' : 'resourceItems').slice();
+      var previous = this.items.slice();
       this.items.length = 0;
       var items = this.items;
       saved.forEach(function(item) { items.push(item); });
+      (this.richTextForms || []).forEach(function(entry) {
+        var index = previous.indexOf(entry.item);
+        if (index !== -1) entry.item = items[index];
+      });
     },
 
     uploadImport: function(mode) {
@@ -194,8 +204,38 @@ define(function(require) {
     },
 
     remove: function() {
+      this.flushRichTextForms();
+      this.removeRichTextForms();
       this.importDisposed = true;
       return OriginView.prototype.remove.apply(this, arguments);
+    },
+
+    flushRichTextForms: function() {
+      var changed = false;
+      if (this.courseModel && this.courseModel.isLocked()) return changed;
+      (this.richTextForms || []).forEach(function(entry) {
+        if (this.items.indexOf(entry.item) === -1) return;
+        var value = entry.form.getValue()[entry.key];
+        if (value !== entry.item[entry.key]) {
+          entry.item[entry.key] = value;
+          changed = true;
+        }
+      }, this);
+      return changed;
+    },
+
+    removeRichTextForms: function() {
+      var forms = this.richTextForms || [];
+      this.richTextForms = [];
+      forms.forEach(function(entry) {
+        this.stopListening(entry.form);
+        entry.form.remove();
+      }, this);
+    },
+
+    onRichTextBlur: function(event) {
+      if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
+      if (this.flushRichTextForms()) Origin.trigger('lightCourseEditor:autosave');
     },
 
     renderRow: function(item, index) {
@@ -203,8 +243,20 @@ define(function(require) {
       var $row = $('<div class="light-course-item-list-row" data-index="' + index + '"></div>');
       this.fields.forEach(function(field) {
         var $field;
-        if (field.type === 'textarea') {
+        if (field.type === 'richtext' && !(self.courseModel && self.courseModel.isLocked())) {
+          var schema = {}, data = {};
+          schema[field.key] = { type: 'TextArea', title: field.label };
+          data[field.key] = item[field.key] || '';
+          var form = new Backbone.Form({ schema: schema, data: data }).render();
+          self.richTextForms.push({ item: item, key: field.key, form: form });
+          self.listenTo(form, 'change', function() {
+            if (self.flushRichTextForms()) Origin.trigger('lightCourseEditor:autosave');
+          });
+          $row.append($('<div class="light-course-item-list-rich-text"></div>').append(form.el));
+          return;
+        } else if (field.type === 'textarea' || field.type === 'richtext') {
           $field = $('<textarea></textarea>').val(item[field.key] || '');
+          if (field.type === 'richtext') $field.prop('readOnly', true);
         } else if (field.type === 'select') {
           $field = $('<select></select>');
           (field.options || []).forEach(function(option) {
@@ -217,7 +269,7 @@ define(function(require) {
         if (field.readOnly) {
           $field.prop('readOnly', true).attr('data-item-readonly-field', field.key).attr('aria-label', field.label);
         } else {
-          $field.attr('data-item-field', field.key);
+          $field.attr('data-item-field', field.key).attr('aria-label', field.label);
         }
         $row.append($('<label></label>').text(field.label)).append($field);
       });
@@ -232,9 +284,29 @@ define(function(require) {
     onFieldChanged: function(event) {
       var $target = $(event.currentTarget);
       var index = $target.closest('.light-course-item-list-row').data('index');
-      this.items[index][$target.data('item-field')] = $target.val();
+      var item = this.items[index];
+      var field = $target.data('item-field');
+      var value = $target.val();
+      var resourceIdChanged = this.importExtension === 'resources' && field === '_id';
+      var previousId = item._id;
+      if (resourceIdChanged) {
+        value = value.trim();
+        if (!value || this.items.some(function(other) { return other !== item && other._id === value; })) {
+          $target.val(previousId || '');
+          return Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcourseresourceidinvalid') });
+        }
+        if (value === previousId) {
+          $target.val(value);
+          return;
+        }
+      }
+      item[field] = value;
       this.renderItems();
       Origin.trigger('lightCourseEditor:autosave');
+      if (resourceIdChanged && previousId) {
+        Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcourseresourceidwarning',
+          { previousId: previousId, newId: value }) });
+      }
     },
 
     onAddClicked: function(event) {
@@ -245,8 +317,8 @@ define(function(require) {
       Origin.trigger('lightCourseEditor:autosave', function(error) {
         if (error || self.importDisposed || !self.courseModel) return;
         self.updateItemsFromModel();
-        self.$('[data-item-readonly-field="_id"]').each(function(index) {
-          $(this).val(self.items[index]._id || '');
+        self.$('[data-item-field="_id"], [data-item-readonly-field="_id"]').each(function(index) {
+          if (!$(this).is(':focus')) $(this).val(self.items[index]._id || '');
         });
       });
     },

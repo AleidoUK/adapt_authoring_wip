@@ -96,7 +96,17 @@ If a plugin is later removed, its saved information will remain visible but read
 
 Where a course uses the glossary and resources extensions, light editors can maintain their lists directly in the tool instead of opening full plugin settings. A glossary entry has its term and definition. A resource entry has its details plus a resource ID value, which is used elsewhere to link to that resource. Editors can add, edit and remove entries in both lists; entries are ordered alphabetically.
 
-Each resource row displays its **Unique ID** in a read-only, copyable field. New resources receive their ID when saved.
+Glossary descriptions use the rich-text editor in both Light Course and course
+template editors. CSV imports accept plain text or HTML in the `description`
+column; HTML formatting is retained. Quote CSV cells containing commas, line
+breaks or quotes, doubling quotes inside quoted cells. Glossary descriptions
+also retain supported formatting when imported from a storyboard Word document.
+
+Each resource row has an editable **Unique ID** in both Light Course and course
+template editors. New resources receive their ID when saved. Edited IDs must
+be non-empty and unique within the resource list. Changing an existing ID shows
+a warning: resource links and markers are not updated automatically, so update
+references to the old ID manually.
 
 Both Light and Full Course **Content Preview**, their content-only Word exports
 and their storyboard Word exports show **Unique ID: ...** beneath each resource
@@ -241,10 +251,21 @@ When the first page contains Splash, conversion hides its menu tile, disables se
 For courses with submenus, the single Splash page must be at the course root. It
 becomes the forced course start and targets the first page in the first submenu,
 overriding any authored Splash destination. That page is hidden from the menu.
+When selected, Section Progress and Overall Progress are disabled on the Splash
+page and the first submenu page.
 Submenus become full-course menu objects and their pages become children of
-those menus.
+those menus. The top-level menu is disabled; without Splash, the course starts
+at the first page in saved course order.
 
-When Footer is selected, conversion sets Previous and Next buttons and their links from page order, replacing existing values for those fields. In submenu courses, it follows the displayed order of pages across submenu boundaries, skipping the submenu containers. The first page after Splash has no Previous button. In flat courses, Splash must be on the first page only; otherwise conversion reports an issue. Footer's circular-button settings can be configured separately.
+In standard and submenu courses, a page titled **Help** and its articles, blocks
+and components are marked optional, and Overall Progress is disabled on that
+page when selected. The installed Overall Progress extension may still count an
+optional page's completion in the overall percentage.
+
+In submenu courses, Menu Button is disabled on pages inside submenus when the
+extension is selected. Root pages and submenu menus retain their normal setting.
+
+When Footer is selected, conversion sets Previous and Next buttons and their links from page order, replacing existing values for those fields. In submenu courses, it follows the displayed order of pages across submenu boundaries, skipping the submenu containers, except that Next is disabled on each submenu's last page. The first page after Splash has no Previous button. In flat courses, Splash must be on the first page only; otherwise conversion reports an issue. Footer's circular-button settings can be configured separately.
 For submenu courses, the hidden first submenu page has only its Parent button
 enabled. The submenu menu has only Previous enabled, linking to that hidden page
 with the title "Select here to return to the introduction screen." and a square
@@ -252,7 +273,9 @@ button. The hidden page is excluded from normal Previous/Next navigation, so the
 following submenu page has no Previous link back to it. Hero is disabled on the
 submenu menu. If Help is selected and a page is titled **Help**, the Help button
 links to that page; its Footer has only native Previous enabled, with no custom
-link, Parent or Next.
+link, Parent or Next. In a standard course with Help selected, the preceding
+page's Next button skips Help and links to the following page, or is disabled
+when Help is last.
 
 The document header sections (version history, reviewing instructions, developer information, terminology and the help-screen style choice) and each component's Graphics Notes and Developer Notes are not needed once a full course exists, so none of them carry over - they remain visible on the light course for reference.
 
