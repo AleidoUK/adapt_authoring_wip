@@ -79,7 +79,7 @@ define(function(require) {
       var path = locations && locations[node];
       if (!path || !path.length) return Origin.l10n.t('app.lightcourseconversionitem') + ' (' + node + ')';
       return path.map(function(part) {
-        var type = ['page', 'article', 'block', 'component'].indexOf(part.type) !== -1 ? part.type : 'item';
+        var type = ['submenu', 'page', 'article', 'block', 'component'].indexOf(part.type) !== -1 ? part.type : 'item';
         var label = Origin.l10n.t('app.lightcourseconversion' + type);
         if (part.component) label += ' (' + part.component + ')';
         return label + (part.title ? ': ' + part.title : '');

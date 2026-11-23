@@ -20,7 +20,7 @@ define(function(require) {
   }
 
   function nodeLabel(node, index) {
-    var type = node.type && ['page', 'article', 'block', 'component'].indexOf(node.type) !== -1
+    var type = node.type && ['submenu', 'page', 'article', 'block', 'component'].indexOf(node.type) !== -1
       ? Origin.l10n.t('app.lightcourse' + node.type) + ' ' + (index + 1) : String(index + 1);
     var title = node.displayTitle || node.title || node.uniqueId || node._component || node.term || node.name;
     return type + (title ? ': ' + title : '') +
@@ -106,7 +106,7 @@ define(function(require) {
       if ((oldValue && typeof oldValue === 'object' || newValue && typeof newValue === 'object') &&
           (oldValue == null || typeof oldValue === 'object') && (newValue == null || typeof newValue === 'object')) {
         var object = newValue || oldValue;
-        var isNode = !!object._id && ['page', 'article', 'block', 'component'].indexOf(object.type) !== -1;
+        var isNode = !!object._id && ['submenu', 'page', 'article', 'block', 'component'].indexOf(object.type) !== -1;
         if (isNode && (!oldValue || !newValue) && !options.expandNodes) {
           add(path, oldValue, newValue, key);
           return;

@@ -35,6 +35,22 @@ function sampleSnapshot() {
 }
 
 describe('documentImport (Markdown round-trip)', function() {
+  it('round-trips components nested under a submenu without moving them', function(done) {
+    var snapshot = sampleSnapshot();
+    snapshot.contentTree.children = [{ _id: 'submenu', type: 'submenu', title: 'Menu',
+      children: snapshot.contentTree.children }];
+    documentGenerator.generateMarkdown(snapshot, stubDb({ text: TEXT_COMPONENT_TYPE }), function(error, markdown) {
+      should.not.exist(error);
+      var parsed = documentGenerator.parseMarkdown(markdown);
+      documentImport.importDocument(parsed, snapshot, stubDb({ text: TEXT_COMPONENT_TYPE }), function(importError, result) {
+        should.not.exist(importError);
+        result.success.should.be.true();
+        result.snapshot.contentTree.children[0].children[0]._id.should.equal('page-1');
+        done();
+      });
+    });
+  });
+
   it('should re-apply an unmodified exported document back onto the snapshot with no changes and no errors', function(done) {
     var snapshot = sampleSnapshot();
     documentGenerator.generateMarkdown(snapshot, stubDb({ text: TEXT_COMPONENT_TYPE }), function(error, markdown) {

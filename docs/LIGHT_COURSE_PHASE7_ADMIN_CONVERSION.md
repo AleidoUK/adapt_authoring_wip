@@ -157,6 +157,11 @@ hidden pages are excluded from the available runtime's next-page calculation.
 Existing custom targets are preserved. Other pages and course-level extension
 settings are unchanged; these changes do not apply without a first-page Splash.
 
+In a course with submenus, there may be at most one Splash page and it must be
+at the root. Conversion makes it the forced start regardless of where the
+submenu appears in the saved alphabetical order and replaces its custom target
+with the ID of the first submenu. The first submenu must contain a page.
+
 ### Footer navigation
 
 When Footer is selected, conversion sets each page's Previous and Next button
@@ -164,11 +169,14 @@ enabled state and custom link from the saved page order, replacing existing
 values for those fields. Next links to the following page except on the last page.
 Previous links to the preceding page except on the first page, and the first page
 after a Splash does not link back to the Splash. Without a Splash, only the first
-page has no Previous button. Conversion blocks if Splash occurs on more than one
-page or outside the first page. Individual circular-button fallbacks are available
+page has no Previous button. In flat courses, conversion blocks if Splash occurs
+on more than one page or outside the first page. Individual circular-button fallbacks are available
 for Previous, Next and Menu where the installed Footer schema supports them.
 Page-level Footer enablement is unchanged except on a first page containing
 Splash, as described above; other authored settings are unchanged.
+For submenu courses, Previous/Next traverse pages in saved structure order across
+menus and skip the submenu containers. The root Splash remains excluded as a
+Previous target even when it sorts after a submenu.
 
 ### Tile Menu, Hero and Styling options
 

@@ -17,18 +17,5 @@
     if (!a || !b) return a ? -1 : b ? 1 : 0;
     return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
   }
-  function tree(node) {
-    ['_items', 'items'].forEach(function(key) {
-      if (Array.isArray(node[key])) {
-        node[key].sort(compare);
-        node[key].forEach(function(item) { if (item && typeof item === 'object') tree(item); });
-      }
-    });
-    if (Array.isArray(node.children)) {
-      node.children.sort(compare);
-      node.children.forEach(tree);
-    }
-    return node;
-  }
-  return { label: label, compare: compare, tree: tree };
+  return { label: label, compare: compare };
 });

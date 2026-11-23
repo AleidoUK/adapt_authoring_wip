@@ -7,9 +7,8 @@ define(function(require) {
   var FieldPreview = require('../fieldPreview');
   var ComponentLayout = require('../componentLayout');
   var LightCourseCommentsView = require('./lightCourseCommentsView');
-  var Alphabetical = require('../alphabetical');
 
-  var HIERARCHY = { page: 'article', article: 'block', block: 'component' };
+  var HIERARCHY = { submenu: 'page', page: 'article', article: 'block', block: 'component' };
   var MAX_COMPONENTS_PER_BLOCK = 2;
 
   function generateStableId() {
@@ -52,6 +51,8 @@ define(function(require) {
 
     events: {
       'click .light-course-tree-add-page': 'onAddPageClicked',
+      'click .light-course-tree-add-submenu': 'onAddSubmenuClicked',
+      'click .light-course-tree-add-submenu-page': 'onAddSubmenuPageClicked',
       'click .light-course-tree-add': 'onAddChildClicked',
       'click .light-course-tree-remove': 'onRemoveClicked',
       'click .light-course-tree-move-up': 'onMoveUpClicked',
@@ -62,6 +63,7 @@ define(function(require) {
       'click .light-course-tree-paste-page': 'onPastePageClicked',
       'click .light-course-tree-cancel-copy': 'onCancelCopyClicked',
       'change .light-course-tree-page-title-input': 'onPageTitleChanged',
+      'change .light-course-tree-page-parent': 'onPageParentChanged',
       'click .light-course-tree-component-editor-close': 'onCloseEditorClicked',
       'click .light-course-tree-component-editor-cancel': 'onCancelEditorClicked',
       'keydown .light-course-tree-component-editor': 'onEditorKeydown'
@@ -89,7 +91,6 @@ define(function(require) {
     },
 
     renderTree: function() {
-      Alphabetical.tree(this.tree);
       var html = Handlebars.templates['lightCourseTreeRootNodes']({
         children: this.tree.children,
         clipboardType: this.clipboardNode && this.clipboardNode.type,
@@ -110,7 +111,7 @@ define(function(require) {
      * built fresh on every render so it always reflects the live in-memory tree
      * (including a component whose form was just edited but not yet saved).
      */
-    buildNodeMeta: function(nodes, out) {
+    buildNodeMeta: function(nodes, out, parentId) {
       out = out || {};
       (nodes || []).forEach(function(node) {
         if (!node) {
@@ -127,7 +128,16 @@ define(function(require) {
           allCommentsResolved: comments.length > 0 && comments.every(function(comment) { return !!comment.parentId || comment.resolved; }),
           fields: FieldPreview(node)
         };
-        this.buildNodeMeta(node.children, out);
+        if (node.type === 'page') {
+          out[node._id].atRoot = !parentId;
+          out[node._id].submenus = this.tree.children.filter(function(item) {
+            return item.type === 'submenu';
+          }).map(function(item) {
+            return { id: item._id, title: item.title || Origin.l10n.t('app.lightcoursesubmenu'),
+              selected: item._id === parentId };
+          });
+        }
+        this.buildNodeMeta(node.children, out, node.type === 'submenu' ? node._id : null);
       }, this);
       return out;
     },
@@ -136,7 +146,7 @@ define(function(require) {
      * Returns the committed contentTree. Open component edits stay in a separate draft until Save.
      */
     getContentTree: function() {
-      return Alphabetical.tree(this.tree);
+      return this.tree;
     },
 
     findNode: function(nodeId, nodes, parent) {
@@ -159,14 +169,50 @@ define(function(require) {
       return $(event.currentTarget).closest('.light-course-tree-node').data('node-id');
     },
 
-    onAddPageClicked: function(event) {
-      event && event.preventDefault();
+    addPage: function(nodes) {
       this.clearClipboard();
       var page = emptyNodeData('page');
       var article = emptyNodeData('article');
       article.children.push(emptyNodeData('block'));
       page.children.push(article);
-      this.tree.children.push(page);
+      nodes.push(page);
+      this.renderTree();
+      Origin.trigger('lightCourseEditor:autosave');
+    },
+
+    onAddPageClicked: function(event) {
+      event && event.preventDefault();
+      this.addPage(this.tree.children);
+    },
+
+    onAddSubmenuClicked: function(event) {
+      event && event.preventDefault();
+      this.clearClipboard();
+      this.tree.children.push(emptyNodeData('submenu'));
+      this.renderTree();
+      Origin.trigger('lightCourseEditor:autosave');
+    },
+
+    onAddSubmenuPageClicked: function(event) {
+      event.preventDefault();
+      var found = this.findNode(this.getNodeIdFromEvent(event));
+      if (found && found.node.type === 'submenu') this.addPage(found.node.children);
+    },
+
+    onPageParentChanged: function(event) {
+      var found = this.findNode(this.getNodeIdFromEvent(event));
+      var targetId = $(event.currentTarget).val();
+      var target = targetId && this.findNode(targetId);
+      if (!found || found.node.type !== 'page') return;
+      if (targetId && (!target || target.node.type !== 'submenu' || target.siblings !== this.tree.children)) {
+        this.renderTree();
+        return Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.lightcoursesubmenumissing') });
+      }
+      var destination = target ? target.node.children : this.tree.children;
+      if (destination === found.siblings) return;
+      this.clearClipboard();
+      found.siblings.splice(found.index, 1);
+      destination.push(found.node);
       this.renderTree();
       Origin.trigger('lightCourseEditor:autosave');
     },
@@ -174,7 +220,7 @@ define(function(require) {
     onPageTitleChanged: function(event) {
       var $input = $(event.currentTarget);
       var found = this.findNode(this.getNodeIdFromEvent(event));
-      if (!found || found.node.type !== 'page') {
+      if (!found || ['page', 'submenu'].indexOf(found.node.type) === -1) {
         return;
       }
       this.clearClipboard();
@@ -211,6 +257,10 @@ define(function(require) {
       this.clearClipboard();
       var nodeId = this.getNodeIdFromEvent(event);
       var self = this;
+      var found = this.findNode(nodeId);
+      if (found && found.node.type === 'submenu' && found.node.children.length) {
+        return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursesubmenunotempty') });
+      }
       Origin.Notify.confirm({
         type: 'warning',
         text: Origin.l10n.t('app.lightcourseconfirmremovenode'),
@@ -223,6 +273,9 @@ define(function(require) {
           }
           var found = self.findNode(nodeId);
           if (found) {
+            if (found.node.type === 'submenu' && found.node.children.length) {
+              return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursesubmenunotempty') });
+            }
             found.siblings.splice(found.index, 1);
             self.renderTree();
             Origin.trigger('lightCourseEditor:autosave');

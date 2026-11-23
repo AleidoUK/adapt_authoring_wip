@@ -99,7 +99,7 @@ describe('Light Editor alphabetical ordering', function() {
     assert.strictEqual(alphabetical.compare(new Backbone.Model({ name: 'a' }), new Backbone.Model({ name: 'B' })) < 0, true);
     assert.strictEqual(alphabetical.compare({ title: 'Same' }, { title: 'same' }), 0);
   });
-  it('sorts each hierarchy level without changing IDs, layout assignments or content', function() {
+  it('preserves authored tree and nested component item order', function() {
     var tree = { children: [
       { _id: 'z', title: 'Zebra', children: [] },
       { _id: 'a', title: 'Alpha', children: [
@@ -112,19 +112,65 @@ describe('Light Editor alphabetical ordering', function() {
         ] }] }
       ] }
     ] };
-    alphabetical.tree(tree);
-    assert.deepStrictEqual(tree.children.map(function(node) { return node._id; }), ['a', 'z']);
-    assert.strictEqual(tree.children[0].children[0].title, 'A article');
-    assert.deepStrictEqual(tree.children[0].children[0].children[0].children.map(function(node) {
+    assert.deepStrictEqual(tree.children.map(function(node) { return node._id; }), ['z', 'a']);
+    assert.strictEqual(tree.children[1].children[0].title, 'Z article');
+    assert.deepStrictEqual(tree.children[1].children[1].children[0].children.map(function(node) {
       return [node._id, node._layout];
-    }), [['right', 'right'], ['left', 'left']]);
-    assert.deepStrictEqual(tree.children[0].children[0].children[0].children[0]._items.map(function(item) {
+    }), [['left', 'left'], ['right', 'right']]);
+    assert.deepStrictEqual(tree.children[1].children[1].children[0].children[1]._items.map(function(item) {
       return item.title;
-    }), ['A item', 'Z item']);
+    }), ['Z item', 'A item']);
     var h = treeHarness();
     h.tree.tree = tree;
     assert.strictEqual(h.tree.getContentTree(), tree);
     assert.strictEqual(h.tree.findNode('right').node.title, 'A component');
+  });
+});
+
+describe('Light Course tree sibling reordering', function() {
+  it('keeps moved page, article and block siblings in the chosen order', function() {
+    var h = treeHarness();
+    h.tree.tree = { children: [
+      { _id: 'page-z', type: 'page', title: 'Z page', children: [
+        { _id: 'article-z', type: 'article', title: 'Z article', children: [
+          { _id: 'block-z', type: 'block', title: 'Z block', children: [] },
+          { _id: 'block-a', type: 'block', title: 'A block', children: [] }
+        ] },
+        { _id: 'article-a', type: 'article', title: 'A article', children: [] }
+      ] },
+      { _id: 'page-a', type: 'page', title: 'A page', children: [] }
+    ] };
+
+    h.tree.moveNode('page-a', -1);
+    h.tree.moveNode('article-a', -1);
+    h.tree.moveNode('block-a', -1);
+
+    var tree = h.tree.getContentTree();
+    assert.deepStrictEqual(tree.children.map(function(node) { return node._id; }), ['page-a', 'page-z']);
+    assert.deepStrictEqual(tree.children[1].children.map(function(node) { return node._id; }), ['article-a', 'article-z']);
+    assert.deepStrictEqual(tree.children[1].children[1].children.map(function(node) { return node._id; }), ['block-a', 'block-z']);
+    assert.deepStrictEqual(h.events, [
+      'lightCourseEditor:autosave',
+      'lightCourseEditor:autosave',
+      'lightCourseEditor:autosave'
+    ]);
+  });
+
+  it('moves a page within its submenu without changing its parent', function() {
+    var h = treeHarness();
+    h.tree.tree = { children: [
+      { _id: 'submenu', type: 'submenu', title: 'Module', children: [
+        { _id: 'page-z', type: 'page', title: 'Z page', children: [] },
+        { _id: 'page-a', type: 'page', title: 'A page', children: [] }
+      ] }
+    ] };
+
+    h.tree.moveNode('page-a', -1);
+
+    var submenu = h.tree.getContentTree().children[0];
+    assert.deepStrictEqual(submenu.children.map(function(node) { return node._id; }), ['page-a', 'page-z']);
+    assert.strictEqual(submenu._id, 'submenu');
+    assert.deepStrictEqual(h.events, ['lightCourseEditor:autosave']);
   });
 });
 
@@ -172,6 +218,7 @@ describe('Light Course component inline list schemas', function() {
     assert.strictEqual(items.itemClass, List.Item);
     assert.strictEqual(items.itemSchema.type, ObjectEditor);
     assert.strictEqual(items.itemSchema.subSchema, items.subSchema);
+    assert.strictEqual(items.preserveOrder, true);
     assert.strictEqual(items.subSchema.children.type, List);
     assert.strictEqual(items.subSchema.children.itemSchema.type, ObjectEditor);
     assert.strictEqual(items.subSchema.title.type, 'Text');
@@ -260,6 +307,73 @@ describe('new light course pages (isolated)', function() {
     assert.deepStrictEqual(h.events, ['lightCourseEditor:autosave']);
   });
 
+  describe('light course submenus', function() {
+    it('creates a submenu, moves pages without changing their content, and prevents deleting a populated submenu', function() {
+      var h = treeHarness();
+      var page = { _id: 'page', type: 'page', title: 'Page', children: [{ _id: 'article', type: 'article', children: [] }] };
+      h.tree.tree = { children: [page] };
+      h.tree.onAddSubmenuClicked();
+      var submenu = h.tree.tree.children[1];
+      assert.strictEqual(submenu.type, 'submenu');
+      var input = new Element();
+      h.tree.getNodeIdFromEvent = function() { return page._id; };
+      input.val(submenu._id);
+      h.tree.onPageParentChanged({ currentTarget: input });
+      assert.strictEqual(submenu.children[0], page);
+      assert.strictEqual(page.children[0]._id, 'article');
+      var meta = h.tree.buildNodeMeta(h.tree.tree.children);
+      assert.strictEqual(meta.page.submenus[0].selected, true);
+      h.tree.getNodeIdFromEvent = function() { return submenu._id; };
+      h.tree.onRemoveClicked({ preventDefault: function() {} });
+      assert.strictEqual(h.alerts[0].text, 'app.lightcoursesubmenunotempty');
+      assert.strictEqual(h.confirmations.length, 0);
+      h.tree.getNodeIdFromEvent = function() { return page._id; };
+      input.val('');
+      h.tree.onPageParentChanged({ currentTarget: input });
+      assert.strictEqual(submenu.children.length, 0);
+      assert(h.tree.tree.children.includes(page));
+      h.tree.getNodeIdFromEvent = function() { return submenu._id; };
+      h.tree.onRemoveClicked({ preventDefault: function() {} });
+      h.confirmations[0].callback(true);
+      assert(!h.tree.tree.children.includes(submenu));
+    });
+
+    it('adds a normal editable page inside a submenu', function() {
+      var h = treeHarness();
+      var submenu = { _id: 'menu', type: 'submenu', children: [] };
+      h.tree.tree = { children: [submenu] };
+      h.tree.getNodeIdFromEvent = function() { return 'menu'; };
+      h.tree.onAddSubmenuPageClicked({ preventDefault: function() {} });
+      assert.strictEqual(submenu.children[0].type, 'page');
+      assert.strictEqual(submenu.children[0].children[0].children[0].type, 'block');
+    });
+
+    it('renders the current submenu selection and submenu controls in the tree', function() {
+      var h = treeHarness();
+      h.tree.tree = { children: [
+        { _id: 'menu', type: 'submenu', title: 'Module A', children: [
+          { _id: 'page', type: 'page', title: 'Child', children: [] }
+        ] }
+      ] };
+      var handlebars = require('handlebars').create();
+      handlebars.registerHelper('ifValueEquals', function(value, expected, options) {
+        return value === expected ? options.fn(this) : options.inverse(this);
+      });
+      handlebars.registerHelper('t', function(key) { return key; });
+      var templatePath = path.join(ROOT, 'frontend/src/modules/lightCourseEditor/templates');
+      handlebars.registerPartial('part_lightCourseTreeNode',
+        fs.readFileSync(path.join(templatePath, 'partials/part_lightCourseTreeNode.hbs'), 'utf8'));
+      var render = handlebars.compile(fs.readFileSync(path.join(templatePath, 'lightCourseTreeRootNodes.hbs'), 'utf8'));
+      var html = render({ children: h.tree.tree.children, nodeMeta: h.tree.buildNodeMeta(h.tree.tree.children) });
+      assert(html.includes('light-course-tree-add-submenu-page'));
+      assert(html.includes('light-course-tree-page-parent'));
+      assert(html.includes('light-course-tree-move-up'));
+      assert(html.includes('light-course-tree-move-down'));
+      assert(/<option value="menu" selected>Module A<\/option>/.test(html));
+      assert(html.indexOf('data-node-id="page"') > html.indexOf('data-node-id="menu"'));
+    });
+  });
+
   it('appends independent page structures without changing existing pages', function() {
     var h = treeHarness();
     var existing = { _id: 'existing-page', type: 'page', children: [] };
@@ -294,7 +408,7 @@ describe('editing light course page titles (isolated)', function() {
     return h;
   }
 
-  it('saves page titles and refreshes the tree to apply alphabetical ordering', function() {
+  it('saves page titles and refreshes the tree without changing sibling order', function() {
     var h = setup();
     var renders = 0;
     h.tree.renderTree = function() { renders++; };

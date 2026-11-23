@@ -4,6 +4,10 @@
     <div data-editor></div>
   </details>
   <div class="light-course-inline-list-item-actions">
+    {{#if preserveOrder}}
+      <button class="btn secondary" type="button" data-action="move-up" title="{{t 'app.lightcoursemoveup'}}" aria-label="{{t 'app.lightcoursemoveup'}}"><i class="fa fa-arrow-up" aria-hidden="true"></i></button>
+      <button class="btn secondary" type="button" data-action="move-down" title="{{t 'app.lightcoursemovedown'}}" aria-label="{{t 'app.lightcoursemovedown'}}"><i class="fa fa-arrow-down" aria-hidden="true"></i></button>
+    {{/if}}
     <button class="btn secondary" type="button" data-action="clone" title="{{t 'app.duplicate'}}" aria-label="{{t 'app.duplicate'}}"><i class="fa fa-clone" aria-hidden="true"></i></button>
     <button class="btn alert light-course-inline-list-item-delete" type="button" data-action="remove">{{t 'app.delete'}}</button>
   </div>

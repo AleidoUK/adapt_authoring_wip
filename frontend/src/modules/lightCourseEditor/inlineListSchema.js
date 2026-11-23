@@ -15,6 +15,7 @@ define(function(require) {
       var List = listEditor();
       var itemType = field.itemType || 'Text';
       itemType = typeof itemType === 'string' ? Backbone.Form.editors[itemType] : itemType;
+      field.preserveOrder = true;
       field.itemSchema = Object.assign({}, field, { type: itemType });
       field.type = List;
       field.itemType = itemType;

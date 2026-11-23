@@ -36,6 +36,20 @@ function sampleData(overrides) {
 }
 
 describe('generateMarkdown', function() {
+  it('preserves submenu hierarchy in headings and component IDs', function(done) {
+    var data = sampleData();
+    data.contentTree.children = [{ _id: 'submenu', type: 'submenu', title: 'Menu', children: data.contentTree.children }];
+    documentGenerator.generateMarkdown(data, stubDb({}), function(error, markdown) {
+      should.not.exist(error);
+      markdown.should.match(/<!-- lcid:submenu -->\n# Submenu 1/);
+      markdown.should.match(/<!-- lcid:page-1 -->\n## Page 1\.1/);
+      markdown.should.match(/<!-- lcid:comp-1 -->\n##### text: Welcome/);
+      var parsed = documentGenerator.parseMarkdown(markdown);
+      parsed.errors.should.eql([]);
+      done();
+    });
+  });
+
   it('should embed an invisible lcid HTML comment directly above every content-tree/glossary/resource/help heading', function(done) {
     documentGenerator.generateMarkdown(sampleData(), stubDb({}), function(error, markdown) {
       should.not.exist(error);

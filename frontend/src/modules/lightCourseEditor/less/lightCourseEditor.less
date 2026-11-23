@@ -8,7 +8,7 @@
 
   > details > summary {
     cursor: pointer;
-    padding: 14px 150px 14px 12px;
+    padding: 14px 210px 14px 12px;
     overflow-wrap: anywhere;
     font-weight: bold;
   }
@@ -18,7 +18,29 @@
     top: 4px;
     right: 4px;
     display: flex;
+    align-items: center;
     gap: 4px;
+
+    [data-action="move-up"],
+    [data-action="move-down"] {
+      padding: 8px;
+    }
+
+    .secondary i {
+      color: #fff;
+    }
+
+    [data-action="move-up"]:disabled,
+    [data-action="move-down"]:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+
+      // .secondary i {
+      //   background: #fff;
+      //   color: #454545;
+      //   border: none;
+      // }
+    }
   }
 }
 
@@ -732,6 +754,10 @@
       border-color: @aleido-component-border;
     }
 
+    &.light-course-tree-node-submenu {
+      border-color: @primary-color;
+    }
+
     .light-course-tree-node-label {
       font-weight: bold;
     }
@@ -768,6 +794,19 @@
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
+    flex-wrap: wrap;
+
+    .light-course-tree-move-up:disabled,
+    .light-course-tree-move-down:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      background: #fff !important;
+      color: #454545 !important;
+    }
+  }
+
+  .light-course-tree-node-children-submenu {
+    margin-left: 20px;
   }
 
   // Matches the real course editor's own .component-type/.component-title look (see

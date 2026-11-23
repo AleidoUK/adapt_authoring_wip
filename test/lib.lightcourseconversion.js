@@ -340,6 +340,109 @@ describe('Splash navigation conversion', function() {
   });
 });
 
+describe('submenu conversion', function() {
+  function withMenus(f) {
+    splashFixture(f);
+    configureFooter(f);
+    component(f.draft)._naviageTo = 'authored-target';
+    component(f.draft)._naviagteHome = true;
+    component(f.draft)._naviagteToNextPage = true;
+    var splash = f.draft.contentTree.children[0];
+    f.draft.contentTree.children = [
+      { _id: 'menu-a', type: 'submenu', title: 'A submenu', children: [
+        { _id: 'page-a', type: 'page', title: 'A page', children: [] },
+        { _id: 'page-b', type: 'page', title: 'B page', children: [] }
+      ] },
+      { _id: 'menu-b', type: 'submenu', title: 'B submenu', children: [
+        { _id: 'page-c', type: 'page', title: 'C page', children: [] }
+      ] },
+      splash,
+      { _id: 'page-d', type: 'page', title: 'D root page', children: [] }
+    ];
+    f.version.contentSnapshot = copy(f.draft);
+  }
+
+  it('creates menu and page hierarchy, sends Splash to the first submenu and links Footer across boundaries', function() {
+    var f = fixture();
+    withMenus(f);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    function record(id) { return plan.records.find(function(entry) { return entry.id === id; }); }
+    assert.strictEqual(record('menu-a').data._type, 'menu');
+    assert.strictEqual(record('menu-a').parent, 'course');
+    assert.strictEqual(record('page-a').data._type, 'page');
+    assert.strictEqual(record('page-a').parent, 'menu-a');
+    assert.strictEqual(record('page-c').parent, 'menu-b');
+    assert.strictEqual(record('page-d').parent, 'course');
+    assert.strictEqual(record('course').startTarget, 'page');
+    assert.strictEqual(record('component').splashTarget, 'menu-a');
+    assert.strictEqual(record('component').data._naviagteToNextPage, false);
+    assert.strictEqual(record('component').data._naviagteHome, false);
+    assert.strictEqual(record('page-a').data._extensions._footer._previous._isEnabled, false);
+    assert.strictEqual(record('page-b').footerTargets._next, 'page-c');
+    assert.strictEqual(record('page-c').footerTargets._previous, 'page-b');
+    assert.strictEqual(record('page-c').footerTargets._next, 'page-d');
+    assert.strictEqual(record('page-d').data._extensions._footer._next._isEnabled, false);
+  });
+
+  it('reports an empty first submenu or a Splash inside a submenu before conversion', function() {
+    var f = fixture();
+    withMenus(f);
+    f.draft.contentTree.children[0].children = [];
+    f.version.contentSnapshot = copy(f.draft);
+    assert(planner.build(f.draft, f.version, f.catalog, f.defaults).errors.some(function(error) {
+      return error.message.includes('first submenu');
+    }));
+    var splash = f.draft.contentTree.children.splice(2, 1)[0];
+    f.draft.contentTree.children[0].children.push(splash);
+    f.version.contentSnapshot = copy(f.draft);
+    assert(planner.build(f.draft, f.version, f.catalog, f.defaults).errors.some(function(error) {
+      return error.message.includes('course root');
+    }));
+  });
+
+  it('links Footer through root and submenu pages when there is no Splash', function() {
+    var f = fixture();
+    configureFooter(f);
+    f.draft.contentTree.children.push(
+      { _id: 'menu', type: 'submenu', title: 'Menu', children: [
+        { _id: 'child', type: 'page', title: 'Child', children: [] }
+      ] },
+      { _id: 'after', type: 'page', title: 'After', children: [] }
+    );
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var child = plan.records.find(function(record) { return record.id === 'child'; });
+    assert.strictEqual(child.footerTargets._previous, 'page');
+    assert.strictEqual(child.footerTargets._next, 'after');
+  });
+
+  it('persists generated submenu, page and navigation IDs', async function() {
+    var h = harness();
+    withMenus(h.fixture);
+    h.records.lightcourse[0] = copy(h.fixture.draft);
+    h.records.lightcourseversion[0] = copy(h.fixture.version);
+    h.records.componenttype[0] = copy(h.fixture.catalog.component.splash);
+    h.records.extensiontype = [Object.assign({ extension: 'footer' }, copy(h.fixture.catalog.extension.footer))];
+    h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
+    var review = await h.request(false);
+    assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
+    var result = await h.request(true, { hash: review.body.hash, approved: true });
+    assert.strictEqual(result.status, 200, result.body.message);
+    var menu = h.records.contentobject.find(function(node) { return node.title === 'A submenu'; });
+    var page = h.records.contentobject.find(function(node) { return node.title === 'A page'; });
+    var second = h.records.contentobject.find(function(node) { return node.title === 'B page'; });
+    var third = h.records.contentobject.find(function(node) { return node.title === 'C page'; });
+    assert.strictEqual(menu._type, 'menu');
+    assert.strictEqual(menu._parentId, h.records.course[0]._id);
+    assert.strictEqual(page._parentId, menu._id);
+    assert.strictEqual(h.records.component[0].properties._naviageTo, menu._id);
+    assert.strictEqual(second._extensions._footer._next._customLink, third._id);
+    assert.strictEqual(third._extensions._footer._previous._customLink, second._id);
+  });
+});
+
 describe('Flow and Timeline navigation conversion defaults', function() {
   function navigationFixture(type) {
     var f = fixture();
@@ -2120,7 +2223,9 @@ describe('Conversion Defaults nested field controls', function() {
     var build, editors = {};
     var handlebars = require('handlebars').create();
     handlebars.registerHelper('t', function(key) {
-      return key === 'app.delete' ? 'Delete' : key === 'app.duplicate' ? 'Duplicate' : 'Add';
+      return key === 'app.delete' ? 'Delete' : key === 'app.duplicate' ? 'Duplicate' :
+        key === 'app.lightcoursemoveup' ? 'Move up' :
+        key === 'app.lightcoursemovedown' ? 'Move down' : 'Add';
     });
     var listTemplate = handlebars.compile(fs.readFileSync(path.join(ROOT,
       'frontend/src/modules/scaffold/templates/list.hbs'), 'utf8'));
@@ -2139,6 +2244,7 @@ describe('Conversion Defaults nested field controls', function() {
     Base.prototype = {
       render: function() { this.addItem(); return this; },
       addItem: function(value) { this.added = value; return value; },
+      getValue: function() { return this.items.map(function(item) { return item.getValue(); }); },
       setValue: function(value) { this.value = value; return this.render(); }
     };
     editors.__List = Base;
@@ -2265,6 +2371,47 @@ describe('Conversion Defaults nested field controls', function() {
     var html = result.type.template({});
     assert(/class="btn primary"[^>]*data-action="add"[^>]*>Add<\/button>/.test(html));
   });
+  it('preserves component item order and reorders items through the arrow controls', function() {
+    var result = builder().build({ type: 'array', items: { type: 'string' } }, 'names');
+    var list = new result.type(), appended = [], events = [];
+    function item(value) {
+      var state = { disabled: {} };
+      return {
+        value: value,
+        el: value,
+        state: state,
+        list: list,
+        getValue: function() { return this.value; },
+        $: function(selector) {
+          return { prop: function(key, disabled) { state.disabled[selector] = disabled; } };
+        }
+      };
+    }
+    var z = item('Z'), a = item('A');
+    list.schema = { preserveOrder: true };
+    list.items = [z, a];
+    list.$list = { append: function(element) { appended.push(element); } };
+    list.trigger = function(event) { events.push(event); };
+    list.sortItems();
+    assert.deepStrictEqual(list.items.map(function(entry) { return entry.value; }), ['Z', 'A']);
+    assert.deepStrictEqual(appended, ['Z', 'A']);
+
+    var moveUp = result.itemClass.prototype.events['click [data-action="move-up"]'];
+    moveUp.call(a, { preventDefault: function() {}, stopPropagation: function() {} });
+    assert.deepStrictEqual(list.items.map(function(entry) { return entry.value; }), ['A', 'Z']);
+    assert.deepStrictEqual(list.getValue(), ['A', 'Z']);
+    assert.strictEqual(a.state.disabled['[data-action="move-up"]'], true);
+    assert.strictEqual(z.state.disabled['[data-action="move-down"]'], true);
+    assert.deepStrictEqual(events, ['change']);
+
+    var conversionList = new result.type();
+    conversionList.schema = {};
+    conversionList.items = [z, a];
+    conversionList.$list = { append: function() {} };
+    conversionList.sortItems();
+    assert.deepStrictEqual(conversionList.items.map(function(entry) { return entry.value; }), ['A', 'Z']);
+    assert.deepStrictEqual(conversionList.getValue(), ['A', 'Z']);
+  });
   it('removes the intended item if removing its focused editor causes the list to sort', function() {
     var result = builder().build({ type: 'array', items: { type: 'string' } }, 'names');
     var list = new result.type();
@@ -2296,6 +2443,13 @@ describe('Conversion Defaults nested field controls', function() {
     assert(/<details>[\s\S]*<summary>[\s\S]*<\/summary>[\s\S]*data-editor[\s\S]*<\/details>/.test(html));
     assert(/<button[^>]*data-action="remove"[^>]*>Delete<\/button>/.test(html));
     assert(/<button[^>]*data-action="clone"[^>]*aria-label="Duplicate"[^>]*>[\s\S]*fa-clone/.test(html));
+  });
+  it('renders move arrows only for component item lists that preserve order', function() {
+    var result = builder().build({ type: 'array', items: { type: 'string' } }, 'names');
+    var html = result.itemClass.template({ preserveOrder: true });
+    assert(/data-action="move-up"[^>]*title="Move up"/.test(html));
+    assert(/data-action="move-down"[^>]*title="Move down"/.test(html));
+    assert(!/data-action="move-up"/.test(result.itemClass.template({})));
   });
   it('opens new items, collapses saved items and updates only their own heading on changes', function() {
     var result = builder().build({ type: 'array', items: { type: 'object', properties: {} } }, 'items');
@@ -2364,6 +2518,8 @@ describe('Conversion Defaults nested field controls', function() {
   it('clears the transient add state after creating a copy', function() {
     var result = builder().build({ type: 'array', items: { type: 'string' } }, 'names');
     var list = new result.type();
+    list.items = [];
+    list.$list = { append: function() {} };
     list.addItem('Copy', true);
     assert.strictEqual(list.added, 'Copy');
     assert.strictEqual(list.userInitiated, undefined);

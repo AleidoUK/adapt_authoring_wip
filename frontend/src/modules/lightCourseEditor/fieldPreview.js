@@ -50,7 +50,7 @@ define(function(require) {
     }
     return keys.filter(function(key) {
       if (isNode && data.type === 'component' && key === 'uniqueId') return false;
-      if (isNode && data.type === 'page' && key === 'title') return false;
+      if (isNode && (data.type === 'page' || data.type === 'submenu') && key === 'title') return false;
       return (isNode ? INTERNAL_FIELDS : ['_id', '_componentSchemaSnapshot', '_componentPresetId']).indexOf(key) === -1;
     }).map(function(key) {
       return previewValue(key, data[key], fields && fields[key]);

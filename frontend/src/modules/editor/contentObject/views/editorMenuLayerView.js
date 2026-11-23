@@ -82,13 +82,22 @@ define(function(require) {
     addNewMenuItem: function(event, type) {
       event && event.preventDefault();
 
-      var newMenuItemModel = new ContentObjectModel({
+      var attributes = {
         _parentId: this._parentId,
         _courseId: Origin.editor.data.course.get('_id'),
         linkText: Origin.l10n.t('app.view'),
         graphic: { alt: '', src: '' },
         _type: type
-      });
+      };
+      if (type === 'page') {
+        var maxSortOrder = 0;
+        _.each(this.childViews, function(childView) {
+          maxSortOrder = Math.max(maxSortOrder, Number(childView.model.get('_sortOrder')) || 0);
+        });
+        attributes._sortOrder = maxSortOrder + 1;
+      }
+
+      var newMenuItemModel = new ContentObjectModel(attributes);
       // Instantly add the view for UI purposes
       var newMenuItemView = this.addMenuItemView(newMenuItemModel);
       newMenuItemView.$el.addClass('syncing');

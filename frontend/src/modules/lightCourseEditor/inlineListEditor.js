@@ -20,6 +20,10 @@ define(function(require) {
         }
       },
       render: function() {
+        if (!this.sortItemsBound && typeof this.on === 'function') {
+          this.on('add', this.sortItems, this);
+          this.sortItemsBound = true;
+        }
         this.rendering = true;
         try {
           Base.prototype.render.apply(this, arguments);
@@ -33,22 +37,45 @@ define(function(require) {
         var previous = this.userInitiated;
         this.userInitiated = userInitiated;
         try {
-          return Base.prototype.addItem.call(this, value, userInitiated);
+          var item = Base.prototype.addItem.call(this, value, userInitiated);
+          if (!this.rendering) this.sortItems();
+          return item;
         }
         finally { this.userInitiated = previous; }
       },
       sortItems: function() {
-        this.items.sort(function(a, b) { return Alphabetical.compare(a.getValue(), b.getValue()); });
-        this.items.forEach(function(item) { this.$list.append(item.el); }, this);
+        var preserveOrder = this.schema && this.schema.preserveOrder;
+        if (!preserveOrder) {
+          this.items.sort(function(a, b) { return Alphabetical.compare(a.getValue(), b.getValue()); });
+        }
+        this.items.forEach(function(item, index) {
+          this.$list.append(item.el);
+          if (preserveOrder) {
+            item.$('[data-action="move-up"]').prop('disabled', index === 0);
+            item.$('[data-action="move-down"]').prop('disabled', index === this.items.length - 1);
+          }
+        }, this);
       },
       getValue: function() {
-        return Base.prototype.getValue.call(this).sort(Alphabetical.compare);
+        var values = Base.prototype.getValue.call(this);
+        return this.schema && this.schema.preserveOrder ? values : values.sort(Alphabetical.compare);
+      },
+      moveItem: function(item, direction) {
+        if (!this.schema || !this.schema.preserveOrder) return;
+        var index = this.items.indexOf(item);
+        var newIndex = index + direction;
+        if (index === -1 || newIndex < 0 || newIndex >= this.items.length) return;
+        this.items.splice(index, 1);
+        this.items.splice(newIndex, 0, item);
+        this.sortItems();
+        this.trigger('change', this);
       },
       removeItem: function(item) {
         var index = this.items.indexOf(item);
         if (index === -1) return;
         this.items.splice(index, 1);
         item.remove();
+        this.sortItems();
         this.trigger('remove', this, item.editor);
         this.trigger('change', this);
       },
@@ -74,7 +101,9 @@ define(function(require) {
           item: this,
           form: this.form
         }).render();
-        var $el = Backbone.$(Backbone.$.trim(this.template()));
+        var $el = Backbone.$(Backbone.$.trim(this.template({
+          preserveOrder: !!(this.list.schema && this.list.schema.preserveOrder)
+        })));
         $el.find('[data-editor]').append(this.editor.el);
         this.setElement($el);
         this.$el.children('details').prop('open', this.value === undefined || !!this.list.userInitiated);
@@ -88,6 +117,16 @@ define(function(require) {
           .text(label || Origin.l10n.t('app.lightcourseinlineitemuntitled'));
       },
       events: {
+        'click [data-action="move-up"]': function(event) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.list.moveItem(this, -1);
+        },
+        'click [data-action="move-down"]': function(event) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.list.moveItem(this, 1);
+        },
         'click [data-action="clone"]': function(event) {
           event.preventDefault();
           event.stopPropagation();

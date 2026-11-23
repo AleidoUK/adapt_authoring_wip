@@ -67,6 +67,21 @@ function apply(parsed, snapshot, database) {
     importer.importDocument(parsed, snapshot, database || db, function(error, value) { if (error) reject(error); else resolve(value); });
   });
 }
+describe('submenu Word round-trip', function() {
+  it('preserves the submenu and page structure with their editable fields', async function() {
+    var snapshot = fixture();
+    var page = snapshot.contentTree.children[0];
+    snapshot.contentTree.children = [{ _id: 'submenu', type: 'submenu', title: 'Menu', children: [page] }];
+    var parsed = await parse(await generate(snapshot));
+    assert.deepStrictEqual(parsed.errors, []);
+    assert(parsed.blocks.some(function(block) { return block.id === 'submenu'; }));
+    assert(parsed.blocks.some(function(block) { return block.id === page._id; }));
+    var result = await apply(parsed, snapshot);
+    assert.strictEqual(result.success, true, JSON.stringify(result.errors));
+    assert.strictEqual(result.snapshot.contentTree.children[0].children[0]._id, page._id);
+    assert.strictEqual(result.snapshot.contentTree.children[0].title, 'Menu');
+  });
+});
 async function edited(snapshot, edit, editStyles, editRelationships) {
   return editedBuffer(await generate(snapshot), edit, editStyles, editRelationships);
 }

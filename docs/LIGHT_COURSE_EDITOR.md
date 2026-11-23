@@ -44,16 +44,23 @@ At the top of every light course sits a set of header sections aimed at reviewer
 
 A course contains pages, pages contain articles, articles contain blocks, and blocks contain up to two components.
 
+Use **Add submenu** to add a root-level submenu, then use a page's **Location**
+choice to move it between the course root and a submenu. A submenu can also
+create a page directly. Move all pages out before removing a submenu. Nested
+submenus are not supported in the light editor.
+
 Light Course lists and pickers are alphabetical (case-insensitive, with natural
-number ordering). This includes courses, templates, component defaults, assets,
-reference pickers and authored content. Pages, articles, blocks and components
-are sorted by title within their parent; glossary entries use their term,
-resources/help entries and component items use their title (or body when untitled).
-Blank new entries stay at the end. Alphabetical order is used when saving edited
-content, so previews and exports of that saved content use the same order.
-Manual move buttons are no longer shown. Explicit left/right component layouts
-are unchanged. Version history, comments and audit events retain chronological
-ordering rather than being alphabetised.
+number ordering). This includes courses, templates, component defaults, assets
+and reference pickers. Glossary entries use their term; resource/help entries
+use their title (or body when untitled). Component item lists retain the order
+in which items were added and can be reordered with up/down arrows. New items
+are added at the end.
+
+The content tree preserves its authored sibling order. Use the up/down arrows on
+page, article, block and component item rows to move an item before or after its
+siblings; changes autosave and carry through to previews and exports. Explicit left/right
+component layouts are unchanged. Version history, comments and audit events
+retain chronological ordering rather than being alphabetised.
 
 Each component has a **Layout** choice: **full**, **left** or **right**, subject to its installed component type's supported layouts. A block can contain one full-width component or up to two half-width components, one left and one right. Adding or pasting a second component beside a full-width component asks for confirmation before changing it to left and placing the new component on the right. Full-width-only types cannot be paired. Changing a paired component's side swaps its sibling to the opposite side. Components appear side by side in the tree, stacking on narrower screens. These controls are shared by course and template editors; component defaults can also record a layout.
 
@@ -212,10 +219,16 @@ Successful conversion creates a new full course with its pages, articles, blocks
 
 Page/component Unique IDs require the selected Unique ID extension. Article/block Unique IDs currently prevent conversion because the installed extension does not support those owners.
 
-Splash components with no custom navigation target receive the converted ID of the next page in the saved structure. On the last page, conversion enables main-menu navigation instead; this requires a Splash runtime that supports the main-menu option. Existing custom targets are preserved.
+In flat courses, Splash components with no custom navigation target receive the converted ID of the next page in the saved structure. On the last page, conversion enables main-menu navigation instead; this requires a Splash runtime that supports the main-menu option. Existing custom targets are preserved.
 When the first page contains Splash, conversion hides its menu tile, disables selected Footer, enables selected Hero without its background image on that page, and sets it as the forced course start page. The Splash uses its custom target instead of automatic next-page navigation so it can navigate from a hidden menu item. These changes do not apply when the first page has no Splash.
 
-When Footer is selected, conversion sets Previous and Next buttons and their links from page order, replacing existing values for those fields. The first page after Splash has no Previous button. Splash must be on the first page only; otherwise conversion reports an issue. Footer's circular-button settings can be configured separately.
+For courses with submenus, the single Splash page must be at the course root. It
+becomes the forced course start and targets the first submenu in the saved
+structure, overriding any authored Splash destination. That submenu must contain
+at least one page. Submenus become full-course menu objects and their pages become
+children of those menus.
+
+When Footer is selected, conversion sets Previous and Next buttons and their links from page order, replacing existing values for those fields. In submenu courses, it follows the displayed order of pages across submenu boundaries, skipping the submenu containers. The first page after Splash has no Previous button. In flat courses, Splash must be on the first page only; otherwise conversion reports an issue. Footer's circular-button settings can be configured separately.
 
 The document header sections (version history, reviewing instructions, developer information, terminology and the help-screen style choice) and each component's Graphics Notes and Developer Notes are not needed once a full course exists, so none of them carry over - they remain visible on the light course for reference.
 

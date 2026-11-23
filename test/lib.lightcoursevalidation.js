@@ -29,6 +29,15 @@ it('should accept a well-formed multi-page contentTree (root is a { children: []
   should(validation.validate({ contentTree: contentTree })).be.null();
 });
 
+it('accepts root-level submenus containing pages but rejects nested submenus and other children', function() {
+  var submenu = { _id: 'menu-1', type: 'submenu', children: [validPage('page-1')] };
+  should(validation.validate({ contentTree: { children: [submenu, validPage('page-2')] } })).be.null();
+  submenu.children.push({ _id: 'nested', type: 'submenu', children: [] });
+  validation.validate({ contentTree: { children: [submenu] } }).should.match(/"page"/);
+  submenu.children = [{ _id: 'article', type: 'article', children: [] }];
+  validation.validate({ contentTree: { children: [submenu] } }).should.match(/"page"/);
+});
+
 it('should reject a contentTree root without a children array', function() {
   var error = validation.validate({ contentTree: { notChildren: [] } });
   error.should.match(/children/);

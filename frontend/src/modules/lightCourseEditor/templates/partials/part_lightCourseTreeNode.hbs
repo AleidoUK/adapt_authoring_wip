@@ -1,9 +1,14 @@
 {{!-- Recursive node partial for the light course content tree (Phase 3).
       Context is a single node: { _id, type, children, _component, title }.
-      type is one of page/article/block/component. --}}
+      type is one of submenu/page/article/block/component. --}}
 <li class="light-course-tree-node light-course-tree-node-{{type}}{{#with (lookup @root.nodeMeta _id)}}{{#if layout}} light-course-tree-component-{{layout}}{{/if}}{{/with}}" data-node-id="{{_id}}" data-node-type="{{type}}">
   <div class="light-course-tree-node-row">
-    {{#ifValueEquals type "page"}}
+    {{#ifValueEquals type "submenu"}}
+      <span class="light-course-tree-submenu-label"><i class="fa fa-folder" aria-hidden="true"></i> {{t 'app.lightcoursesubmenu'}}</span>
+      <h1 class="light-course-tree-node-label light-course-tree-page-heading">
+        <input type="text" class="light-course-tree-page-title-input" value="{{title}}" aria-label="{{t 'app.lightcoursesubmenutitle'}}" placeholder="{{t 'app.lightcoursesubmenu'}}">
+      </h1>
+    {{else}}{{#ifValueEquals type "page"}}
       <h1 class="light-course-tree-node-label light-course-tree-page-heading">
         <input type="text" class="light-course-tree-page-title-input" value="{{title}}" aria-label="{{t 'app.lightcoursepagetitle'}}" placeholder="{{t 'app.lightcoursepage'}}">
       </h1>
@@ -22,22 +27,47 @@
           {{#if hasComments}}<span class="light-course-tree-component-comments{{#if allCommentsResolved}} is-resolved{{/if}}" role="img" aria-label="{{#if allCommentsResolved}}{{t 'app.lightcoursecommentsallresolved'}}{{else}}{{t 'app.lightcoursecommentsunresolved'}}{{/if}}" title="{{#if allCommentsResolved}}{{t 'app.lightcoursecommentsallresolved'}}{{else}}{{t 'app.lightcoursecommentsunresolved'}}{{/if}}"><i class="fa fa-comments" aria-hidden="true"></i></span>{{/if}}
         </span>
       {{/with}}
-    {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
+    {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
 
     <span class="light-course-tree-node-actions">
+      {{#ifValueEquals type "page"}}
+        {{#with (lookup @root.nodeMeta _id)}}
+          {{#if submenus}}
+          <label>{{t 'app.lightcoursepageparent'}}
+            <select class="light-course-tree-page-parent">
+              <option value="" {{#if atRoot}}selected{{/if}}>{{t 'app.lightcoursecourseroot'}}</option>
+              {{#each submenus}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{title}}</option>{{/each}}
+            </select>
+          </label>
+          {{/if}}
+        {{/with}}
+      {{/ifValueEquals}}
+      {{#ifValueEquals type "page"}}
+        <button type="button" class="btn-icon light-course-tree-move-up" title="{{t 'app.lightcoursemoveup'}}" aria-label="{{t 'app.lightcoursemoveup'}}" {{#if @first}}disabled{{/if}}><i class="fa fa-arrow-up" aria-hidden="true"></i></button>
+        <button type="button" class="btn-icon light-course-tree-move-down" title="{{t 'app.lightcoursemovedown'}}" aria-label="{{t 'app.lightcoursemovedown'}}" {{#if @last}}disabled{{/if}}><i class="fa fa-arrow-down" aria-hidden="true"></i></button>
+      {{else}}{{#ifValueEquals type "article"}}
+        <button type="button" class="btn-icon light-course-tree-move-up" title="{{t 'app.lightcoursemoveup'}}" aria-label="{{t 'app.lightcoursemoveup'}}" {{#if @first}}disabled{{/if}}><i class="fa fa-arrow-up" aria-hidden="true"></i></button>
+        <button type="button" class="btn-icon light-course-tree-move-down" title="{{t 'app.lightcoursemovedown'}}" aria-label="{{t 'app.lightcoursemovedown'}}" {{#if @last}}disabled{{/if}}><i class="fa fa-arrow-down" aria-hidden="true"></i></button>
+      {{else}}{{#ifValueEquals type "block"}}
+        <button type="button" class="btn-icon light-course-tree-move-up" title="{{t 'app.lightcoursemoveup'}}" aria-label="{{t 'app.lightcoursemoveup'}}" {{#if @first}}disabled{{/if}}><i class="fa fa-arrow-up" aria-hidden="true"></i></button>
+        <button type="button" class="btn-icon light-course-tree-move-down" title="{{t 'app.lightcoursemovedown'}}" aria-label="{{t 'app.lightcoursemovedown'}}" {{#if @last}}disabled{{/if}}><i class="fa fa-arrow-down" aria-hidden="true"></i></button>
+      {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
       {{#ifValueEquals type "article"}}
+      {{else}}{{#ifValueEquals type "submenu"}}
       {{else}}
         <button type="button" class="btn-icon light-course-tree-copy" title="{{t 'app.lightcoursecopy'}}" aria-label="{{t 'app.lightcoursecopy'}}"><i class="fa fa-copy"></i></button>
-      {{/ifValueEquals}}
+      {{/ifValueEquals}}{{/ifValueEquals}}
       {{#ifValueEquals type "component"}}
         <button class="btn-icon light-course-tree-edit" title="{{t 'app.edit'}}"><i class="fa fa-pencil"></i></button>
+      {{else}}{{#ifValueEquals type "submenu"}}
+        <button type="button" class="btn secondary-hollow light-course-tree-add-submenu-page"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddpage'}}</button>
       {{else}}{{#ifValueEquals type "page"}}
         <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddarticle'}}</button>
       {{else}}{{#ifValueEquals type "article"}}
         <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddblock'}}</button>
       {{else}}
         <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddcomponent'}}</button>
-      {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
+      {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
       {{#ifValueEquals @root.clipboardType "block"}}
         {{#ifValueEquals type "article"}}
           <button type="button" class="btn secondary-hollow light-course-tree-paste"><i class="fa fa-paste"></i> {{t 'app.lightcoursepasteblock'}}</button>

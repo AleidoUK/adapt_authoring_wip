@@ -144,9 +144,10 @@ Full Course or create Full Course asset associations. Item values and bank asset
 selections are included when the template/default is saved.
 
 Course, template, component-default and placeholder-asset lists are alphabetical,
-as are their selection lists. Authored content and inline item lists also use
-alphabetical ordering; saved item values use that order. Blank new items appear
-last. History and audit records retain their chronological order.
+as are their selection lists. Authored content trees and component item lists
+retain their saved/added order; page, article, block and component item rows can
+be moved with the up/down controls. New inline items appear last. History and
+audit records retain their chronological order.
 
 - [test/lib.schemawalker.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.schemawalker.js): new assertions for `requiredTranslatablePaths`/`requiredAssetPaths` against the existing fixtures (none of which happen to have a required field that's also translatable/an asset) plus a new synthetic-schema test that does exercise both.
 - [test/lib.lightcourseadmin.js](/home/laurahooper/Projects/AdaptAuthoring/aleido_authoring/test/lib.lightcourseadmin.js): new tests for `iconDefaults`/`defaultPluginSelections` validation on the config PUT route (reject an invalid icon, reject a non-array `extensions`), the `iconDefaults` -> new-course `headerData.iconChoices` wiring, and the `requireddefaultschema` route's response shape against the real installed component/extension types.
