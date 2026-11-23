@@ -1,8 +1,13 @@
 {{!-- Recursive node partial for the light course content tree (Phase 3).
       Context is a single node: { _id, type, children, _component, title }.
       type is one of submenu/page/article/block/component. --}}
-<li class="light-course-tree-node light-course-tree-node-{{type}}{{#with (lookup @root.nodeMeta _id)}}{{#if layout}} light-course-tree-component-{{layout}}{{/if}}{{/with}}" data-node-id="{{_id}}" data-node-type="{{type}}">
+<li class="light-course-tree-node light-course-tree-node-{{type}}{{#with (lookup @root.nodeMeta _id)}}{{#if layout}} light-course-tree-component-{{layout}}{{/if}}{{#if collapsed}} is-collapsed{{/if}}{{/with}}" data-node-id="{{_id}}" data-node-type="{{type}}">
   <div class="light-course-tree-node-row">
+    {{#with (lookup @root.nodeMeta _id)}}
+      {{#if collapsible}}
+        <button type="button" class="btn-icon light-course-tree-toggle" aria-expanded="{{#if collapsed}}false{{else}}true{{/if}}" aria-label="{{toggleLabel}}" title="{{toggleLabel}}"><i class="fa {{#if collapsed}}fa-caret-right{{else}}fa-caret-down{{/if}}" aria-hidden="true"></i></button>
+      {{/if}}
+    {{/with}}
     {{#ifValueEquals type "submenu"}}
       <span class="light-course-tree-submenu-label"><i class="fa fa-folder" aria-hidden="true"></i> {{t 'app.lightcoursesubmenu'}}</span>
       <h1 class="light-course-tree-node-label light-course-tree-page-heading">
@@ -15,7 +20,7 @@
     {{else}}{{#ifValueEquals type "article"}}
       <span class="light-course-tree-node-label">{{t 'app.lightcoursearticle'}}</span>
     {{else}}{{#ifValueEquals type "block"}}
-      <span class="light-course-tree-node-label">{{t 'app.lightcourseblock'}}</span>
+      <span class="light-course-tree-node-label">{{t 'app.lightcourseblock'}}{{#with (lookup @root.nodeMeta _id)}}{{#if componentTypeSummary}} ({{componentTypeSummary}}){{/if}}{{/with}}</span>
     {{else}}
       {{#with (lookup @root.nodeMeta _id)}}
         <span class="light-course-tree-node-label light-course-tree-component-label">
@@ -60,13 +65,13 @@
       {{#ifValueEquals type "component"}}
         <button class="btn-icon light-course-tree-edit" title="{{t 'app.edit'}}"><i class="fa fa-pencil"></i></button>
       {{else}}{{#ifValueEquals type "submenu"}}
-        <button type="button" class="btn secondary-hollow light-course-tree-add-submenu-page"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddpage'}}</button>
+        <button type="button" class="btn tertiary light-course-tree-add-submenu-page"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddpage'}}</button>
       {{else}}{{#ifValueEquals type "page"}}
         <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddarticle'}}</button>
       {{else}}{{#ifValueEquals type "article"}}
-        <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddblock'}}</button>
+        <button class="btn secondary light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddblock'}}</button>
       {{else}}
-        <button class="btn secondary-hollow light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddcomponent'}}</button>
+        <button class="btn secondary light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddcomponent'}}</button>
       {{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}{{/ifValueEquals}}
       {{#ifValueEquals @root.clipboardType "block"}}
         {{#ifValueEquals type "article"}}
@@ -98,5 +103,12 @@
         {{> part_lightCourseTreeNode}}
       {{/each}}
     </ul>
+    {{#ifValueEquals type "article"}}
+      {{#if children}}
+        <div class="light-course-tree-add-block-bottom">
+          <button type="button" class="btn secondary light-course-tree-add" title="{{t 'app.lightcourseaddchild'}}"><i class="fa fa-plus"></i> {{t 'app.lightcourseaddblock'}}</button>
+        </div>
+      {{/if}}
+    {{/ifValueEquals}}
   {{/ifValueEquals}}
 </li>

@@ -54,6 +54,7 @@ define(function(require) {
       'click .light-course-tree-add-submenu': 'onAddSubmenuClicked',
       'click .light-course-tree-add-submenu-page': 'onAddSubmenuPageClicked',
       'click .light-course-tree-add': 'onAddChildClicked',
+      'click .light-course-tree-toggle': 'onToggleNodeClicked',
       'click .light-course-tree-remove': 'onRemoveClicked',
       'click .light-course-tree-move-up': 'onMoveUpClicked',
       'click .light-course-tree-move-down': 'onMoveDownClicked',
@@ -79,6 +80,7 @@ define(function(require) {
       this.openComponentNodeId = null;
       this.openComponentDraft = null;
       this.clipboardNode = null;
+      this.collapsedNodes = {};
     },
 
     postRender: function() {
@@ -90,7 +92,14 @@ define(function(require) {
       this.setViewToReady();
     },
 
-    renderTree: function() {
+    renderTree: function(scrollToNodeId) {
+      if (scrollToNodeId && this.collapsedNodes) {
+        var found = this.findNode(scrollToNodeId);
+        while (found) {
+          delete this.collapsedNodes[found.node._id];
+          found = found.parent && this.findNode(found.parent._id);
+        }
+      }
       var html = Handlebars.templates['lightCourseTreeRootNodes']({
         children: this.tree.children,
         clipboardType: this.clipboardNode && this.clipboardNode.type,
@@ -104,6 +113,28 @@ define(function(require) {
       this.$('.light-course-tree-copy-status').toggleClass('display-none', !this.clipboardNode);
       this.$('.light-course-tree-copy-status-label').text(this.clipboardNode ?
         Origin.l10n.t('app.lightcourse' + this.clipboardNode.type + 'copied') : '');
+      if (scrollToNodeId) this.scrollToNode(scrollToNodeId);
+    },
+
+    onToggleNodeClicked: function(event) {
+      event.preventDefault();
+      var nodeId = this.getNodeIdFromEvent(event);
+      var $button = $(event.currentTarget);
+      this.collapsedNodes = this.collapsedNodes || {};
+      var collapsed = !this.collapsedNodes[nodeId];
+      this.collapsedNodes[nodeId] = collapsed;
+      $button.closest('.light-course-tree-node').toggleClass('is-collapsed', collapsed);
+      var label = Origin.l10n.t('app.lightcourse' + (collapsed ? 'expand' : 'collapse')) + ' ' +
+        Origin.l10n.t('app.lightcourse' + this.findNode(nodeId).node.type);
+      $button.attr('aria-expanded', String(!collapsed)).attr('aria-label', label).attr('title', label);
+      $button.find('i').toggleClass('fa-caret-right', collapsed).toggleClass('fa-caret-down', !collapsed);
+    },
+
+    scrollToNode: function(nodeId) {
+      var $node = this.$('.light-course-tree-node[data-node-id="' + nodeId + '"]');
+      var $toolbar = this.$el.closest('.light-course-editor').find('.light-course-editor-toolbar');
+      $node.css('scroll-margin-top', ($toolbar.outerHeight() || 0) + 12 + 'px');
+      $node[0].scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
     },
 
     /**
@@ -121,6 +152,11 @@ define(function(require) {
         var comments = this.enableComments && node.type === 'component' ?
           (node._comments || []).filter(function(comment) { return !comment.deleted; }) : [];
         out[node._id] = {
+          collapsible: ['page', 'article', 'block'].indexOf(node.type) !== -1,
+          collapsed: !!(this.collapsedNodes && this.collapsedNodes[node._id]),
+          toggleLabel: Origin.l10n.t('app.lightcourse' +
+            (this.collapsedNodes && this.collapsedNodes[node._id] ? 'expand' : 'collapse')) + ' ' +
+            Origin.l10n.t('app.lightcourse' + node.type),
           componentTypeDisplayName: (componentType && componentType.displayName) || node._component || '',
           wordCount: node.type === 'component' ? WordCount.countComponentWords(node) : 0,
           layout: node.type === 'component' ? node._layout || 'full' : undefined,
@@ -138,6 +174,13 @@ define(function(require) {
           });
         }
         this.buildNodeMeta(node.children, out, node.type === 'submenu' ? node._id : null);
+        if (node.type === 'block') {
+          out[node._id].componentTypeSummary = (node.children || []).filter(function(child) {
+            return child && child.type === 'component';
+          }).map(function(child) {
+            return out[child._id].componentTypeDisplayName;
+          }).filter(Boolean).join(', ');
+        }
       }, this);
       return out;
     },
@@ -153,7 +196,7 @@ define(function(require) {
       nodes = nodes || this.tree.children;
       for (var i = 0; i < nodes.length; i++) {
         if (nodes[i]._id === nodeId) {
-          return { node: nodes[i], siblings: nodes, index: i };
+          return { node: nodes[i], siblings: nodes, index: i, parent: parent };
         }
         if (nodes[i].children) {
           var found = this.findNode(nodeId, nodes[i].children, nodes[i]);
@@ -176,7 +219,7 @@ define(function(require) {
       article.children.push(emptyNodeData('block'));
       page.children.push(article);
       nodes.push(page);
-      this.renderTree();
+      this.renderTree(page._id);
       Origin.trigger('lightCourseEditor:autosave');
     },
 
@@ -188,8 +231,9 @@ define(function(require) {
     onAddSubmenuClicked: function(event) {
       event && event.preventDefault();
       this.clearClipboard();
-      this.tree.children.push(emptyNodeData('submenu'));
-      this.renderTree();
+      var submenu = emptyNodeData('submenu');
+      this.tree.children.push(submenu);
+      this.renderTree(submenu._id);
       Origin.trigger('lightCourseEditor:autosave');
     },
 
@@ -247,8 +291,9 @@ define(function(require) {
         return Origin.Notify.alert({ type: 'warning', text: Origin.l10n.t('app.lightcoursemaxcomponents') });
       }
       if (childType === 'component') return this.insertComponent(found.node.children, emptyNodeData(childType));
-      found.node.children.push(emptyNodeData(childType));
-      this.renderTree();
+      var child = emptyNodeData(childType);
+      found.node.children.push(child);
+      this.renderTree(child._id);
       Origin.trigger('lightCourseEditor:autosave');
     },
 
@@ -329,7 +374,7 @@ define(function(require) {
       if (pasted.type === 'component') return this.insertComponent(nodes, pasted, _.bind(this.clearClipboard, this));
       nodes.splice(index, 0, pasted);
       this.clipboardNode = null;
-      this.renderTree();
+      this.renderTree(pasted._id);
       Origin.trigger('lightCourseEditor:autosave');
     },
 
@@ -358,7 +403,7 @@ define(function(require) {
         nodes.push(node);
         nodes.sort(function(a, b) { return a._layout === 'left' ? -1 : b._layout === 'left' ? 1 : 0; });
         if (afterInsert) afterInsert();
-        self.renderTree();
+        self.renderTree(node._id);
         Origin.trigger('lightCourseEditor:autosave');
       }
       if (previousLayout === 'full') {

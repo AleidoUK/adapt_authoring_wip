@@ -198,6 +198,8 @@
     "lightcourseaddblock": "Add Block",
     "lightcourseaddcomponent": "Add Component",
     "lightcourseaddpage": "Add page",
+    "lightcourseexpand": "Expand",
+    "lightcoursecollapse": "Collapse",
     "lightcoursemaxcomponents": "A block can only have two components",
     "lightcourseconfirmremovenode": "Are you sure you want to remove this and everything inside it?",
     "lightcourseconfirmdeletecourse": "Are you sure you want to delete \"%{title}\"? This cannot be undone - all of its draft content, published versions and exports will be permanently removed.",

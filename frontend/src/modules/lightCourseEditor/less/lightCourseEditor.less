@@ -727,7 +727,7 @@
     padding: 4px 6px;
     font: inherit;
     color: inherit;
-    background-color: transparent;
+    background-color: #fff;
     border: 1px solid transparent;
 
     &:focus {
@@ -773,6 +773,34 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
+
+    .light-course-tree-toggle + .light-course-tree-node-label {
+      flex: 1;
+    }
+  }
+
+  .light-course-tree-node.is-collapsed {
+    > .light-course-tree-fields,
+    > .light-course-tree-node-children,
+    > .light-course-tree-add-block-bottom {
+      display: none;
+    }
+  }
+
+  .light-course-tree-add-block-bottom {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+
+  .light-course-tree-node-page, .light-course-tree-node-article, .light-course-tree-node-block {
+    background-color: @aleido-extra-light-green;
+  }
+  .light-course-tree-node-submenu {
+    background-color: @aleido-light-green;
+  }
+  .light-course-tree-node-component {
+    background-color: white;
   }
 
   .light-course-tree-node-children-block {

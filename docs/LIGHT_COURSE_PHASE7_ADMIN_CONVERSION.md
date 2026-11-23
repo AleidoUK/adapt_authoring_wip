@@ -159,8 +159,9 @@ settings are unchanged; these changes do not apply without a first-page Splash.
 
 In a course with submenus, there may be at most one Splash page and it must be
 at the root. Conversion makes it the forced start regardless of where the
-submenu appears in the saved alphabetical order and replaces its custom target
-with the ID of the first submenu. The first submenu must contain a page.
+submenu appears in the saved structure and replaces its custom target with the
+ID of the first page in the first submenu. The first submenu must contain a page;
+that page is hidden from the menu.
 
 ### Footer navigation
 
@@ -172,11 +173,23 @@ after a Splash does not link back to the Splash. Without a Splash, only the firs
 page has no Previous button. In flat courses, conversion blocks if Splash occurs
 on more than one page or outside the first page. Individual circular-button fallbacks are available
 for Previous, Next and Menu where the installed Footer schema supports them.
-Page-level Footer enablement is unchanged except on a first page containing
-Splash, as described above; other authored settings are unchanged.
-For submenu courses, Previous/Next traverse pages in saved structure order across
-menus and skip the submenu containers. The root Splash remains excluded as a
-Previous target even when it sorts after a submenu.
+Page-level Footer enablement is unchanged for ordinary pages. The first page
+containing Splash has Footer disabled, the hidden first submenu page and submenu
+menu receive the Footer settings described above, and a Help page has only
+Previous enabled with navigate-back behavior when both Help and Footer are
+selected.
+For submenu courses, the hidden first page in the first submenu has only its
+Parent button enabled. The submenu menu has only Previous enabled, linked to
+that hidden first page, with the title "Select here to return to the
+introduction screen." and `_isRound: false`; Parent and Next are disabled. Hero
+is disabled on the submenu menu. The hidden page is excluded from normal
+Previous/Next traversal, so the following page has no Previous link back to it.
+Other pages use the normal saved page order across submenu boundaries.
+
+When Help is selected and a course page is titled "Help", conversion writes that
+page's generated ID to the Help extension's Navigation Button Custom Link ID.
+That page's Footer has native Previous enabled without a custom link; Parent and
+Next are disabled.
 
 ### Tile Menu, Hero and Styling options
 

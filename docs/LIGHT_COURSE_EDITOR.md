@@ -44,6 +44,18 @@ At the top of every light course sits a set of header sections aimed at reviewer
 
 A course contains pages, pages contain articles, articles contain blocks, and blocks contain up to two components.
 
+In both Light Course and course template editors, articles with blocks have a
+second **Add Block** button below the last block. It adds a block to the same
+article, just like the button at the top. Adding a page, submenu, article or block
+scrolls the new element into view.
+
+Use the disclosure arrow beside a page, article or block to hide or expand its
+contents. These start expanded and retain their open/closed state while you
+work in the editor. Adding a new element expands its parents so it is visible.
+Collapsing a row does not change the saved course content.
+Block labels show their component types, for example **Block (Text, Graphic)**,
+even when collapsed. The names update as components are added, removed or changed.
+
 Use **Add submenu** to add a root-level submenu, then use a page's **Location**
 choice to move it between the course root and a submenu. A submenu can also
 create a page directly. Move all pages out before removing a submenu. Nested
@@ -98,7 +110,11 @@ Each enabled list also has **Data import** controls. Download its CSV template, 
 
 ## Help extension
 
-Where a course uses the help extension, light editors can edit its content directly in the tool: the text shown in the help popup and, where the extension supports it, a separate help page that the popup links out to. This replaces opening the full plugin settings just to change that wording.
+Where a course uses the help extension, light editors can edit its popup and
+items directly in the tool. If the extension supports a Navigation Button
+Custom Link ID and the course has a page titled **Help**, conversion links the
+Help button to that page's generated ID. The page remains normal course content,
+not content stored inside the Help extension.
 
 If a course doesn't have the help extension selected, this content stays hidden rather than being entered and then discarded. Like the glossary and resources lists, it carries across unchanged when the light course is converted.
 
@@ -223,12 +239,20 @@ In flat courses, Splash components with no custom navigation target receive the 
 When the first page contains Splash, conversion hides its menu tile, disables selected Footer, enables selected Hero without its background image on that page, and sets it as the forced course start page. The Splash uses its custom target instead of automatic next-page navigation so it can navigate from a hidden menu item. These changes do not apply when the first page has no Splash.
 
 For courses with submenus, the single Splash page must be at the course root. It
-becomes the forced course start and targets the first submenu in the saved
-structure, overriding any authored Splash destination. That submenu must contain
-at least one page. Submenus become full-course menu objects and their pages become
-children of those menus.
+becomes the forced course start and targets the first page in the first submenu,
+overriding any authored Splash destination. That page is hidden from the menu.
+Submenus become full-course menu objects and their pages become children of
+those menus.
 
 When Footer is selected, conversion sets Previous and Next buttons and their links from page order, replacing existing values for those fields. In submenu courses, it follows the displayed order of pages across submenu boundaries, skipping the submenu containers. The first page after Splash has no Previous button. In flat courses, Splash must be on the first page only; otherwise conversion reports an issue. Footer's circular-button settings can be configured separately.
+For submenu courses, the hidden first submenu page has only its Parent button
+enabled. The submenu menu has only Previous enabled, linking to that hidden page
+with the title "Select here to return to the introduction screen." and a square
+button. The hidden page is excluded from normal Previous/Next navigation, so the
+following submenu page has no Previous link back to it. Hero is disabled on the
+submenu menu. If Help is selected and a page is titled **Help**, the Help button
+links to that page; its Footer has only native Previous enabled, with no custom
+link, Parent or Next.
 
 The document header sections (version history, reviewing instructions, developer information, terminology and the help-screen style choice) and each component's Graphics Notes and Developer Notes are not needed once a full course exists, so none of them carry over - they remain visible on the light course for reference.
 

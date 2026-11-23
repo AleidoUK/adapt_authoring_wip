@@ -283,7 +283,275 @@ describe('component comment status indicators (isolated)', function() {
   });
 });
 
+describe('Light Course tree expand/collapse', function() {
+  function setup() {
+    var h = treeHarness();
+    h.tree.tree = { children: [
+      { _id: 'page', type: 'page', children: [
+        { _id: 'article', type: 'article', children: [
+          { _id: 'block', type: 'block', children: [
+            { _id: 'component', type: 'component', _component: 'text' }
+          ] }
+        ] }
+      ] },
+      { _id: 'submenu', type: 'submenu', children: [] }
+    ] };
+    h.tree.renderTree = Object.getPrototypeOf(h.tree).renderTree;
+    return h;
+  }
+
+  it('toggles only the selected row without rerendering, saving content or losing nested state', function() {
+    var h = setup();
+    var original = JSON.stringify(h.tree.getContentTree());
+    function toggle(id) {
+      var $node = new Element();
+      var $icon = new Element();
+      var $button = new Element();
+      $button.closest = function() { return $node; };
+      $button.find = function() { return $icon; };
+      h.tree.getNodeIdFromEvent = function() { return id; };
+      h.tree.onToggleNodeClicked({ currentTarget: $button, preventDefault: function() {} });
+      assert.strictEqual($button.attr('aria-expanded'), String(!h.tree.collapsedNodes[id]));
+      assert.strictEqual($node.hidden, !!h.tree.collapsedNodes[id]);
+    }
+    toggle('block');
+    toggle('page');
+    toggle('page');
+    h.tree.renderTree();
+    var meta = h.renderedContexts[0].nodeMeta;
+    assert.strictEqual(meta.page.collapsed, false);
+    assert.strictEqual(meta.block.collapsed, true);
+    assert.strictEqual(meta.block.toggleLabel, 'app.lightcourseexpand app.lightcourseblock');
+    assert.strictEqual(JSON.stringify(h.tree.getContentTree()), original);
+    assert.deepStrictEqual(h.events, []);
+  });
+
+  it('reveals new descendants while preserving unrelated collapsed branches', function() {
+    var h = setup();
+    h.tree.collapsedNodes = { page: true, article: true, block: true, submenu: true };
+    h.tree.scrollToNode = function(id) {
+      var meta = h.renderedContexts[h.renderedContexts.length - 1].nodeMeta;
+      assert.strictEqual(meta.page.collapsed, false);
+      assert.strictEqual(meta.article.collapsed, false);
+      assert.strictEqual(meta[id].collapsed, false);
+      assert.strictEqual(meta.submenu.collapsed, true);
+    };
+    h.tree.getNodeIdFromEvent = function() { return 'article'; };
+    h.tree.onAddChildClicked();
+    assert.strictEqual(h.tree.buildNodeMeta(h.tree.tree.children).block.collapsed, true);
+    h.tree.getNodeIdFromEvent = function() { return 'block'; };
+    h.tree.onAddChildClicked();
+    h.confirmations[0].callback(true);
+    assert.strictEqual(h.tree.buildNodeMeta(h.tree.tree.children).block.collapsed, false);
+  });
+
+  it('renders accessible disclosure buttons only for pages, articles and blocks', function() {
+    var h = setup();
+    h.tree.collapsedNodes = { article: true };
+    var handlebars = require('handlebars').create();
+    handlebars.registerHelper('ifValueEquals', function(value, expected, options) {
+      return value === expected ? options.fn(this) : options.inverse(this);
+    });
+    handlebars.registerHelper('t', function(key) { return key; });
+    var templatePath = path.join(ROOT, 'frontend/src/modules/lightCourseEditor/templates');
+    handlebars.registerPartial('part_lightCourseTreeNode',
+      fs.readFileSync(path.join(templatePath, 'partials/part_lightCourseTreeNode.hbs'), 'utf8'));
+    var render = handlebars.compile(fs.readFileSync(path.join(templatePath, 'lightCourseTreeRootNodes.hbs'), 'utf8'));
+    var html = render({ children: h.tree.tree.children, nodeMeta: h.tree.buildNodeMeta(h.tree.tree.children) });
+    var dom = require('htmlparser2').parseDOM(html);
+    var rows = {};
+    function visit(nodes) {
+      nodes.forEach(function(node) {
+        if (node.attribs && node.attribs['data-node-id']) rows[node.attribs['data-node-id']] = node;
+        visit(node.children || []);
+      });
+    }
+    visit(dom);
+    ['page', 'article', 'block', 'component', 'submenu'].forEach(function(id) {
+      var row = rows[id].children.find(function(node) { return node.name === 'div'; });
+      var toggle = row.children.find(function(node) {
+        return node.attribs && (node.attribs.class || '').includes('light-course-tree-toggle');
+      });
+      if (id === 'component' || id === 'submenu') return assert.strictEqual(toggle, undefined);
+      assert.strictEqual(toggle.attribs.type, 'button');
+      assert.strictEqual(toggle.attribs['aria-expanded'], id === 'article' ? 'false' : 'true');
+      assert(toggle.attribs['aria-label'].includes('app.lightcourse' + id));
+      assert.strictEqual(rows[id].attribs.class.includes('is-collapsed'), id === 'article');
+    });
+  });
+});
+
+describe('Light Course block component labels', function() {
+  it('renders component names in child order on collapsed blocks, without empty parentheses', function() {
+    var h = treeHarness();
+    h.tree.componentTypes = [
+      { component: 'text', displayName: 'Text' }, { component: 'graphic', displayName: 'Graphic' }
+    ];
+    var block = { _id: 'block', type: 'block', children: [
+      { _id: 'text', type: 'component', _component: 'text' },
+      { _id: 'graphic', type: 'component', _component: 'graphic' }
+    ] };
+    h.tree.tree = { children: [block] };
+    h.tree.collapsedNodes = { block: true };
+    var handlebars = require('handlebars').create();
+    handlebars.registerHelper('ifValueEquals', function(value, expected, options) {
+      return value === expected ? options.fn(this) : options.inverse(this);
+    });
+    handlebars.registerHelper('t', function(key) { return key; });
+    var templatePath = path.join(ROOT, 'frontend/src/modules/lightCourseEditor/templates');
+    handlebars.registerPartial('part_lightCourseTreeNode',
+      fs.readFileSync(path.join(templatePath, 'partials/part_lightCourseTreeNode.hbs'), 'utf8'));
+    var render = handlebars.compile(fs.readFileSync(path.join(templatePath, 'lightCourseTreeRootNodes.hbs'), 'utf8'));
+    function html() {
+      return render({ children: [block], nodeMeta: h.tree.buildNodeMeta([block]) });
+    }
+    assert(html().includes('app.lightcourseblock (Text, Graphic)</span>'));
+    block.children.reverse();
+    assert(html().includes('app.lightcourseblock (Graphic, Text)</span>'));
+    block.children = [{ _id: 'missing', type: 'component', _component: 'uninstalled' },
+      { _id: 'blank', type: 'component', _component: '' }];
+    assert(html().includes('app.lightcourseblock (uninstalled)</span>'));
+    block.children = [];
+    assert(html().includes('app.lightcourseblock</span>'));
+  });
+
+  it('refreshes labels after adding, changing and removing components', function() {
+    var h = treeHarness();
+    var block = { _id: 'block', type: 'block', children: [] };
+    h.tree.tree = { children: [block] };
+    h.tree.componentTypes = [
+      { component: 'text', displayName: 'Text' }, { component: 'graphic', displayName: 'Graphic' },
+      { component: 'tabs', displayName: 'Tabs' }
+    ];
+    h.tree.renderTree = Object.getPrototypeOf(h.tree).renderTree;
+    h.tree.scrollToNode = function() {};
+    function summary() {
+      return h.renderedContexts[h.renderedContexts.length - 1].nodeMeta.block.componentTypeSummary;
+    }
+    h.tree.getNodeIdFromEvent = function() { return 'block'; };
+    h.tree.onAddChildClicked();
+    assert.strictEqual(summary(), '');
+    var text = block.children[0];
+    h.tree.openComponentNodeId = text._id;
+    h.tree.openComponentDraft = Object.assign({}, text, { _component: 'text' });
+    h.tree.flushOpenComponentForm = function() {};
+    h.tree.closeComponentEditor();
+    assert.strictEqual(summary(), 'Text');
+
+    h.tree.insertComponent(block.children, { _id: 'graphic', type: 'component', _component: 'graphic' });
+    h.confirmations.pop().callback(true);
+    assert.strictEqual(summary(), 'Text, Graphic');
+    h.tree.openComponentNodeId = 'graphic';
+    h.tree.openComponentDraft = Object.assign({}, block.children[1], { _component: 'tabs' });
+    h.tree.closeComponentEditor();
+    assert.strictEqual(summary(), 'Text, Tabs');
+
+    h.tree.collapsedNodes = { block: true };
+    h.tree.getNodeIdFromEvent = function() { return text._id; };
+    h.tree.onRemoveClicked();
+    h.confirmations.pop().callback(true);
+    assert.strictEqual(summary(), 'Tabs');
+    assert.strictEqual(h.renderedContexts[h.renderedContexts.length - 1].nodeMeta.block.collapsed, true);
+    h.tree.getNodeIdFromEvent = function() { return 'graphic'; };
+    h.tree.onRemoveClicked();
+    h.confirmations.pop().callback(true);
+    assert.strictEqual(summary(), '');
+  });
+});
+
 describe('new light course pages (isolated)', function() {
+  it('scrolls to newly rendered pages, submenus, articles and blocks without scrolling ordinary rerenders', function() {
+    var h = treeHarness();
+    h.tree.tree = { children: [] };
+    h.tree.renderTree = Object.getPrototypeOf(h.tree).renderTree;
+    var scrolled = [];
+    h.tree.scrollToNode = function(id) {
+      assert.strictEqual(h.containers['.light-course-tree-root'].content, '<tree>');
+      assert.strictEqual(h.tree.findNode(id).node._id, id);
+      scrolled.push(id);
+    };
+    h.tree.onAddPageClicked();
+    var page = h.tree.tree.children[0];
+    h.tree.onAddSubmenuClicked();
+    var submenu = h.tree.tree.children[1];
+    h.tree.getNodeIdFromEvent = function() { return submenu._id; };
+    h.tree.onAddSubmenuPageClicked({ preventDefault: function() {} });
+    var submenuPage = submenu.children[0];
+    h.tree.getNodeIdFromEvent = function() { return page._id; };
+    h.tree.onAddChildClicked();
+    var article = page.children[1];
+    h.tree.getNodeIdFromEvent = function() { return article._id; };
+    h.tree.onAddChildClicked();
+    var block = article.children[0];
+    h.tree.renderTree();
+    assert.deepStrictEqual(scrolled, [page._id, submenu._id, submenuPage._id, article._id, block._id]);
+    assert.strictEqual(h.events.filter(function(name) { return name === 'lightCourseEditor:autosave'; }).length, 5);
+  });
+
+  it('keeps the new node below the sticky toolbar when scrolling', function() {
+    var h = treeHarness();
+    var options;
+    var margin;
+    var target = {
+      0: { scrollIntoView: function(value) { options = copy(value); } },
+      css: function(name, value) { assert.strictEqual(name, 'scroll-margin-top'); margin = value; }
+    };
+    h.tree.$ = function(selector) {
+      assert.strictEqual(selector, '.light-course-tree-node[data-node-id="new-block"]');
+      return target;
+    };
+    h.tree.$el = { closest: function(selector) {
+      assert.strictEqual(selector, '.light-course-editor');
+      return { find: function(selector) {
+        assert.strictEqual(selector, '.light-course-editor-toolbar');
+        return { outerHeight: function() { return 80; } };
+      } };
+    } };
+    h.tree.scrollToNode('new-block');
+    assert.strictEqual(margin, '92px');
+    assert.deepStrictEqual(options, { behavior: 'smooth', block: 'start', inline: 'nearest' });
+  });
+
+  it('duplicates only Add Block below the last block and keeps both buttons on their article', function() {
+    var handlebars = require('handlebars').create();
+    handlebars.registerHelper('ifValueEquals', function(value, expected, options) {
+      return value === expected ? options.fn(this) : options.inverse(this);
+    });
+    handlebars.registerHelper('t', function(key) { return key; });
+    var templatePath = path.join(ROOT, 'frontend/src/modules/lightCourseEditor/templates');
+    handlebars.registerPartial('part_lightCourseTreeNode',
+      fs.readFileSync(path.join(templatePath, 'partials/part_lightCourseTreeNode.hbs'), 'utf8'));
+    var render = handlebars.compile(fs.readFileSync(path.join(templatePath, 'lightCourseTreeRootNodes.hbs'), 'utf8'));
+    var h = treeHarness();
+    h.tree.tree = { children: [] };
+    h.tree.onAddPageClicked();
+    var page = h.tree.tree.children[0];
+    var article = page.children[0];
+    var block = article.children[0];
+    var html = render({ children: [page], nodeMeta: h.tree.buildNodeMeta([page]) });
+    assert.strictEqual((html.match(/app.lightcourseaddblock<\/button>/g) || []).length, 2);
+    assert.strictEqual((html.match(/app.lightcourseaddarticle<\/button>/g) || []).length, 1);
+    assert.strictEqual((html.match(/app.lightcourseaddcomponent<\/button>/g) || []).length, 1);
+    var dom = require('htmlparser2').parseDOM(html);
+    function find(nodes, className) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].attribs && (nodes[i].attribs.class || '').split(' ').includes(className)) return nodes[i];
+        var found = find(nodes[i].children || [], className);
+        if (found) return found;
+      }
+    }
+    var bottom = find(dom, 'light-course-tree-add-block-bottom');
+    assert.strictEqual(bottom.parent.attribs['data-node-id'], article._id);
+    var previous = bottom.prev;
+    while (previous && previous.type === 'text') previous = previous.prev;
+    assert.strictEqual(previous.name, 'ul');
+    assert(previous.children.some(function(node) { return node.attribs && node.attribs['data-node-id'] === block._id; }));
+    article.children = [];
+    html = render({ children: [page], nodeMeta: h.tree.buildNodeMeta([page]) });
+    assert.strictEqual((html.match(/app.lightcourseaddblock<\/button>/g) || []).length, 1);
+    assert(!html.includes('light-course-tree-add-block-bottom'));
+  });
+
   it('creates exactly one article containing one empty block and saves the full structure once', function() {
     var h = treeHarness();
     h.tree.tree = { children: [] };

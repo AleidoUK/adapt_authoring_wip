@@ -96,7 +96,8 @@ function footerLocation() {
     return { type: 'object', properties: {
       _isEnabled: { type: 'boolean', required: true, default: false },
       _customLink: { type: 'string', default: '' },
-      _isRound: { type: 'boolean', default: false, title: 'Use circular button' }
+      _isRound: { type: 'boolean', default: false, title: 'Use circular button' },
+      title: { type: 'string', default: '', title: 'Button title' }
     } };
   }
   return { properties: { _footer: { type: 'object', properties: {
@@ -108,6 +109,16 @@ function configureFooter(f) {
   f.catalog.extension.footer = { _id: 'footer-id', name: 'adapt-aleido-footer', version: '1',
     properties: { pluginLocations: { properties: { contentobject: footerLocation() } } } };
   f.draft.pluginSelections.extensions = ['footer'];
+  f.version.contentSnapshot = copy(f.draft);
+}
+
+function configureHelp(f) {
+  var properties = JSON.parse(fs.readFileSync(path.join(ROOT,
+    'test/fixtures/lightcourse/adapt-aleido-help/properties.schema'), 'utf8'));
+  f.catalog.extension.help = {
+    _id: 'help-id', name: 'adapt-aleido-help', version: '1.0.0', properties: properties.properties
+  };
+  f.draft.pluginSelections.extensions.push('help');
   f.version.contentSnapshot = copy(f.draft);
 }
 
@@ -365,6 +376,9 @@ describe('submenu conversion', function() {
   it('creates menu and page hierarchy, sends Splash to the first submenu and links Footer across boundaries', function() {
     var f = fixture();
     withMenus(f);
+    f.catalog.extension.hero = heroFixture();
+    f.draft.pluginSelections.extensions.push('hero');
+    f.version.contentSnapshot = copy(f.draft);
     var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
     assert.deepStrictEqual(plan.errors, []);
     function record(id) { return plan.records.find(function(entry) { return entry.id === id; }); }
@@ -375,14 +389,28 @@ describe('submenu conversion', function() {
     assert.strictEqual(record('page-c').parent, 'menu-b');
     assert.strictEqual(record('page-d').parent, 'course');
     assert.strictEqual(record('course').startTarget, 'page');
-    assert.strictEqual(record('component').splashTarget, 'menu-a');
+    assert.strictEqual(record('component').splashTarget, 'page-a');
     assert.strictEqual(record('component').data._naviagteToNextPage, false);
     assert.strictEqual(record('component').data._naviagteHome, false);
+    assert.strictEqual(record('page-a').data._isHidden, true);
+    assert.strictEqual(record('page-a').data._extensions._footer._isEnabled, true);
+    assert.strictEqual(record('page-a').data._extensions._footer._parent._isEnabled, true);
     assert.strictEqual(record('page-a').data._extensions._footer._previous._isEnabled, false);
+    assert.strictEqual(record('page-a').data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(record('page-b').data._extensions._footer._previous._isEnabled, false);
     assert.strictEqual(record('page-b').footerTargets._next, 'page-c');
     assert.strictEqual(record('page-c').footerTargets._previous, 'page-b');
     assert.strictEqual(record('page-c').footerTargets._next, 'page-d');
     assert.strictEqual(record('page-d').data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(record('menu-a').data._extensions._footer._isEnabled, true);
+    assert.strictEqual(record('menu-a').data._extensions._footer._previous._isEnabled, true);
+    assert.strictEqual(record('menu-a').footerTargets._previous, 'page-a');
+    assert.strictEqual(record('menu-a').data._extensions._footer._previous.title,
+      'Select here to return to the introduction screen.');
+    assert.strictEqual(record('menu-a').data._extensions._footer._previous._isRound, false);
+    assert.strictEqual(record('menu-a').data._extensions._footer._parent._isEnabled, false);
+    assert.strictEqual(record('menu-a').data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(record('menu-a').data._extensions._hero._isEnabled, false);
   });
 
   it('reports an empty first submenu or a Splash inside a submenu before conversion', function() {
@@ -418,13 +446,58 @@ describe('submenu conversion', function() {
     assert.strictEqual(child.footerTargets._next, 'after');
   });
 
+  it('links the Help button and uses native previous navigation on a standard Help page', function() {
+    var f = fixture();
+    configureFooter(f);
+    configureHelp(f);
+    f.draft.contentTree.children.push(
+      { _id: 'next-page', type: 'page', title: 'Next', children: [] },
+      { _id: 'help-page', type: 'page', title: 'Help', children: [], _extensions: { _footer: {
+        _isEnabled: false, _previous: { _isEnabled: false, _customLink: 'old' },
+        _next: { _isEnabled: true, _customLink: 'old' }, _parent: { _isEnabled: true, _customLink: 'old' }
+      } } }
+    );
+    f.version.contentSnapshot = copy(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    assert.deepStrictEqual(plan.errors, []);
+    var course = plan.records.find(function(record) { return record.type === 'course'; });
+    var help = plan.records.find(function(record) { return record.id === 'help-page'; });
+    assert.strictEqual(course.data._extensions._help._navItem._customLink, '000000000000000000000001');
+    assert.strictEqual(course.helpTarget, 'help-page');
+    assert.strictEqual(help.data._extensions._footer._isEnabled, true);
+    assert.strictEqual(help.data._extensions._footer._previous._isEnabled, true);
+    assert.strictEqual(help.data._extensions._footer._previous._customLink, '');
+    assert.strictEqual(help.data._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(help.data._extensions._footer._parent._isEnabled, false);
+
+    f.draft.pluginSelections.extensions = ['footer'];
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    course = plan.records.find(function(record) { return record.type === 'course'; });
+    assert.strictEqual(course.helpTarget, undefined);
+
+    f.draft.pluginSelections.extensions = ['help'];
+    f.version.contentSnapshot = copy(f.draft);
+    plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    course = plan.records.find(function(record) { return record.type === 'course'; });
+    assert.strictEqual(plan.errors.length, 0);
+    assert.strictEqual(course.helpTarget, 'help-page');
+  });
+
   it('persists generated submenu, page and navigation IDs', async function() {
     var h = harness();
     withMenus(h.fixture);
+    configureHelp(h.fixture);
+    h.fixture.catalog.extension.hero = heroFixture();
+    h.fixture.draft.pluginSelections.extensions.push('hero');
+    h.fixture.draft.contentTree.children.push({ _id: 'help-page', type: 'page', title: 'Help', children: [] });
+    h.fixture.version.contentSnapshot = copy(h.fixture.draft);
     h.records.lightcourse[0] = copy(h.fixture.draft);
     h.records.lightcourseversion[0] = copy(h.fixture.version);
     h.records.componenttype[0] = copy(h.fixture.catalog.component.splash);
-    h.records.extensiontype = [Object.assign({ extension: 'footer' }, copy(h.fixture.catalog.extension.footer))];
+    h.records.extensiontype = ['footer', 'hero', 'help'].map(function(key) {
+      return Object.assign({ extension: key }, copy(h.fixture.catalog.extension[key]));
+    });
     h.records.lightcourseconfig[0].conversionDefaults = copy(h.fixture.defaults);
     var review = await h.request(false);
     assert.strictEqual(review.body.ready, true, JSON.stringify(review.body.errors));
@@ -434,12 +507,30 @@ describe('submenu conversion', function() {
     var page = h.records.contentobject.find(function(node) { return node.title === 'A page'; });
     var second = h.records.contentobject.find(function(node) { return node.title === 'B page'; });
     var third = h.records.contentobject.find(function(node) { return node.title === 'C page'; });
+    var help = h.records.contentobject.find(function(node) { return node.title === 'Help'; });
     assert.strictEqual(menu._type, 'menu');
     assert.strictEqual(menu._parentId, h.records.course[0]._id);
     assert.strictEqual(page._parentId, menu._id);
-    assert.strictEqual(h.records.component[0].properties._naviageTo, menu._id);
+    assert.strictEqual(h.records.component[0].properties._naviageTo, page._id);
+    assert.strictEqual(page._isHidden, true);
+    assert.strictEqual(page._extensions._footer._parent._isEnabled, true);
+    assert.strictEqual(page._extensions._footer._previous._isEnabled, false);
+    assert.strictEqual(page._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(second._extensions._footer._previous._isEnabled, false);
     assert.strictEqual(second._extensions._footer._next._customLink, third._id);
     assert.strictEqual(third._extensions._footer._previous._customLink, second._id);
+    assert.strictEqual(menu._extensions._footer._previous._isEnabled, true);
+    assert.strictEqual(menu._extensions._footer._previous._customLink, page._id);
+    assert.strictEqual(menu._extensions._footer._previous.title, 'Select here to return to the introduction screen.');
+    assert.strictEqual(menu._extensions._footer._previous._isRound, false);
+    assert.strictEqual(menu._extensions._footer._parent._isEnabled, false);
+    assert.strictEqual(menu._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(menu._extensions._hero._isEnabled, false);
+    assert.strictEqual(h.records.course[0]._extensions._help._navItem._customLink, help._id);
+    assert.strictEqual(help._extensions._footer._previous._isEnabled, true);
+    assert.strictEqual(help._extensions._footer._previous._customLink, '');
+    assert.strictEqual(help._extensions._footer._next._isEnabled, false);
+    assert.strictEqual(help._extensions._footer._parent._isEnabled, false);
   });
 });
 
@@ -992,8 +1083,8 @@ describe('selected extension initialization', function() {
     }));
     assert.deepStrictEqual(page._extensions._footer, {
       _isEnabled: false, _buttons: { _showNext: false }, _styling: { _textAlignment: 'center' },
-      _previous: { _isEnabled: false, _customLink: '', _isRound: false },
-      _next: { _isEnabled: false, _customLink: '', _isRound: false }
+      _previous: { _isEnabled: false, _customLink: '', _isRound: false, title: '' },
+      _next: { _isEnabled: false, _customLink: '', _isRound: false, title: '' }
     });
     assert.deepStrictEqual(course._globals._extensions, { _resources: { _types: { link: 'Link' } }, _footer: { next: 'Next' } });
     assert.strictEqual(course._extensions._unselected, undefined);
