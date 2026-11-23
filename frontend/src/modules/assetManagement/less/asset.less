@@ -75,7 +75,7 @@
                 width: calc(100% - 3rem);
                 padding: 5px;
                 border-radius: 6px;
-                margin: 10px 0;
+                margin: 0;
                 background-color: @aleido-dark-green;
                 color: @white;
                 text-align: center;
@@ -85,6 +85,15 @@
                 transition-delay: 0s;
                 visibility: inherit;
             }
+        }
+
+        .asset-uses:focus-within .asset-use-info.hover {
+            display: block;
+        }
+
+        .asset-use-info a {
+            color: @white;
+            text-decoration: underline;
         }
     }
 

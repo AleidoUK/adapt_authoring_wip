@@ -13,7 +13,7 @@
         border:1px solid black;
         overflow: hidden;
         border-radius: 8px;
-        margin: 10px 0;
+        margin: 0;
         .progress-bar {
             width:0%;
                 background-color: @primary-color;
@@ -21,6 +21,15 @@
             .progress-percent {
                 display: none;
             }
+        }
+
+        .asset-uses:focus-within .asset-use-info.hover {
+            display: block;
+        }
+
+        .asset-use-info a {
+            color: @white;
+            text-decoration: underline;
         }
     }
     

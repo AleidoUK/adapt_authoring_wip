@@ -251,6 +251,7 @@
   "app.filetypevideo": "Video",
   "app.assetsize": "Size",
   "app.assetuses": "Uses",
+  "app.assetusesunknowncourse": "Unknown course",
   "app.assetduration": "Duration",
   "app.assetdimensions": "Dimensions",
   "app.title": "Title",

@@ -4,6 +4,7 @@ define(function(require){
   var Backbone = require('backbone');
   var OriginView = require('core/views/originView');
   var Origin = require('core/origin');
+  var AssetUsage = require('../assetUsage');
 
   var ContentCollection = require('core/collections/contentCollection');
 
@@ -19,8 +20,9 @@ define(function(require){
       'click .asset-preview-delete-button': 'onDeleteButtonClicked',
       'click .asset-preview-restore-button': 'onRestoreButtonClicked',
       'click .asset-preview-replace-button': 'onReplaceButtonClicked',
-      'mouseover .asset-use-icon': 'onShowUseInfo',
-      'mouseout .asset-use-icon': 'onHideUseInfo'
+      'mouseenter .asset-uses': 'onShowUseInfo',
+      'mouseleave .asset-uses': 'onHideUseInfo',
+      'click .asset-use-info a': AssetUsage.navigate
     },
 
     permanentDelete: false,
@@ -48,37 +50,14 @@ define(function(require){
         url: 'api/asset/uses/' + this.model.get('_id'),
         type: 'GET',
         success: function(data) {
-          console.log('Asset usage response:', data);
-          
-          // Backend now returns proper JSON
           var parsed = typeof data === 'string' ? JSON.parse(data) : data;
-          
-          console.log('Parsed usage data:', parsed);
-          console.log('Components count:', parsed.components.length);
 
           if (parsed.components.length === 0) {
-            console.log('No usage found - setting permanentDelete true');
             self.permanentDelete = true;
             self.$('.asset-use-info').addClass('is-visible').html('Not used in any courses');
             self.model.set('usage', 'none');
           } else {
-            console.log('Building usage string...');
-            // Build usage display string
-            var usageStr = '';
-            var courseMap = {};
-            
-            // Create course lookup map
-            parsed.courses.forEach(function(course) {
-              courseMap[course.id] = course;
-              usageStr += '<br/><b>' + course.title + '</b><br/>';
-            });
-
-            // Group components by course
-            parsed.components.forEach(function(component) {
-              usageStr += '* ' + component.title + '<br/>';
-            });
-
-            console.log('Usage string:', usageStr);
+            var usageStr = AssetUsage.render(parsed);
             self.uses = usageStr;
             self.model.set('usage', usageStr);
             self.$('.asset-use-icon').addClass('is-visible');

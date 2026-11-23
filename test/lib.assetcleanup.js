@@ -171,6 +171,93 @@ describe('asset import and cleanup', function() {
     } finally { database.getDatabase = getDatabase; }
   });
 
+  it('returns real course and content IDs for asset uses across copied courses', async function() {
+    var getDatabase = database.getDatabase, result;
+    var records = {
+      asset: [{ _id: 'asset-1', filename: 'map.png', path: 'assets/map.png' }],
+      courseasset: [],
+      course: [
+        { _id: 'course-1', _uniqueId: 'shared', title: 'First' },
+        { _id: 'course-2', _uniqueId: 'shared', title: 'Copy' }
+      ],
+      component: [
+        { _id: 'component-1', _uniqueId: 'shared-component', _courseId: 'course-1', title: 'First item', image: 'map.png' },
+        { _id: 'component-2', _uniqueId: 'shared-component', _courseId: 'course-2', title: 'Copy item', image: 'map.png' }
+      ],
+      contentobject: [{ _id: 'page-2', _courseId: 'course-2', _type: 'page', title: 'Page', image: 'map.png' }]
+    };
+    database.getDatabase = function(callback) {
+      callback(null, { retrieve: function(type, query, callback) {
+        callback(null, records[type] || []);
+      } });
+    };
+    try {
+      await assetmanager.assetUses({ params: { id: 'asset-1' } }, {
+        status: function(code) { assert.strictEqual(code, 200); return this; },
+        json: function(data) { result = data; }
+      }, function(error) { throw error; });
+      assert.deepStrictEqual(result.courses.map(function(course) { return course.id; }), ['course-1', 'course-2']);
+      assert.deepStrictEqual(result.components.map(function(item) { return [item.courseId, item.id, item.type]; }), [
+        ['course-1', 'component-1', 'component'],
+        ['course-2', 'component-2', 'component'],
+        ['course-2', 'page-2', 'page']
+      ]);
+    } finally { database.getDatabase = getDatabase; }
+  });
+
+  it('groups asset uses under their own course and links to the correct editor records', function() {
+    var filename = path.join(__dirname, '../frontend/src/modules/assetManagement/assetUsage.js');
+    var usage, navigation = [], inModal = true;
+    var origin = {
+      l10n: { t: function() { return 'Unknown course'; } },
+      trigger: function(event) { navigation.push(event); },
+      router: { navigateTo: function(route) { navigation.push(route); } }
+    };
+    vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
+      $: function(element) {
+        return {
+          attr: function() { return element.href; },
+          closest: function() { return { length: inModal ? 1 : 0 }; }
+        };
+      },
+      define: function(factory) {
+        usage = factory(function(name) {
+          return name === 'underscore' ? require('underscore') : origin;
+        });
+      }
+    }, { filename: filename });
+    var markup = usage.render({
+      courses: [{ id: 'one', title: 'First <course>' }, { id: 'two', title: 'Copy' }],
+      components: [
+        { courseId: 'two', id: 'page2', type: 'page', title: 'Copy page' },
+        { courseId: 'one', id: 'item1', type: 'component', title: 'First item' },
+        { courseId: 'two', id: 'config2', type: 'config', title: 'Config' },
+        { courseId: 'two', id: 'clip2', type: 'clipboard', title: 'Clipboard' },
+        { courseId: 'missing', id: 'lost', type: 'component', title: 'Orphan' }
+      ]
+    });
+    var first = markup.indexOf('First &lt;course&gt;'), firstItem = markup.indexOf('First item');
+    var copy = markup.indexOf('Copy</a>'), copyItem = markup.indexOf('Copy page');
+    assert(first < firstItem && firstItem < copy && copy < copyItem);
+    assert(markup.includes('#/editor/one/menu'));
+    assert(markup.includes('#/editor/one/component/item1/edit'));
+    assert(markup.includes('#/editor/two/page/page2/edit'));
+    assert(markup.includes('#/editor/two/config'));
+    assert(markup.includes('* Clipboard<br/>'));
+    assert(markup.includes('Unknown course</b><br/>* Orphan<br/>'));
+    assert(!markup.includes('<course>'));
+
+    var event = { currentTarget: { href: '#/editor/two/page/page2/edit' }, which: 1,
+      preventDefault: function() { navigation.push('prevented'); } };
+    usage.navigate(event);
+    assert.deepStrictEqual(navigation, ['prevented', 'modal:onCancel', 'editor/two/page/page2/edit']);
+    navigation.length = 0;
+    inModal = false;
+    event.ctrlKey = true;
+    usage.navigate(event);
+    assert.deepStrictEqual(navigation, []);
+  });
+
   it('renders escaped tags only when present in cleanup rows', function() {
     var filename = path.join(__dirname, '../frontend/src/modules/assetManagement/views/assetManagementCleanupView.js');
     var module = { exports: {} };

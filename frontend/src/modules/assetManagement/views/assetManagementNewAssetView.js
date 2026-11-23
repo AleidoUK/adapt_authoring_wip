@@ -3,6 +3,7 @@ define(function(require){
 
   var OriginView = require('core/views/originView');
   var Origin = require('core/origin');
+  var AssetUsage = require('../assetUsage');
 
   var AssetManagementNewAssetView = OriginView.extend({
 
@@ -11,8 +12,9 @@ define(function(require){
 
     events: {
       'change .asset-file': 'onChangeFile',
-      'mouseover .asset-use-icon': 'onShowUseInfo',
-      'mouseout .asset-use-icon': 'onHideUseInfo'
+      'mouseenter .asset-uses': 'onShowUseInfo',
+      'mouseleave .asset-uses': 'onHideUseInfo',
+      'click .asset-use-info a': AssetUsage.navigate
     },
 
     permanentDelete: false,
@@ -69,21 +71,7 @@ define(function(require){
             self.$('.asset-use-info').addClass('is-visible');
             self.model.set('usage', 'none');
           } else {
-            // Build usage display string
-            var usageStr = '';
-            var courseMap = {};
-            
-            // Create course lookup map
-            parsed.courses.forEach(function(course) {
-              courseMap[course.id] = course;
-              usageStr += '<br/><b>' + course.title + '</b><br/>';
-            });
-
-            // Group components by course
-            parsed.components.forEach(function(component) {
-              usageStr += '* ' + component.title + '<br/>';
-            });
-
+            var usageStr = AssetUsage.render(parsed);
             self.uses = usageStr;
             self.model.set('usage', usageStr);
             self.$('.asset-use-icon').addClass('is-visible');
