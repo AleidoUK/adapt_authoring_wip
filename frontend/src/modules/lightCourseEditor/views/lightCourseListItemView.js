@@ -4,6 +4,14 @@ define(function(require) {
   var OriginView = require('core/views/originView');
   var TagEditor = require('../tagEditor');
   var LightCourseModel = require('../models/lightCourseModel');
+  var LightCourseDeleteView = require('./lightCourseDeleteView');
+
+  function canDelete(model) {
+    if (Origin.permissions.hasPermissions(['{{tenantid}}/content/*:delete'])) return true;
+    var creator = model.get('createdBy');
+    if (creator && typeof creator === 'object' && creator._id != null) creator = creator._id;
+    return creator != null && String(creator) === String(Origin.sessionModel.get('id'));
+  }
 
   var LightCourseListItemView = OriginView.extend({
     tagName: 'div',
@@ -18,6 +26,9 @@ define(function(require) {
 
     postRender: function() {
       TagEditor.renderTags.call(this);
+      var $delete = this.$('.light-course-list-item-delete'), allowed = canDelete(this.model);
+      $delete.prop('disabled', !allowed);
+      if (!allowed) $delete.attr('title', Origin.l10n.t('app.lightcoursedeleteownonly'));
     },
 
     onEditClicked: function(event) {
@@ -52,22 +63,9 @@ define(function(require) {
 
     onDeleteClicked: function(event) {
       event && event.preventDefault();
-      var self = this;
-      Origin.Notify.confirm({
-        type: 'warning',
-        text: Origin.l10n.t('app.lightcourseconfirmdeletecourse', { title: this.model.get('title') }),
-        callback: function(confirmed) {
-          if (!confirmed) {
-            return;
-          }
-          self.model.destroy({
-            wait: true,
-            error: function(model, response) {
-              var message = (response && response.responseJSON && response.responseJSON.message) || Origin.l10n.t('app.errorgeneric');
-              Origin.Notify.alert({ type: 'error', text: message });
-            }
-          });
-        }
+      if (!canDelete(this.model)) return;
+      Origin.trigger('modal:open', LightCourseDeleteView, {
+        model: this.model, _shouldShowDoneButton: false
       });
     }
   }, {

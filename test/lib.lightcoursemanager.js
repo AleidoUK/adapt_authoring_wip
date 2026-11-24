@@ -20,7 +20,7 @@ var editorUser = {};
 var EDITOR_EMAIL = 'lighteditor@adaptlearning.org';
 var EDITOR_PASSWORD = 'lighteditorpassword';
 
-var lightCourseId, lightCourseRevision;
+var lightCourseId, lightCourseRevision, adminOwnedDeleteId, ownerDeleteId;
 var assetId, adminAssetId;
 var versionIds = [];
 
@@ -72,6 +72,8 @@ after(function(done) {
         if (error) return next(error);
         async.series([
           function(cb) { lightCourseId ? db.destroy('lightcourse', { _id: lightCourseId }, cb) : cb(); },
+          function(cb) { adminOwnedDeleteId ? db.destroy('lightcourse', { _id: adminOwnedDeleteId }, cb) : cb(); },
+          function(cb) { ownerDeleteId ? db.destroy('lightcourse', { _id: ownerDeleteId }, cb) : cb(); },
           function(cb) { versionIds.length ? db.destroy('lightcourseversion', { _id: { $in: versionIds } }, cb) : cb(); },
           function(cb) { assetId ? db.destroy('asset', { _id: assetId }, cb) : cb(); },
           function(cb) { adminAssetId ? db.destroy('asset', { _id: adminAssetId }, cb) : cb(); }
@@ -530,6 +532,94 @@ it('should deny reading a light course template whose _tenantId does not match t
             });
         });
       }, app.configuration.getConfig('dbName'));
+    });
+
+    it('should restrict Light Editor deletion to their own courses while allowing admins to delete any course', function(done) {
+      var adminDeleteVersionId;
+
+      async.series([
+        function createAdminOwnedCourse(next) {
+          adminAgent
+            .post('/api/content/lightcourse')
+            .set('Accept', 'application/json')
+            .send({ title: 'Admin-owned course' })
+            .expect(200)
+            .end(function(error, res) {
+              should.not.exist(error);
+              adminOwnedDeleteId = res.body._id;
+              next();
+            });
+        },
+        function createVersion(next) {
+          adminAgent
+            .post('/api/content/lightcourse/' + adminOwnedDeleteId + '/versions')
+            .set('Accept', 'application/json')
+            .send({ revision: 0, bump: 'minor' })
+            .expect(200)
+            .end(function(error, res) {
+              should.not.exist(error);
+              adminDeleteVersionId = res.body._id;
+              versionIds.push(adminDeleteVersionId);
+              next();
+            });
+        },
+        function markCourseConverted(next) {
+          database.getDatabase(function(error, db) {
+            should.not.exist(error);
+            db.update('lightcourse', { _id: adminOwnedDeleteId }, { conversionStatus: 'converted' }, next);
+          }, app.configuration.getConfig('dbName'));
+        },
+        function rejectOtherOwnerDelete(next) {
+          editorAgent
+            .delete('/api/content/lightcourse/' + adminOwnedDeleteId)
+            .expect(403)
+            .end(next);
+        },
+        function keepAdminCourseAndVersion(next) {
+          database.getDatabase(function(error, db) {
+            should.not.exist(error);
+            async.parallel({
+              course: function(cb) { db.retrieve('lightcourse', { _id: adminOwnedDeleteId }, { jsonOnly: true }, cb); },
+              version: function(cb) { db.retrieve('lightcourseversion', { _id: adminDeleteVersionId }, { jsonOnly: true }, cb); }
+            }, function(error, results) {
+              should.not.exist(error);
+              results.course.length.should.equal(1);
+              results.version.length.should.equal(1);
+              next();
+            });
+          }, app.configuration.getConfig('dbName'));
+        },
+        function allowAdminDelete(next) {
+          adminAgent
+            .delete('/api/content/lightcourse/' + adminOwnedDeleteId)
+            .expect(200)
+            .end(function(error) {
+              should.not.exist(error);
+              next();
+            });
+        },
+        function createOwnerCourse(next) {
+          editorAgent
+            .post('/api/content/lightcourse')
+            .set('Accept', 'application/json')
+            .send({ title: 'Editor-owned course to delete' })
+            .expect(200)
+            .end(function(error, res) {
+              should.not.exist(error);
+              ownerDeleteId = res.body._id;
+              next();
+            });
+        },
+        function allowOwnerDelete(next) {
+          editorAgent
+            .delete('/api/content/lightcourse/' + ownerDeleteId)
+            .expect(200)
+            .end(function(error) {
+              should.not.exist(error);
+              next();
+            });
+        }
+      ], done);
     });
 });
 

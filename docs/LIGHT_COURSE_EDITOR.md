@@ -12,6 +12,8 @@ Someone with the Light Editor role will sign in to a list of all light courses i
 
 Select **Clone** on any course, including a converted one, to open an independent editable copy named "Copy of ..." with no saved versions or conversion link. Change its **Course title** at the top of the editor; this is also the title shown on the course menu. The title autosaves and can be edited until conversion. Its content, tags, plugin choices, header settings and asset references are retained; component comments and version history are not copied, as when starting from a template.
 
+Light Editors can delete only courses they created; the delete action is disabled on courses created by others. Administrators can delete any course. The delete dialog offers to export a Word copy before deleting, delete without exporting, or cancel.
+
 This role is for the light-course area only: it does not give access to the full-course dashboard or other full-course management areas. People who already edit full courses will keep their existing access; being a light editor alone will not give someone access to full-course information.
 
 ## Starting from a template
@@ -303,7 +305,7 @@ when Help is last.
 
 The document header sections (version history, reviewing instructions, developer information, terminology and the help-screen style choice) and each component's Graphics Notes and Developer Notes are not needed once a full course exists, so none of them carry over - they remain visible on the light course for reference.
 
-The light course is temporarily locked while conversion runs and remains read-only after successful conversion. Its saved versions can still be reviewed, compared and exported. A failed conversion removes its partial output and restores editing if cleanup succeeds. An interrupted conversion or cleanup failure stays locked for administrator inspection rather than allowing duplicate or incomplete output.
+The light course is temporarily locked while conversion runs and remains read-only to editors after successful conversion. Its saved versions can still be reviewed, compared and exported; an administrator can delete the converted light course. A failed conversion removes its partial output and restores editing if cleanup succeeds. An interrupted conversion or cleanup failure stays locked for administrator inspection rather than allowing duplicate or incomplete output.
 
 See [admin conversion details](LIGHT_COURSE_PHASE7_ADMIN_CONVERSION.md) for configuration, API and recovery guidance.
 

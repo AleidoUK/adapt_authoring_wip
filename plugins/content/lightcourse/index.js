@@ -114,6 +114,11 @@ function validatePayload(db, data, tenantId, next) {
   validateAssetOwnership(db, data, tenantId, next);
 }
 
+function hasAdminDeletePermission(userId, tenantId, next) {
+  var resource = permissions.buildResourceString(tenantId, '/api/content/course/lightcourse-delete-check');
+  permissions.hasPermission(userId, 'delete', resource, next);
+}
+
 /**
  * overrides base implementation of hasPermission
  *
@@ -133,9 +138,20 @@ LightCourseContent.prototype.hasPermission = function (action, userId, tenantId,
   if (contentItem && contentItem._tenantId && contentItem._tenantId.toString() !== tenantId.toString()) {
     return next(null, false);
   }
-  if (('update' === action || 'delete' === action) && contentItem &&
+  if (action === 'update' && contentItem &&
       ['converted', 'converting'].includes(contentItem.conversionStatus)) {
-    return next(null, false); // converted drafts are locked against further mutation
+    return next(null, false); // converted drafts are locked against updates
+  }
+  if (action === 'delete' && contentItem && contentItem.conversionStatus === 'converting') {
+    return next(null, false);
+  }
+  if (action === 'delete' && contentItem && contentItem.conversionStatus === 'converted') {
+    return hasAdminDeletePermission(userId, tenantId, function (adminError, isAdmin) {
+      if (adminError) return next(adminError);
+      if (!isAdmin) return next(null, false);
+      var resource = permissions.buildResourceString(tenantId, '/api/content/lightcourse/' + contentItem._id);
+      permissions.hasPermission(userId, 'delete', resource, next);
+    });
   }
   var resource = permissions.buildResourceString(tenantId, '/api/content/lightcourse/' + ((contentItem && contentItem._id) || '*'));
   permissions.hasPermission(userId, permissionAction.normalize(action), resource, next);
@@ -297,9 +313,8 @@ LightCourseContent.prototype.create = function (data, next) {
  * overrides base implementation of destroy - deleting a light course would otherwise leave
  * orphaned `lightcourseversion`/`lightcourseexport`/`lightcoursebankasset` records behind it
  * (none of those are cascaded automatically, since they're keyed by `_lightCourseId`, not the
- * generic `_parentId` ContentPlugin#destroyChildren expects). Cascade them first, then let the
- * base implementation remove the light course itself (still runs the normal permission check,
- * including the "converted courses are locked" rule in #hasPermission above).
+ * generic `_parentId` ContentPlugin#destroyChildren expects). Check permission and ownership
+ * before cascading so a denied delete cannot remove related records first.
  */
 LightCourseContent.prototype.destroy = function (search, force, next) {
   if ('function' === typeof force) {
@@ -315,23 +330,47 @@ LightCourseContent.prototype.destroy = function (search, force, next) {
     if (!results || !results.length) {
       return next(null); // nothing to remove - matches the base implementation's own no-op
     }
-    var lightCourseId = results[0]._id;
+    var course = results[0];
 
-    async.eachSeries(['lightcourseversion', 'lightcourseexport', 'lightcoursebankasset'], function (type, cb) {
-      origin().contentmanager.getContentPlugin(type, function (pluginError, plugin) {
-        if (pluginError) {
-          return cb(pluginError);
+    function cascadeAndDestroy() {
+      async.eachSeries(['lightcourseversion', 'lightcourseexport', 'lightcoursebankasset'], function (type, cb) {
+        origin().contentmanager.getContentPlugin(type, function (pluginError, plugin) {
+          if (pluginError) {
+            return cb(pluginError);
+          }
+          // force: true - cascaded children should never be blocked by their own immutability
+          // rules (lightcourseversion/lightcourseexport normally deny delete outright) once their
+          // parent light course is itself being removed.
+          plugin.destroy({ _lightCourseId: course._id }, true, cb);
+        });
+      }, function (cascadeError) {
+        if (cascadeError) {
+          return next(cascadeError);
         }
-        // force: true - cascaded children should never be blocked by their own immutability
-        // rules (lightcourseversion/lightcourseexport normally deny delete outright) once their
-        // parent light course is itself being removed.
-        plugin.destroy({ _lightCourseId: lightCourseId }, true, cb);
+        // Permission and ownership were checked before the cascade; avoid repeating the generic
+        // permission check against its search query, which contains no createdBy field.
+        ContentPlugin.prototype.destroy.call(self, search, true, next);
       });
-    }, function (cascadeError) {
-      if (cascadeError) {
-        return next(cascadeError);
-      }
-      ContentPlugin.prototype.destroy.call(self, search, force, next);
+    }
+
+    if (force) return cascadeAndDestroy();
+
+    var user = usermanager.getCurrentUser();
+    var tenantId = user && user.tenant && user.tenant._id;
+    if (!user || !tenantId) return next(new ContentPermissionError());
+
+    self.hasPermission('delete', user._id, tenantId, course, function (permissionError, allowed) {
+      if (permissionError) return next(permissionError);
+      if (!allowed) return next(new ContentPermissionError());
+      hasAdminDeletePermission(user._id, tenantId, function (adminError, isAdmin) {
+        if (adminError) return next(adminError);
+        var creatorId = course.createdBy;
+        if (creatorId && typeof creatorId === 'object' && creatorId._id != null) creatorId = creatorId._id;
+        if (!isAdmin && String(creatorId || '') !== String(user._id)) {
+          return next(new ContentPermissionError());
+        }
+        cascadeAndDestroy();
+      });
     });
   });
 };

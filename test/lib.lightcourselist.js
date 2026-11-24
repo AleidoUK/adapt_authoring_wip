@@ -118,7 +118,10 @@ describe('light course clone action', function() {
       '../tagEditor': {},
       '../models/lightCourseModel': Model
     });
-    state.button = { prop: function(key, value) { this[key] = value; } };
+    state.button = {
+      prop: function(key, value) { this[key] = value; return this; },
+      attr: function(key, value) { this[key] = value; return this; }
+    };
     state.view = Object.assign(Object.create(proto), {
       model: new Backbone.Model({ _id: 'source', title: 'Converted', conversionStatus: 'converted' }),
       $: function() { return state.button; }
@@ -146,6 +149,124 @@ describe('light course clone action', function() {
     assert.strictEqual(h.alerts[0].text, 'Not permitted');
     h.view.onCloneClicked();
     assert.strictEqual(h.saves.length, 2);
+  });
+});
+
+describe('light course delete availability (isolated)', function() {
+  function deleteHarness(course, currentUserId, admin) {
+    var state = { permissions: [], alerts: [], route: null };
+    var origin = {
+      permissions: { hasPermissions: function(permissions) {
+        state.permissions.push(permissions);
+        return !!admin;
+      } },
+      sessionModel: { get: function() { return currentUserId; } },
+      trigger: function(event, view, options) { state.modal = { event: event, view: view, options: options }; },
+      l10n: { t: function(key) { return key; } },
+      Notify: { alert: function(alert) { state.alerts.push(alert); } },
+      router: { navigateTo: function(route) { state.route = route; } }
+    };
+    var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseListItemView.js', {
+      'core/origin': origin,
+      'core/views/originView': { extend: function(value) { return value; } },
+      '../tagEditor': { renderTags: function() {} },
+      '../models/lightCourseModel': function() {},
+      './lightCourseDeleteView': function() {}
+    });
+    state.button = {
+      prop: function(key, value) { this[key] = value; return this; },
+      attr: function(key, value) { this[key] = value; return this; }
+    };
+    state.view = Object.assign(Object.create(proto), {
+      model: new Backbone.Model(Object.assign({ _id: 'course', title: 'Course' }, course)),
+      $: function() { return state.button; }
+    });
+    state.view.postRender();
+    return state;
+  }
+
+  it('enables deletion only for the creator or an administrator and guards the click handler', function() {
+    var own = deleteHarness({ createdBy: 'editor-1' }, 'editor-1', false);
+    assert.strictEqual(own.button.disabled, false);
+    own.view.onDeleteClicked({ preventDefault: function() {} });
+    assert.strictEqual(own.modal.options.model, own.view.model);
+
+    var populatedOwner = deleteHarness({ createdBy: { _id: 'editor-1' } }, 'editor-1', false);
+    assert.strictEqual(populatedOwner.button.disabled, false);
+
+    var other = deleteHarness({ createdBy: 'editor-2' }, 'editor-1', false);
+    assert.strictEqual(other.button.disabled, true);
+    assert.strictEqual(other.button.title, 'app.lightcoursedeleteownonly');
+    other.view.onDeleteClicked({ preventDefault: function() {} });
+    assert.strictEqual(other.modal, undefined);
+
+    var admin = deleteHarness({ createdBy: 'editor-2' }, 'admin-1', true);
+    assert.strictEqual(admin.button.disabled, false);
+    admin.view.onDeleteClicked({ preventDefault: function() {} });
+    assert.strictEqual(admin.modal.options.model, admin.view.model);
+  });
+});
+
+describe('light course delete export flow (isolated)', function() {
+  function dialogHarness() {
+    var state = { triggers: [], destroyOptions: null, exportOptions: null };
+    var origin = {
+      trigger: function(event) { state.triggers.push(event); },
+      l10n: { t: function(key) { return key; } }
+    };
+    var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseDeleteView.js', {
+      'core/origin': origin,
+      'core/views/originView': { extend: function(value) { return value; }, prototype: {
+        remove: function() { state.removed = true; }
+      } },
+      '../wordExport': function(model, options) {
+        state.exportModel = model;
+        state.exportOptions = options;
+        return { abort: function() { state.aborted = true; } };
+      }
+    });
+    state.status = {
+      prop: function(key, value) { this[key] = value; return this; },
+      text: function(value) { this.message = value; return this; }
+    };
+    state.actions = { prop: function(key, value) { this[key] = value; return this; } };
+    state.model = {
+      get: function(key) { return key === 'title' ? 'Course' : undefined; },
+      destroy: function(options) { state.destroyOptions = options; }
+    };
+    state.view = Object.assign(Object.create(proto), {
+      model: state.model,
+      $: function(selector) {
+        return selector === '.light-course-delete-status' ? state.status : state.actions;
+      }
+    });
+    return state;
+  }
+
+  it('exports successfully before starting deletion', function() {
+    var h = dialogHarness();
+    h.view.onExportThenDelete({ preventDefault: function() {} });
+    assert.strictEqual(h.exportModel, h.model);
+    assert.strictEqual(h.destroyOptions, null);
+    assert.strictEqual(h.status.message, 'app.lightcourseexportingbeforedelete');
+    h.exportOptions.success();
+    assert.strictEqual(h.status.message, 'app.lightcoursedeleting');
+    assert(h.destroyOptions);
+    h.destroyOptions.success();
+    assert(h.triggers.includes('modal:onCancel'));
+  });
+
+  it('does not delete if the Word export fails and allows deletion without export', function() {
+    var h = dialogHarness();
+    h.view.onExportThenDelete({ preventDefault: function() {} });
+    h.exportOptions.error({ responseJSON: { message: 'Export failed' } });
+    assert.strictEqual(h.destroyOptions, null);
+    assert.strictEqual(h.status.message, 'Export failed');
+    assert.strictEqual(h.actions.disabled, false);
+
+    h.view.onDeleteWithoutExport({ preventDefault: function() {} });
+    assert(h.destroyOptions);
+    assert.strictEqual(h.status.message, 'app.lightcoursedeleting');
   });
 });
 
