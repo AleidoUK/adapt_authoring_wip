@@ -1,11 +1,15 @@
 <div class="light-course-read-toolbar">
   <label for="light-course-read-images-{{_id}}">
-    <input id="light-course-read-images-{{_id}}" type="checkbox" class="light-course-read-images" checked>
+    <input id="light-course-read-images-{{_id}}" type="checkbox" class="light-course-read-images">
     {{t 'app.lightcoursereadimages'}}
   </label>
-  <label for="light-course-read-screenshots-{{_id}}">
-    <input id="light-course-read-screenshots-{{_id}}" type="checkbox" class="light-course-read-screenshots">
+  <label class="light-course-read-light-only" for="light-course-read-screenshots-{{_id}}">
+    <input id="light-course-read-screenshots-{{_id}}" type="checkbox" class="light-course-read-screenshots" checked>
     {{t 'app.lightcoursereadscreenshots'}}
+  </label>
+  <label class="light-course-read-light-only" for="light-course-read-ideas-{{_id}}">
+    <input id="light-course-read-ideas-{{_id}}" type="checkbox" class="light-course-read-ideas" checked>
+    {{t 'app.lightcoursereadideas'}}
   </label>
   <button class="btn secondary light-course-read-export" disabled>{{t 'app.lightcoursereadexport'}}</button>
   <button class="btn secondary-hollow light-course-read-print" disabled>{{t 'app.lightcoursereadprint'}}</button>

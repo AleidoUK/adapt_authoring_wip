@@ -39,14 +39,19 @@ var origin = {
     return {
       'app.lightcoursefielduniqueid': 'Unique ID',
       'app.lightcoursecomponentscreenshot': 'Component screenshot',
+      'app.lightcourseideacomponent': 'Component',
+      'app.lightcourseideaitem': 'Item',
+      'app.lightcourseideatarget': 'Connect to',
+      'app.lightcourseideaunavailable': 'Unavailable item',
       'app.lightcoursegraphicsnotes': 'Graphics Notes',
       'app.lightcoursedevelopernotes': 'Developer Notes'
     }[key] || key;
   } }
 };
 var filter = load('frontend/src/modules/lightCourseEditor/schemaFilter.js', {});
+var ideaLinks = require('../frontend/src/modules/lightCourseEditor/ideaLinks');
 var preview = load('frontend/src/modules/lightCourseEditor/fieldPreview.js', {
-  'core/origin': origin, './schemaFilter': filter
+  'core/origin': origin, './schemaFilter': filter, './ideaLinks': ideaLinks
 });
 
 function flatten(fields) {
@@ -73,6 +78,41 @@ describe('populated light course tree fields (isolated)', function() {
     assert.strictEqual(JSON.stringify(node), original);
     node.screenshotAssetId = '';
     assert(!preview(node).some(function(field) { return field.isImage; }));
+  });
+
+  it('previews component and item idea images rather than displaying asset IDs', function() {
+    var id = '1234567890abcdef12345678';
+    var fields = flatten(preview({ type: 'component', _component: 'text',
+      _lightCourseIdeaAssets: [{ src: id, notes: '<p>Reference note</p>' }, { src: id }],
+      items: [{ title: 'Item', _lightCourseIdeaAssets: [{ src: id }] }]
+    }));
+    var images = fields.filter(function(field) { return field.isImage; });
+    assert.strictEqual(images.length, 3);
+    assert(images.every(function(field) { return field.imageSrc === 'api/content/lightcourseasset/' + id + '/serve'; }));
+    assert(fields.some(function(field) { return field.value === '<p>Reference note</p>' && field.isHtml; }));
+    assert(!fields.some(function(field) { return field.value === id; }));
+  });
+
+  it('shows the current component or item link above each idea image', function() {
+    var node = { type: 'component', _component: 'text', title: 'Component title',
+      _lightCourseIdeaAssets: [{ src: 'first' }, { src: 'second', targetId: 'item' },
+        { src: 'third', targetId: 'missing' }],
+      items: [{ title: 'Other' }, { title: '<p>Linked title</p>', _lightCourseIdeaItemId: 'item',
+        _lightCourseIdeaAssets: [{ src: 'legacy' }] }] };
+    var fields = preview(node);
+    var ideas = fields.find(function(field) { return field.label === 'app.lightcourseitemideas'; });
+    assert.deepStrictEqual(copy(ideas.children.map(function(item) { return item.children[0].value; })),
+      ['Component: Component title', 'Item 2: Linked title', 'Unavailable item']);
+    assert(ideas.children.every(function(item) {
+      return item.children[0].label === 'Connect to' && item.children[1].isImage;
+    }));
+    var legacy = flatten(fields).find(function(field) { return field.imageSrc && field.imageSrc.includes('/legacy/'); });
+    assert(legacy);
+    assert(flatten(fields).some(function(field) { return field.value === 'Item 2: Linked title'; }));
+    node.items.reverse();
+    assert.strictEqual(preview(node).find(function(field) {
+      return field.label === 'app.lightcourseitemideas';
+    }).children[1].children[0].value, 'Item 1: Linked title');
   });
 
   it('keeps populated fields but leaves the component unique ID for the title row', function() {
@@ -114,7 +154,7 @@ describe('populated light course tree fields (isolated)', function() {
   it('uses schema snapshot labels when a component plugin is missing', function() {
     var missing = load('frontend/src/modules/lightCourseEditor/fieldPreview.js', {
       'core/origin': Object.assign({}, origin, { schemas: { get: function() { return null; } } }),
-      './schemaFilter': filter
+      './schemaFilter': filter, './ideaLinks': ideaLinks
     });
     var fields = missing({
       type: 'component', _component: 'removed', _componentSchemaSnapshot: {

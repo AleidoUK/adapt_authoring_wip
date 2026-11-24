@@ -8,6 +8,7 @@ define(function(require) {
     events: {
       'change .light-course-read-images': 'loadContent',
       'change .light-course-read-screenshots': 'loadContent',
+      'change .light-course-read-ideas': 'loadContent',
       'click .light-course-read-export': 'exportWord',
       'click .light-course-read-print': 'printContent'
     },
@@ -19,6 +20,11 @@ define(function(require) {
 
     postRender: function() {
       var self = this;
+      if (this.sourceUrl) {
+        this.$('.light-course-read-light-only').remove();
+        this.$('.light-course-read-images').prop('checked', true);
+        this.$('.light-course-read-help').text(Origin.l10n.t('app.fullcoursereadhelp'));
+      }
       this.setViewToReady();
       this.setBusy(true);
       this.prepare(function(error) {
@@ -32,13 +38,14 @@ define(function(require) {
 
     baseUrl: function() {
       return (this.sourceUrl || 'document-export/' + encodeURIComponent(Origin.sessionModel.get('tenantId')) + '/' +
-        encodeURIComponent(this.model.get('_id')) + '/read') + '?images=' + this.images + '&screenshots=' + this.screenshots +
+        encodeURIComponent(this.model.get('_id')) + '/read') + '?images=' + this.images +
+        (this.sourceUrl ? '' : '&screenshots=' + this.screenshots + '&ideas=' + this.ideas) +
         (this.revision === undefined ? '' : '&revision=' + encodeURIComponent(this.revision));
     },
 
     setBusy: function(busy) {
       this.busy = busy;
-      this.$('.light-course-read-images, .light-course-read-screenshots').prop('disabled', busy || !this.prepared);
+      this.$('.light-course-read-images, .light-course-read-screenshots, .light-course-read-ideas').prop('disabled', busy || !this.prepared);
       this.$('.light-course-read-export, .light-course-read-print').prop('disabled', busy || !this.content);
       this.$el.attr('aria-busy', String(busy));
     },
@@ -54,6 +61,7 @@ define(function(require) {
       var self = this;
       this.images = !!this.$('.light-course-read-images').prop('checked');
       this.screenshots = !!this.$('.light-course-read-screenshots').prop('checked');
+      this.ideas = !!this.$('.light-course-read-ideas').prop('checked');
       this.content = null;
       this.$('.light-course-read-output').empty();
       this.$('.light-course-read-status').text(Origin.l10n.t('app.lightcoursereadloading')).prop('hidden', false);
@@ -102,9 +110,17 @@ define(function(require) {
         'h1,h2,h3,h4,h5,h6{font-weight:bold;line-height:1.3;break-after:avoid}' +
         'h1{font-size:24pt}h2{font-size:18pt}h3{font-size:14pt}h4{font-size:12pt}h5{font-size:11pt}h6{font-size:10pt}' +
         'p{white-space:pre-wrap}img{max-width:50%;height:auto;break-inside:avoid}' +
+        '.light-course-read-image-group{display:flex;align-items:flex-start;gap:12px;margin:12px 0;break-inside:avoid}' +
+        '.light-course-read-image-group img{max-width:calc(50% - 6px)}' +
+        '.light-course-read-idea{display:flex;align-items:flex-start;margin:12px 0;break-inside:avoid}' +
+        '.light-course-read-idea-image,.light-course-read-idea-details{width:50%;box-sizing:border-box}' +
+        '.light-course-read-idea-image img{max-width:100%}' +
+        '.light-course-read-idea-details{border:1px solid #999;padding:8px;font-style:italic}' +
+        '.light-course-read-idea-details p{margin:0 0 8px}.light-course-read-idea-details p:last-child{margin-bottom:0}' +
         '.light-course-read-component-type{font-size:9pt;line-height:1.3;margin:18pt 0 0;break-after:avoid}' +
         '.light-course-read-component-type+h3,.light-course-read-component-type+h5{margin-top:3pt}' +
-        '@media print{body{padding:0}@page{margin:20mm}}' +
+        '.light-course-read-item-separator{border:0;border-top:1px solid #999;margin:12pt 0}' +
+        '@media print{body{padding:0}@page{margin:20mm}.light-course-read-page-break{break-before:page;page-break-before:always;height:0;margin:0;border:0}}' +
         '</style></head><body>' + this.$('.light-course-read-output').html() + '</body></html>');
       printDocument.title = this.content.title;
       printDocument.close();

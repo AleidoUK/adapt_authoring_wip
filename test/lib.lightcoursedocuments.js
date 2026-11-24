@@ -1,6 +1,9 @@
+var assert = require('assert');
 var should = require('should');
+var unzipper = require('unzipper');
 
 var documentGenerator = require('../lib/lightcourse/documentGenerator');
+var wordDocument = require('../lib/lightcourse/wordDocument');
 
 function stubDb(componentTypesByName) {
   return {
@@ -72,6 +75,35 @@ describe('generateMarkdown', function() {
     });
   });
 
+  it('omits extension fields from Markdown and Word exports', async function() {
+    var data = sampleData(), component = data.contentTree.children[0].children[0].children[0].children[0];
+    component._extensions = { _menuButton: { navLabel: 'Extension navigation label' } };
+    var text = { type: 'string', translatable: true };
+    var schema = { displayName: 'Text', properties: {
+      title: text, body: text,
+      _extensions: { type: 'object', properties: {
+        _menuButton: { type: 'object', properties: { navLabel: text } }
+      } }
+    } };
+    var db = stubDb({ text: schema });
+    var markdown = await new Promise(function(resolve, reject) {
+      documentGenerator.generateMarkdown(data, db, function(error, output) {
+        if (error) reject(error); else resolve(output);
+      });
+    });
+    markdown.should.containEql('Hello <strong>world</strong>.');
+    markdown.should.not.containEql('Extension navigation label');
+    var buffer = await new Promise(function(resolve, reject) {
+      documentGenerator.generateDocx(data, db, function(error, output) {
+        if (error) reject(error); else resolve(output);
+      });
+    });
+    var zip = await unzipper.Open.buffer(buffer);
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+    assert(xml.includes('Hello'));
+    assert(!xml.includes('Extension navigation label'));
+  });
+
   it('should label the document as a draft when isDraft is true, per the main plan', function(done) {
     documentGenerator.generateMarkdown(sampleData({ isDraft: true }), stubDb({}), function(error, markdown) {
       should.not.exist(error);
@@ -99,6 +131,57 @@ describe('generateDocx', function() {
       buffer.length.should.be.above(0);
       done();
     });
+  });
+
+  it('starts each component on a new page and separates component items', async function() {
+    var data = { title: 'My Course', storyboard: false, headerData: {}, tags: [] };
+    var blocks = [
+      { id: 'component-1', level: 4, heading: 'Text', headingLevel: 2, fields: [
+        { path: '_items[0].title', text: 'First item' },
+        { path: '_items[0].body', text: 'First item body' },
+        { path: '_items[1].title', text: 'Second item' },
+        { path: '_items[1].body', text: 'Second item body' }
+      ] },
+      { id: 'component-2', level: 4, heading: 'Text', headingLevel: 2, fields: [
+        { path: 'title', text: 'Another component' }
+      ] }
+    ];
+    var buffer = await new Promise(function(resolve, reject) {
+      wordDocument.generate(data, blocks, function(error, output) {
+        if (error) reject(error); else resolve(output);
+      });
+    });
+    var zip = await unzipper.Open.buffer(buffer);
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+    assert.strictEqual((xml.match(/<w:pageBreakBefore(?:\s[^>]*)?\/>/g) || []).length, 2);
+    var paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+    var separators = paragraphs.filter(function(paragraph) {
+      return paragraph.includes('<w:pBdr>') && paragraph.includes('<w:bottom') &&
+        !paragraph.includes('<w:top') && !paragraph.includes('<w:left') && !paragraph.includes('<w:right');
+    });
+    assert.strictEqual(separators.length, 2);
+  });
+
+  it('places a separator above an image-only item in the Word export', async function() {
+    var data = { title: 'My Course', storyboard: true, imageAssets: [{
+      _id: '1234567890abcdef12345678', filename: 'image.svg', mimeType: 'image/svg+xml'
+    }] };
+    var buffer = await new Promise(function(resolve, reject) {
+      wordDocument.generate(data, [{
+        id: 'component-1', level: 4, heading: 'Graphic', fields: [],
+        images: [{ path: '_items[0]._graphic.src', src: '1234567890abcdef12345678' }]
+      }], function(error, output) {
+        if (error) reject(error); else resolve(output);
+      });
+    });
+    var zip = await unzipper.Open.buffer(buffer);
+    var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+    var paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+    assert(paragraphs.some(function(paragraph) {
+      return paragraph.includes('<w:pBdr>') && paragraph.includes('<w:bottom') &&
+        !paragraph.includes('<w:top') && !paragraph.includes('<w:left') && !paragraph.includes('<w:right');
+    }));
+    assert(xml.includes('Image unavailable: Word image previews support PNG, JPEG, GIF and BMP files.'));
   });
 });
 

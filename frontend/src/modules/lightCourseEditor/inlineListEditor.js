@@ -1,6 +1,7 @@
 define(function(require) {
   var Origin = require('core/origin');
   var Alphabetical = require('./alphabetical');
+  var ideaLinks = require('./ideaLinks');
   var List;
   return function() {
     if (List) return List;
@@ -101,6 +102,8 @@ define(function(require) {
           item: this,
           form: this.form
         }).render();
+        var itemId = this.editor.nestedForm && this.editor.nestedForm.fields._lightCourseIdeaItemId;
+        if (itemId && !itemId.editor.getValue()) itemId.editor.setValue(ideaLinks.newId());
         var $el = Backbone.$(Backbone.$.trim(this.template({
           preserveOrder: !!(this.list.schema && this.list.schema.preserveOrder)
         })));
@@ -112,7 +115,11 @@ define(function(require) {
         return this;
       },
       updateLabel: function() {
-        var label = Alphabetical.label(this.getValue()).replace(/<[^>]*>/g, '').trim();
+        var value = this.getValue();
+        var label = Alphabetical.label(value);
+        if (!label && this.key === '_lightCourseIdeaAssets' && value && typeof value.notes === 'string') label = value.notes;
+        label = label.replace(/<[^>]*>/g, '').trim();
+        if (!label && this.key === '_lightCourseIdeaAssets') label = Origin.l10n.t('app.lightcourseideaimage');
         this.$el.children('details').children('summary').children('.light-course-inline-list-item-label')
           .text(label || Origin.l10n.t('app.lightcourseinlineitemuntitled'));
       },
@@ -131,7 +138,9 @@ define(function(require) {
           event.preventDefault();
           event.stopPropagation();
           var value = this.getValue();
-          this.list.addItem(value === undefined ? undefined : JSON.parse(JSON.stringify(value)), true);
+          var clone = value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+          if (this.key !== '_lightCourseIdeaAssets') ideaLinks.clearItemIds(clone);
+          this.list.addItem(clone, true);
         },
         'click [data-action="remove"]': function(event) {
           event.preventDefault();

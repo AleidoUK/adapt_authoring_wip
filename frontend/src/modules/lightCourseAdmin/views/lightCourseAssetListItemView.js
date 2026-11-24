@@ -34,7 +34,8 @@ define(function(require) {
           return {
             title: use.title || Origin.l10n.t('app.lightcourseassetusetype' + use.type),
             typeLabel: Origin.l10n.t('app.lightcourseassetusetype' + use.type),
-            href: '#' + routes[use.type] + encodeURIComponent(use.id),
+            href: use.type === 'lightcourseconfig' ? '#lightCourseConversionDefaults' :
+              '#' + routes[use.type] + encodeURIComponent(use.id),
             count: use.paths.length, paths: use.paths.join('\n')
           };
         })

@@ -55,7 +55,7 @@ function harness() {
   function IncomingForm() { this.on = function(event, callback) { this.fileEvent = callback; }; }
   IncomingForm.prototype.parse = function(req, next) {
     h.parses++;
-    if (h.file) this.fileEvent('file', h.file);
+    if (h.file && this.fileEvent) this.fileEvent('file', h.file);
     this.bytesExpected = h.expected || 20;
     next(h.parseError, h.fields || {}, h.file ? { file: h.file } : {});
   };
@@ -68,7 +68,9 @@ function harness() {
     deleteFile: function(file, next) { h.deletes.push(file); next(h.deleteError); }
   };
   var app = new EventEmitter(), routes = {};
-  app.contentmanager = { update: function(type, query, delta, next) {
+  app.contentmanager = { create: function(type, data, next) {
+    next(null, { _id: ID, filename: data.filename });
+  }, update: function(type, query, delta, next) {
     assert.strictEqual(type, 'lightcourseasset');
     ContentPlugin.prototype.update(query, delta, next);
   } };
@@ -85,12 +87,17 @@ function harness() {
       }
     },
     '../../../lib/usermanager': { getCurrentUser: function() { return h.user; } },
-    '../../../lib/configuration': { getMaxFileUploadSize: function() { return h.limit; } },
+    '../../../lib/configuration': { getMaxFileUploadSize: function() { return h.limit; }, getConfig: function() { return 'localfs'; } },
     '../../../lib/filestorage': { getStorage: function(repository, next) { next(h.storageError, storage); } },
     '../../../lib/logger': { log: function() { h.logs.push(Array.from(arguments)); } },
     '../../../lib/rest': { post: function(route, handler) { routes[route] = handler; }, get: function() {} },
     '../../../': function() { return app; },
     formidable: { IncomingForm: IncomingForm },
+    fs: { createReadStream: function() {
+      var stream = new EventEmitter();
+      process.nextTick(function() { stream.emit('data', Buffer.from('file')); stream.emit('close'); });
+      return stream;
+    } },
     'fs-extra': { remove: async function(file) { h.temporary.push(file); } }
   });
   app.emit('serverStarted');
@@ -101,10 +108,39 @@ function harness() {
       routes['/content/lightcourseasset/:id/replace']({ params: { id: ID } }, res, reject);
     });
   };
+  h.upload = function() {
+    return new Promise(function(resolve, reject) {
+      var res = { code: 200, status: function(code) { this.code = code; return this; },
+        json: function(body) { resolve({ status: this.code, body: body }); } };
+      routes['/content/lightcourseasset/upload']({}, res, reject);
+    });
+  };
   return h;
 }
 
 describe('Light Course placeholder asset replacement', function() {
+  it('applies the 500 KB image limit to new uploads and keeps other configured limits', async function() {
+    var h = harness();
+    h.limit = 1024 * 1024;
+    h.file.size = 500 * 1024;
+    assert.strictEqual((await h.upload()).status, 200);
+    h = harness();
+    h.limit = 1024 * 1024;
+    h.file.size = 500 * 1024 + 1;
+    assert.strictEqual((await h.upload()).status, 400);
+    assert.strictEqual(h.uploads.length, 0);
+    h = harness();
+    h.limit = 1024 * 1024;
+    h.file.type = 'application/octet-stream';
+    h.file.size = 500 * 1024 + 1;
+    assert.strictEqual((await h.upload()).status, 400);
+    h = harness();
+    h.limit = 1024 * 1024;
+    h.file.type = 'audio/mpeg';
+    h.file.size = 500 * 1024 + 1;
+    h.fields = { assetType: 'audio' };
+    assert.strictEqual((await h.upload()).status, 200);
+  });
   it('updates the same record, preserves metadata and all content links/uses, and removes only old files', async function() {
     var h = harness(), before = await usage.collect(h.db, 'tenant');
     var source = JSON.stringify([h.records.lightcourse, h.records.lightcoursetemplate, h.records.lightcomponentdefault, h.records.lightcourseconfig]);
@@ -152,6 +188,23 @@ describe('Light Course placeholder asset replacement', function() {
       assert.strictEqual(h.records.lightcourseasset[0].title, 'Renamed');
       assert.strictEqual(h.records.lightcourseasset[0].description, '');
     }
+  });
+  it('limits replacement images to 500 KB while retaining configured limits for other media', async function() {
+    var h = harness();
+    h.limit = 1024 * 1024;
+    h.file.size = 500 * 1024;
+    assert.strictEqual((await h.request()).status, 200);
+    h = harness();
+    h.limit = 1024 * 1024;
+    h.file.size = 500 * 1024 + 1;
+    assert.strictEqual((await h.request()).status, 400);
+    assert.strictEqual(h.uploads.length, 0);
+    h = harness();
+    h.limit = 1024 * 1024;
+    h.records.lightcourseasset[0].assetType = 'audio';
+    h.file.type = 'audio/mpeg';
+    h.file.size = 500 * 1024 + 1;
+    assert.strictEqual((await h.request()).status, 200);
   });
   it('requires authentication, update permission and a same-tenant existing record before parsing uploads', async function() {
     var h = harness(); h.user = null;

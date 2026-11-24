@@ -1714,6 +1714,23 @@ describe('question option conversion defaults', function() {
 });
 
 describe('conversion schemas and required-only fallbacks', function() {
+  it('excludes component and nested item ideas from the converted course and asset plan', function() {
+    var f = fixture();
+    component(f.draft)._lightCourseIdeaAssets = [{ src: 'bbbbbbbbbbbbbbbbbbbbbbbb' }];
+    component(f.draft)._items = [{ title: 'Item', _lightCourseIdeaItemId: 'item-id',
+      _lightCourseIdeaAssets: [{ src: 'cccccccccccccccccccccccc' }] }];
+    f.version.contentSnapshot = copy(f.draft);
+    var before = JSON.stringify(f.draft);
+    var plan = planner.build(f.draft, f.version, f.catalog, f.defaults);
+    var converted = plan.records.find(function(record) { return record.id === 'component'; });
+    assert(converted);
+    assert.strictEqual(converted.data._lightCourseIdeaAssets, undefined);
+    assert.strictEqual(converted.data._items[0]._lightCourseIdeaAssets, undefined);
+    assert.strictEqual(converted.data._items[0]._lightCourseIdeaItemId, undefined);
+    assert.strictEqual(converted.data._items[0].title, 'Item');
+    assert(!plan.assets.some(function(asset) { return /IdeaAssets/.test(asset.path); }));
+    assert.strictEqual(JSON.stringify(f.draft), before);
+  });
   it('accepts both required dialects, validators, arrays and enum inputs', function() {
     var definition = { type: 'object', required: ['name'], properties: {
       name: { type: 'string' }, count: { type: 'number', required: true },
@@ -2920,6 +2937,7 @@ describe('Conversion Defaults nested field controls', function() {
       define: function(factory) {
         listEditor = factory(function(name) {
           if (name === 'core/origin') return { l10n: { t: function() { return 'Untitled item'; } } };
+          if (name === './ideaLinks') return { clearItemIds: function() {} };
           return require('../frontend/src/modules/lightCourseEditor/alphabetical');
         });
       }

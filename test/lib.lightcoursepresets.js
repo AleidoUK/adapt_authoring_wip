@@ -209,6 +209,9 @@ describe('Light Course component inline list schemas', function() {
       graphic: { type: 'object', properties: { src: { type: 'string', inputType: 'LightCourseAsset:image' } } },
       children: { type: 'array', items: { type: 'object', properties: {
         body: { type: 'string', inputType: 'TextArea', lightCourseRefs: refs }
+      } } },
+      _lightCourseIdeaAssets: { type: 'array', items: { type: 'object', properties: {
+        src: { type: 'string', inputType: 'LightCourseAsset:image' }
       } } }
     } } } };
     var fields = prepare(origin.scaffold.buildSchema(raw));
@@ -226,6 +229,9 @@ describe('Light Course component inline list schemas', function() {
     assert.strictEqual(items.subSchema.graphic.subSchema.src.type, 'LightCourseAsset:image');
     assert.strictEqual(items.subSchema.children.subSchema.body.type, 'TextArea');
     assert.strictEqual(items.subSchema.children.subSchema.body.lightCourseRefs, refs);
+    assert.strictEqual(items.subSchema._lightCourseIdeaAssets.type, List);
+    assert.strictEqual(items.subSchema._lightCourseIdeaAssets.itemSchema.type, ObjectEditor);
+    assert.strictEqual(items.subSchema._lightCourseIdeaAssets.subSchema.src.type, 'LightCourseAsset:image');
     assert.strictEqual(items.confirmDelete, false);
 
     var isolatedBackbone = load('frontend/src/libraries/backbone.js', { underscore: _ });
@@ -250,6 +256,71 @@ describe('Light Course component inline list schemas', function() {
     var field = prepare({ tags: { type: 'List', subSchema: { type: 'string' } } }).tags;
     assert.strictEqual(field.itemType, Text);
     assert.strictEqual(field.itemSchema.type, Text);
+  });
+});
+
+describe('Light Course idea asset editor focus', function() {
+  it('renders saved ideas and focuses newly added ideas without throwing', function() {
+    var isolatedBackbone = load('frontend/src/libraries/backbone.js', { underscore: _ });
+    var Form = load('frontend/src/libraries/backbone-forms.js', {
+      jquery: {}, underscore: _, backbone: isolatedBackbone
+    });
+    load('frontend/src/libraries/backbone-forms-lists.js', {
+      jquery: {}, underscore: _, backbone: isolatedBackbone, 'backbone-forms': Form
+    });
+    var Asset = load('frontend/src/modules/lightCourseEditor/views/lightCourseBankAssetFieldView.js', {
+      'core/origin': { on: function() {} }, '../lightCourseAssetContext': {},
+      '../alphabetical': {}, 'backbone-forms': Form
+    }, { Backbone: isolatedBackbone });
+    var makeList = load('frontend/src/modules/lightCourseEditor/inlineListEditor.js', {
+      'core/origin': {}, './alphabetical': {}, './ideaLinks': {}
+    }, { Backbone: isolatedBackbone, Handlebars: { templates: {} } });
+    var asset = Object.create(Asset.prototype);
+    var focusCount = 0, blurCount = 0;
+    asset.el = { contains: function(target) { return target === 'inside'; } };
+    asset.$ = function(selector) {
+      return {
+        focus: function() {
+          assert.strictEqual(selector, '.light-course-bank-asset-browse');
+          focusCount++;
+          asset.events.focusin.call(asset);
+        },
+        blur: function() {
+          assert.strictEqual(selector, ':focus');
+          blurCount++;
+          asset.events.focusout.call(asset, { relatedTarget: null });
+        }
+      };
+    };
+    var nestedForm = {
+      focus: Form.prototype.focus,
+      fieldsets: [{ getFieldAt: function() { return { editor: asset }; } }]
+    };
+    var objectEditor = Object.assign({
+      focus: Form.editors.Object.prototype.focus, nestedForm: nestedForm
+    }, isolatedBackbone.Events);
+    function ListItem() { this.editor = objectEditor; }
+    ListItem.prototype.render = function() { return this; };
+    var list = Object.assign(Object.create(makeList().prototype), {
+      ListItem: ListItem, Editor: Form.editors.Object, schema: {}, items: [],
+      $list: { append: function() {} }, sortItems: function() {}
+    });
+
+    list.rendering = true;
+    assert.doesNotThrow(function() { list.addItem({ src: 'saved-image', notes: 'Existing idea' }); });
+    assert.strictEqual(list.items.length, 1);
+    assert.strictEqual(focusCount, 1);
+    assert.strictEqual(asset.hasFocus, true);
+    asset.events.focusout.call(asset, { relatedTarget: 'inside' });
+    assert.strictEqual(asset.hasFocus, true);
+    asset.blur();
+    assert.strictEqual(blurCount, 1);
+    assert.strictEqual(asset.hasFocus, false);
+
+    list.rendering = false;
+    assert.doesNotThrow(function() { list.addItem(undefined, true); });
+    assert.strictEqual(list.items.length, 2);
+    assert.strictEqual(focusCount, 2);
   });
 });
 var PRESET_PICKER = '.light-course-tree-component-editor-preset-picker';
@@ -1230,6 +1301,8 @@ describe('component popup field order (isolated)', function() {
     Form.prototype.$ = function() { return new Element(); };
     Form.prototype.getValue = function() { return options.model.pick(options.fields); };
     var filter = load('frontend/src/modules/lightCourseEditor/schemaFilter.js', {});
+    var ideaLinks = load('frontend/src/modules/lightCourseEditor/ideaLinks.js', {},
+      { crypto: require('crypto').webcrypto, Uint8Array: Uint8Array });
     var proto = load('frontend/src/modules/lightCourseEditor/views/lightCourseComponentFormView.js', {
       'core/origin': {
         schemas: { get: function() { return useSnapshot ? undefined : schema; } },
@@ -1238,6 +1311,7 @@ describe('component popup field order (isolated)', function() {
       },
       'core/views/originView': { extend: function(proto) { return proto; } },
       '../schemaFilter': filter,
+      '../ideaLinks': ideaLinks,
       '../inlineListSchema': function(schema) { return schema; },
       '../lightCourseAssetContext': {}
     }, { Backbone: Object.assign({}, Backbone, { Form: Form }) });
@@ -1247,11 +1321,14 @@ describe('component popup field order (isolated)', function() {
     });
     var view = Object.assign(Object.create(proto), {
       model: model, allowedLayouts: allowedLayouts, $el: { prepend: function() {} },
+      listenTo: function() {},
       $: function() { return new Element(); },
       setViewToReady: function() {}
     });
     view.postRender();
     options.getFormData = function() { return view.getFormData(); };
+    options.view = view;
+    options.ideaLinks = ideaLinks;
     return options;
   }
 
@@ -1259,7 +1336,8 @@ describe('component popup field order (isolated)', function() {
     it('places unique ID before title and preserves other fields for ' +
       (useSnapshot ? 'a missing plugin snapshot' : 'an installed component'), function() {
       var options = render(rawSchema, useSnapshot);
-      assert.deepStrictEqual(copy(options.fields), ['uniqueId', '_layout', 'title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
+      assert.deepStrictEqual(copy(options.fields), ['uniqueId', '_layout', 'title', 'screenshotAssetId',
+        '_lightCourseIdeaAssets', 'body', 'graphicsNotes', 'developerNotes']);
       assert.strictEqual(options.schema.uniqueId.title, 'Unique ID');
       assert.strictEqual(options.model.get('uniqueId'), 'c-01');
       assert.strictEqual(options.model.get('title'), 'Original title');
@@ -1277,8 +1355,76 @@ describe('component popup field order (isolated)', function() {
 
   it('preserves field order without adding an unavailable unique ID field', function() {
     var options = render(_.omit(rawSchema, '_extensions'), false);
-    assert.deepStrictEqual(copy(options.fields), ['_layout', 'title', 'screenshotAssetId', 'body', 'graphicsNotes', 'developerNotes']);
+    assert.deepStrictEqual(copy(options.fields), ['_layout', 'title', 'screenshotAssetId',
+      '_lightCourseIdeaAssets', 'body', 'graphicsNotes', 'developerNotes']);
     assert.strictEqual(options.schema.uniqueId, undefined);
+  });
+  it('adds a single ideas list and stable item IDs without changing the plugin schema', function() {
+    var schema = copy(rawSchema);
+    schema.properties = { type: 'object', properties: {
+      _items: { type: 'array', items: { type: 'object', properties: {
+        title: { type: 'string', translatable: true },
+        _subitems: { type: 'array', items: { type: 'object', properties: {
+          body: { type: 'string', translatable: true }
+        } } }
+      } } }
+    } };
+    var before = JSON.stringify(schema), options = render(schema, false);
+    var root = options.schema._lightCourseIdeaAssets;
+    var item = options.schema._items.items.properties;
+    var subitem = item._subitems.items.properties;
+    assert.strictEqual(root.type, 'array');
+    assert.strictEqual(root.items.properties.src.inputType, 'LightCourseAsset:image');
+    assert.strictEqual(root.items.properties.notes.inputType, 'TextArea');
+    assert.strictEqual(root.items.properties.targetId.inputType.type, 'Select');
+    assert.strictEqual(item._lightCourseIdeaItemId.inputType, 'Hidden');
+    assert.strictEqual(subitem._lightCourseIdeaItemId.inputType, 'Hidden');
+    assert.strictEqual(item._lightCourseIdeaAssets, undefined);
+    assert.strictEqual(JSON.stringify(schema), before);
+  });
+  it('migrates existing item ideas without mutating the source and keeps their links on reorder and clone', function() {
+    var links = render(rawSchema, false).ideaLinks;
+    var source = { _items: [{ title: 'First', _lightCourseIdeaAssets: [{ src: 'first', notes: 'Note' }] },
+      { title: 'Second', _lightCourseIdeaAssets: [{ src: 'second' }] }],
+      _lightCourseIdeaAssets: [{ src: 'component' }] };
+    var before = JSON.stringify(source), model = new Backbone.Model(source);
+    var schema = { _items: { type: 'array', items: { properties: { title: { type: 'string' } } } } };
+    var data = links.prepare(model, schema), first = data._items[0]._lightCourseIdeaItemId;
+    assert.strictEqual(JSON.stringify(source), before);
+    assert(first);
+    assert.notStrictEqual(first, data._items[1]._lightCourseIdeaItemId);
+    assert.strictEqual(data._lightCourseIdeaAssets[1].targetId, first);
+    assert.strictEqual(data._lightCourseIdeaAssets[1].notes, 'Note');
+    assert.strictEqual(data._items[0]._lightCourseIdeaAssets, undefined);
+    data._items.reverse();
+    var targets = copy(links.targets(data, 'Component', 'Item'));
+    assert.strictEqual(targets.find(function(option) { return option.val === first; }).label, 'Item 2: First');
+    var cloned = copy(data._items[1]);
+    links.clearItemIds(cloned);
+    assert.strictEqual(cloned._lightCourseIdeaItemId, undefined);
+    assert.strictEqual(data._items[1]._lightCourseIdeaItemId, first);
+  });
+  it('removes ideas when their linked item is deleted and keeps other links', function() {
+    var options = render(rawSchema, false), view = options.view;
+    var data = { _items: [{ _lightCourseIdeaItemId: 'kept', title: 'Item' }] };
+    var removed = [], selects = [];
+    function idea(id) {
+      var select = { value: id, getValue: function() { return this.value; },
+        setOptions: function(choices) { this.choices = choices; } };
+      selects.push(select);
+      return { editor: { nestedForm: { fields: { targetId: { editor: select } } } } };
+    }
+    var list = { items: [idea(''), idea('kept'), idea('deleted')], removeItem: function(item) { removed.push(item); } };
+    view.form = { getValue: function() { return data; }, fields: { _lightCourseIdeaAssets: { editor: list } } };
+    view.updateIdeaTargets();
+    assert.strictEqual(removed.length, 1);
+    assert.strictEqual(removed[0], list.items[2]);
+    assert.strictEqual(selects[1].value, 'kept');
+    assert(selects[1].choices.some(function(choice) { return choice.val === 'kept'; }));
+    data._items.push({ _lightCourseIdeaItemId: 'new', title: 'New' });
+    view.updateIdeaTargets();
+    assert(selects[0].choices.some(function(choice) { return choice.val === 'new'; }));
+    assert.strictEqual(selects[1].value, 'kept');
   });
   it('offers only half-width positions for a paired slot and persists the selected side', function() {
     var options = render(rawSchema, false, ['left', 'right']);

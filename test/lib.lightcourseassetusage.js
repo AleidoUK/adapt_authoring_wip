@@ -105,13 +105,23 @@ describe('saved light course asset usage', function() {
 
   it('counts configured conversion placeholder assets without changing course or preset uses', async function() {
     var db = database();
-    db.records.lightcourseconfig = [{ _tenantId: 'tenant', conversionDefaults: {
+    db.records.lightcourseconfig = [{ _id: 'config', _tenantId: 'tenant', conversionDefaults: {
       'component:graphic': { '_graphic.large': UNUSED }
     } }];
     var result = await usage.collect(db, 'tenant');
     assert.strictEqual(result[UNUSED].count, 1);
     assert.strictEqual(result[UNUSED].uses[0].type, 'lightcourseconfig');
+    assert.strictEqual(result[UNUSED].uses[0].id, 'config');
     assert.strictEqual(result[ID].count, 6);
+  });
+
+  it('counts component and nested item idea references', async function() {
+    var db = database();
+    db.records.lightcourse[0].contentTree.children[0]._lightCourseIdeaAssets = [{ src: UNUSED }];
+    db.records.lightcourse[0].contentTree.children[0]._items[0]._lightCourseIdeaAssets = [{ src: UNUSED }, { src: UNUSED }];
+    var result = await usage.collect(db, 'tenant');
+    assert.strictEqual(result[UNUSED].count, 3);
+    assert(result[UNUSED].uses[0].paths.includes('contentTree.children[0]._items[0]._lightCourseIdeaAssets[1].src'));
   });
 
   ['lightcourseasset', 'lightcourse', 'lightcoursetemplate', 'lightcomponentdefault', 'lightcourseconfig'].forEach(function(type) {
@@ -298,14 +308,16 @@ describe('placeholder Uses column (isolated)', function() {
     assert.strictEqual(cell.value, 'app.lightcourseassetuseserror');
     row.preRender({ usageState: 'ready', usage: { count: 0, uses: [] } }); row.postRender();
     assert(cell.value.includes('<span>0</span>'));
-    row.preRender({ usageState: 'ready', usage: { count: 3, uses: [
+    row.preRender({ usageState: 'ready', usage: { count: 4, uses: [
       { type: 'lightcourse', id: 'course', title: '<script>Course</script>', paths: ['screenshotAssetId'] },
       { type: 'lightcoursetemplate', id: 'template', title: 'Template', paths: ['_graphic.src'] },
-      { type: 'lightcomponentdefault', id: 'default', title: 'Default', paths: ['audioSrc'] }
+      { type: 'lightcomponentdefault', id: 'default', title: 'Default', paths: ['audioSrc'] },
+      { type: 'lightcourseconfig', id: 'config', title: '', paths: ['component:graphic._graphic.large'] }
     ] } }); row.postRender();
-    ['#lightCourseEditor/course', '#lightCourseTemplates/template', '#lightCourseComponentDefaults/default']
+    ['#lightCourseEditor/course', '#lightCourseTemplates/template', '#lightCourseComponentDefaults/default',
+      '#lightCourseConversionDefaults']
       .forEach(function(href) { assert(cell.value.includes('href="' + href + '"')); });
-    assert(cell.value.includes('<summary>3</summary>'));
+    assert(cell.value.includes('<summary>4</summary>'));
     assert(cell.value.includes('&lt;script&gt;Course&lt;/script&gt;'));
     assert(!cell.value.includes('<script>'));
     row.preRender({ usageState: 'ready' }); row.postRender();

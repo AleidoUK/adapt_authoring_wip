@@ -88,6 +88,10 @@ Each component also has two fields only the light editor sees: Graphics Notes an
 
 Light editors can add images to the shared bank, attach them to a course and remove them from a course. Removing an image from a course does not delete it from the bank. Light editors cannot delete images from the bank, including ones they uploaded. Administrators will manage bank removal and configure a default placeholder for each graphic field.
 
+Placeholder images are limited to 500 KB, or the configured full-course image
+limit if lower, for both uploads and replacements. Other placeholder assets use
+the configured full-course limits.
+
 Each light course has one selected Menu, one selected Theme and a selection of Extensions. The editor will show installed options as a simple selection list rather than the full plugin settings. Administrators will choose which plugins are selected for new courses by default, such as bookmarking and uniqueId where available.
 
 If a plugin is later removed, its saved information will remain visible but read-only. The administrator will need to resolve the missing plugin before converting the course. If a plugin is updated, existing content will stay in place and any new translatable fields will appear in the light editor.
@@ -139,11 +143,27 @@ Earlier versions can be opened for review, compared and exported, but not change
 Components have an optional **Component screenshot** image below their title in
 the component editor, including template and component-default editors. Choose
 or upload it through the light-course image bank. It is also shown in course
-previews and below the component title in Word exports. Other component images
-appear below the title in Word, while item images follow their item's content.
+previews and below the component title in Word exports. Light-course storyboard
+exports include screenshots and item ideas, but not content images. Full-course
+storyboards continue to include component and item content images.
 Images in both light- and full-course Word exports are limited to half the usable
 page width, keeping their proportions without enlarging smaller images.
+In previews and Word exports that include content images, large/small asset pairs
+display side-by-side; if both references resolve to the same asset, it appears once.
+Splash components show only their large graphic. Extension settings fields and
+navigation labels are omitted from content previews and document exports.
+Preview and Word exports start each page on a new page, keep its first component
+below the page content, and start later components on new pages. Glossary and
+Resources each start on a new page, and item separators appear above every item.
 Word imports update text and component discussions, leaving screenshots and other images unchanged.
+
+The **Ideas** list beneath each component screenshot can contain multiple images
+from the light-course image bank, each with notes and a link to the component
+or an individual item. Links follow items when reordered; deleting an item
+deletes its linked ideas. The link appears above each idea in the editor; in
+content preview and Word exports, the link and notes appear in a box beside
+the image. Ideas do not transfer to a converted full course. Word import
+leaves them unchanged.
 
 The light editor will show a word count for each component and a total for the course. Counts use translatable content only; the Graphics Notes and Developer Notes fields and the document header sections are not counted. Full-course editors will also have component and course word counts for full courses; the Light Editor role alone will not be able to see those full courses.
 
@@ -162,9 +182,12 @@ printing); the content-only Word export remains free of these type labels. It
 includes learner-facing text and enabled glossary, resources and help content,
 without field labels, IDs, layout labels, review notes, accessibility settings
 or discussions. Empty fields and disabled associated fields are omitted.
+Unordered lists use standard round bullets in the preview and Word exports;
+Markdown exports use standard unordered-list syntax.
 
-**Show images** controls content images, while **Show screenshots** independently
-controls component screenshots. Images are on initially; screenshots are off. These settings apply to
+**Show images** controls content images, while **Show screenshots** and **Show
+ideas** independently control reference images. Images are off initially;
+screenshots and ideas are on. These settings apply to
 the pane, **Export content to Word** and **Print / PDF**. Included images keep
 their proportions and the half-text-width limit; unavailable images produce a
 visible notice.
@@ -184,11 +207,12 @@ Content preview, close it and reload the editor before exporting.
 
 Full-course editors have a **Content Preview** sidebar button directly beneath
 **Export storyboard**. It opens the same overlay, with images shown by default,
-screenshots hidden by default, component-type captions, content-only Word export
+component-type captions, content-only Word export
 and Print / PDF. Page, article, block, component and item headings retain their
 hierarchy; learner-facing text and enabled glossary, resources and help are
 included without review notes, IDs or accessibility settings. Images come only
 from the current tenant's asset library and retain the half-page-width limit.
+Screenshot and item-idea controls are available only in the light-course preview.
 
 The full-course preview reads saved content across the whole course, not just
 the current page. Save any open editing forms before opening it. Neither this

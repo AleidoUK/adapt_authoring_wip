@@ -41,6 +41,19 @@ describe('Word image previews', function() {
     assert.deepStrictEqual(wordImages.componentImages({}, { screenshotAssetId: '' }), []);
   });
 
+  it('collects multiple component and nested item ideas only for light-course exports', function() {
+    var node = { _lightCourseIdeaAssets: [{ src: assetId }, { src: assetId }],
+      _items: [{ title: 'First', _lightCourseIdeaAssets: [{ src: assetId }] }],
+      _componentSchemaSnapshot: { _lightCourseIdeaAssets: [{ src: assetId }] } };
+    assert.deepStrictEqual(wordImages.componentImages(schema, node), []);
+    var ideas = wordImages.componentImages(schema, node, true);
+    assert.deepStrictEqual(ideas.map(function(image) { return image.path; }),
+      ['_lightCourseIdeaAssets', '_lightCourseIdeaAssets', '_items[0]._lightCourseIdeaAssets']);
+    assert(ideas.every(function(image) { return image.idea && image.src === assetId; }));
+    assert.deepStrictEqual(ideas.map(function(image) { return image.ideaTarget; }),
+      ['Component', 'Component', 'Item 1: First']);
+  });
+
   it('collects schema-declared images, nested items and flattened plugin properties without audio or unrelated strings', function() {
     var images = wordImages.componentImages({ properties: Object.assign({}, schema.properties, {
       properties: { properties: { logo: { type: 'string', _backboneForms: 'Asset' } } }
@@ -54,6 +67,23 @@ describe('Word image previews', function() {
     assert.strictEqual(images[1].alt, 'Item description');
   });
 
+  it('shows only the Splash large graphic and excludes extension asset fields', function() {
+    var asset = { type: 'string', inputType: { type: 'Asset:image' } };
+    var splashSchema = { properties: {
+      _graphic: { type: 'object', properties: {
+        _large: asset, _medium: asset, _smallPortrait: asset
+      } },
+      _extensions: { type: 'object', properties: { _menuButton: { type: 'object', properties: { icon: asset } } } }
+    } };
+    var images = wordImages.componentImages(splashSchema, { _component: 'splash',
+      _graphic: { _large: assetId, _medium: assetId, _smallPortrait: assetId },
+      _extensions: { _menuButton: { icon: assetId } } });
+    assert.deepStrictEqual(images.map(function(image) { return image.path; }), ['_graphic._large']);
+    assert(wordImages.filterComponentImages([
+      { path: '_graphic._large', src: assetId }, { path: '_graphic._medium', src: assetId }
+    ], { _component: 'Splash' }).every(function(image) { return image.path === '_graphic._large'; }));
+  });
+
   it('finds rich-text image sources and decoded alt text without treating plain text as HTML', function() {
     assert.deepStrictEqual(wordImages.htmlImages([
       { path: 'body', richText: true, text: '<p>Text<img src="api/content/lightcourseasset/' + assetId + '/serve" alt="A &amp; B"></p>' },
@@ -61,17 +91,18 @@ describe('Word image previews', function() {
     ]), [{ path: 'body', src: 'api/content/lightcourseasset/' + assetId + '/serve', alt: 'A & B' }]);
   });
 
-  it('retains image-only light-course content without empty boxes and preserves it on import', async function() {
+  it('omits image-only content from light-course storyboards without changing it on import', async function() {
     var node = { _id: 'image-only', _component: 'text', title: '', uniqueId: '',
       body: '<p><img src="/api/content/lightcourseasset/' + assetId + '/serve" alt="Image-only content"></p>',
       _graphic: { src: '', alt: 'Unused label' }, _items: [{ title: '', body: '<p>&nbsp;</p>' }] };
     var data = { _lightCourseId: 'course', title: 'Images', contentTree: { children: [
       { _id: 'page', title: '', children: [{ _id: 'article', children: [{ _id: 'block', children: [node] }] }] }
     ] } };
-    var original = JSON.stringify(data), getStorage = filestorage.getStorage;
+    var original = JSON.stringify(data), getStorage = filestorage.getStorage, imageReads = 0;
     var db = { retrieve: function(type, query, options, callback) {
       if (type === 'componenttype') return callback(null, [{ displayName: 'Text', properties: schema.properties }]);
       assert.strictEqual(type, 'lightcourseasset');
+      imageReads++;
       callback(null, [{ mimeType: 'image/png', repository: 'test', path: 'image.png' }]);
     } };
     filestorage.getStorage = function(repository, callback) {
@@ -81,8 +112,9 @@ describe('Word image previews', function() {
       var buffer = await call(generator.generateDocx, [data, db]), zip = await unzipper.Open.buffer(buffer);
       var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
       assert(xml.includes('>0 words | full<'));
-      assert(xml.includes('descr="Image-only content"'));
-      assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, 1);
+      assert(!xml.includes('descr="Image-only content"'));
+      assert(!xml.includes('<w:drawing>'));
+      assert.strictEqual(imageReads, 0);
       assert(!xml.includes('Unused label'));
       assert(!xml.includes('Add body here'));
       var parsed = await call(generator.parseDocx, [buffer]);
@@ -94,14 +126,17 @@ describe('Word image previews', function() {
     } finally { filestorage.getStorage = getStorage; }
   });
 
-  it('embeds actual bytes beside components, nested items, help and rich text and preserves Word imports', async function() {
+  it('embeds only screenshots and component/item ideas while preserving all images on Word import', async function() {
     this.timeout(10000);
     var node = { _id: 'component', _component: 'text', title: 'Title', screenshotAssetId: assetId,
       instruction: 'Original instruction', graphicsNotes: 'Configured graphics notes',
+      _lightCourseIdeaAssets: [{ src: assetId, notes: '<p>Component idea note</p>' },
+        { src: assetId }, { src: assetId, targetId: 'item-1', notes: '<p>Linked item note</p>' }],
       body: '<p>Caption<img src="/api/content/lightcourseasset/' + assetId + '/serve" alt="Inline"></p>',
       _graphic: { src: assetId, alt: 'Graphic description' },
       _items: [
-        { title: 'First item', body: '<p>First item content</p>', _graphic: { src: assetId, alt: 'Item description' } },
+        { title: 'First item', body: '<p>First item content</p>', _graphic: { src: assetId, alt: 'Item description' },
+          _lightCourseIdeaItemId: 'item-1' },
         { title: 'Second item', body: '<p>Second item content</p>', _graphic: { src: assetId, alt: 'Second item image' } }
       ] };
     var data = { _lightCourseId: 'course', title: 'Images', contentTree: { children: [
@@ -131,11 +166,11 @@ describe('Word image previews', function() {
       assert.strictEqual(media.length, 1);
       assert((await media[0].buffer()).equals(png));
       var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
-      assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, 6);
-      assert(xml.includes('descr="Graphic description"'));
-      assert(xml.includes('descr="Item description"'));
-      assert(xml.includes('descr="Inline"'));
-      assert(xml.includes('descr="Help graphic"'));
+      assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, 4);
+      assert.strictEqual((xml.match(/descr="Item idea"/g) || []).length, 3);
+      ['Graphic description', 'Item description', 'Second item image', 'Inline', 'Help graphic'].forEach(function(alt) {
+        assert(!xml.includes('descr="' + alt + '"'));
+      });
       var metadataXml = (await zip.files.find(function(file) { return file.path === 'docProps/custom.xml'; }).buffer()).toString();
       var metadata = JSON.parse(new XMLParser().parse(metadataXml).Properties.property['vt:lpwstr']);
       function fieldIndex(path) {
@@ -145,19 +180,27 @@ describe('Word image previews', function() {
       }
       assert(!metadata.fields.some(function(field) { return field.path === 'screenshotAssetId'; }));
       assert(fieldIndex('title') < xml.indexOf('descr="Component screenshot"'));
-      assert(xml.indexOf('descr="Component screenshot"') < xml.indexOf('descr="Graphic description"'));
-      assert(xml.indexOf('descr="Graphic description"') < fieldIndex('body'));
-      assert(xml.indexOf('descr="Inline"') < fieldIndex('body'));
-      assert(fieldIndex('_items[0].body') < xml.indexOf('descr="Item description"'));
-      assert(fieldIndex('_items[0]._graphic.alt') < xml.indexOf('descr="Item description"'));
-      assert(xml.indexOf('descr="Item description"') < fieldIndex('_items[1].title'));
-      assert(fieldIndex('_items[1].body') < xml.indexOf('descr="Second item image"'));
-      assert(xml.indexOf('descr="Second item image"') < fieldIndex('graphicsNotes'));
-      assert(xml.indexOf('>Help body</w:t>') < xml.indexOf('descr="Help graphic"'));
+      assert(xml.indexOf('descr="Component screenshot"') < fieldIndex('body'));
+      assert(fieldIndex('_items[0].body') < xml.lastIndexOf('descr="Item idea"'));
+      assert(xml.lastIndexOf('descr="Item idea"') < fieldIndex('_items[1].title'));
+      assert(xml.includes('Component idea note'));
+      assert(xml.includes('Connect to: Component: Title'));
+      assert(xml.includes('Connect to: Item 1: First item'));
+      assert(xml.includes('<w:i/>'));
+      var ideaTables = (xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g) || []).filter(function(table) {
+        return table.includes('w:name="lcidea_');
+      });
+      assert.strictEqual(ideaTables.length, 3);
+      assert(ideaTables.every(function(table) {
+        return (table.match(/<w:tc>/g) || []).length === 2 &&
+          table.includes('<w:drawing>') && table.includes('<w:tcBorders>') && table.includes('<w:i/>');
+      }));
+      assert(xml.indexOf('Linked item note') > fieldIndex('_items[0].body'));
+      assert(xml.indexOf('Linked item note') < fieldIndex('_items[1].title'));
+      assert(xml.includes('>Help body</w:t>'));
       assert(!xml.includes('Image unavailable:'));
       assert(queries.every(function(query) { return query._id === assetId; }));
-      // Repeated references share file reads even when the fields have different descriptions.
-      assert.strictEqual(reads, 2);
+      assert.strictEqual(reads, 1);
       var parsed = await call(generator.parseDocx, [buffer]);
       assert.deepStrictEqual(parsed.errors, []);
       var imported = await call(importer.importDocument, [parsed, data, db]);
@@ -175,6 +218,8 @@ describe('Word image previews', function() {
         if (file.path === 'word/document.xml') {
           assert(bytes.toString().includes('>Original instruction</w:t>'));
           bytes = bytes.toString().replace(/<w:drawing>[\s\S]*?<\/w:drawing>/g, '')
+            .replace('>Linked item note</w:t>', '>Changed idea note</w:t>')
+            .replace('>Connect to: Item 1: First item</w:t>', '>Changed link</w:t>')
             .replace('>Original instruction</w:t>', '>Edited instruction</w:t>');
         }
         archive.append(bytes, { name: file.path });
@@ -187,6 +232,7 @@ describe('Word image previews', function() {
       assert.strictEqual(changedNode.screenshotAssetId, assetId);
       assert.deepStrictEqual(changedNode._graphic, node._graphic);
       assert.deepStrictEqual(changedNode._items, node._items);
+      assert.deepStrictEqual(changedNode._lightCourseIdeaAssets, node._lightCourseIdeaAssets);
     } finally {
       filestorage.getStorage = getStorage;
     }
@@ -196,6 +242,8 @@ describe('Word image previews', function() {
     var filename = path.join(__dirname, '../lib/lightcourse/wordImages.js');
     var module = { exports: {} }, reads = 0;
     vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module: module, require: function(name) {
+      if (name === './wordFields') return require('../lib/lightcourse/wordFields');
+      if (name === '../../frontend/src/modules/lightCourseEditor/ideaLinks') return require('../frontend/src/modules/lightCourseEditor/ideaLinks');
       if (name === 'image-size') return function() { return { type: 'png', width: 1200, height: 800 }; };
       if (name === '../filestorage') return { getStorage: function(repository, callback) {
         callback(null, { getFileContents: function(file, callback) { reads++; callback(null, png); } });
@@ -220,6 +268,8 @@ describe('Word image previews', function() {
     ]) {
       var module = { exports: {} };
       vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module: module, require: function(name) {
+        if (name === './wordFields') return require('../lib/lightcourse/wordFields');
+        if (name === '../../frontend/src/modules/lightCourseEditor/ideaLinks') return require('../frontend/src/modules/lightCourseEditor/ideaLinks');
         if (name === 'image-size') return function() { return Object.assign({ type: 'png' }, dimensions); };
         if (name === '../filestorage') return { getStorage: function(repository, callback) {
           callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
@@ -235,7 +285,7 @@ describe('Word image previews', function() {
     }
   });
 
-  it('writes screenshots, component, item and inline images no wider than half the actual Word text area', async function() {
+  it('writes screenshots no wider than half the actual Word text area', async function() {
     var width = 1200, height = 800, stride = Math.ceil(width * 3 / 4) * 4;
     var bitmap = Buffer.alloc(54 + stride * height);
     bitmap.write('BM');
@@ -270,7 +320,7 @@ describe('Word image previews', function() {
       var section = body['w:sectPr'], page = section['w:pgSz'], margins = section['w:pgMar'];
       var halfWidthEmu = (Number(page['@_w:w']) - Number(margins['@_w:left']) - Number(margins['@_w:right'])) * 635 / 2;
       var extents = Array.from(xml.matchAll(/<wp:extent cx="(\d+)" cy="(\d+)"\/>/g));
-      assert.strictEqual(extents.length, 4);
+      assert.strictEqual(extents.length, 1);
       extents.forEach(function(match) {
         assert(Number(match[1]) <= halfWidthEmu);
         assert.strictEqual(Number(match[1]), 300 * 9525);
@@ -299,11 +349,17 @@ describe('Word image previews', function() {
 
   it('shows image failures in the generated document without changing content or Word-count fields', async function() {
     var data = { title: 'Missing image', contentTree: { children: [{ _id: 'p', title: 'Page',
-      body: '<p>Caption<img src="missing.png"></p>', children: [] }] } };
-    var buffer = await call(generator.generateDocx, [data, {}]);
+      body: '<p>Caption<img src="missing.png"></p>', children: [{ _id: 'a', children: [
+        { _id: 'b', children: [{ _id: 'c', _component: 'text', screenshotAssetId: 'missing.png' }] }
+      ] }] }] } };
+    var db = { retrieve: function(type, query, options, callback) {
+      callback(null, [{ properties: schema.properties }]);
+    } };
+    var buffer = await call(generator.generateDocx, [data, db]);
     var zip = await unzipper.Open.buffer(buffer);
     var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
     assert(xml.includes('Image unavailable: This image is not a managed light course asset. Source: missing.png'));
+    assert.strictEqual((xml.match(/Image unavailable:/g) || []).length, 1);
     assert.deepStrictEqual((await call(generator.parseDocx, [buffer])).errors, []);
   });
 });

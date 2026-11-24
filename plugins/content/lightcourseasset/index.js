@@ -42,6 +42,12 @@ var contentmanager = require('../../../lib/contentmanager'),
     util = require('util');
 
 var STREAM_BUFFER_SIZE = 64 * 1024;
+var MAX_IMAGE_SIZE = 500 * 1024;
+
+function maxUploadSize(file, assetType) {
+  var configured = configuration.getMaxFileUploadSize(file.type);
+  return assetType === 'image' || /^image\//i.test(file.type || '') ? Math.min(MAX_IMAGE_SIZE, configured) : configured;
+}
 // Same tiny built-in placeholder lib/assetmanager.js's own assetThumb() falls back to when an
 // asset has no generated thumbnail (e.g. an audio file) - reused as-is, it's just a neutral grey
 // square, not anything specific to the main asset library.
@@ -141,7 +147,8 @@ function uploadAsset(req, res, next) {
     if (!file) {
       return res.status(400).json({ success: false, message: 'No file was uploaded' });
     }
-    var maxSizeForType = configuration.getMaxFileUploadSize(file.type);
+    var assetType = fields.assetType || 'image';
+    var maxSizeForType = maxUploadSize(file, assetType);
     if (file.size > maxSizeForType) {
       return res.status(400).json({ success: false, message: origin().polyglot.t('app.uploadsizeerror', {
         max: bytes.format(maxSizeForType),
@@ -150,7 +157,6 @@ function uploadAsset(req, res, next) {
     }
 
     var repository = configuration.getConfig('filestorage') || 'localfs';
-    var assetType = fields.assetType || 'image';
 
     filestorage.getStorage(repository, function (storageError, storage) {
       if (storageError) {
@@ -319,7 +325,7 @@ function replaceAsset(req, res, next) {
             var file = files && files.file;
             if (!file || Array.isArray(file)) fail('Select one replacement file.', 400);
             if (!temporaryFiles.includes(file.path)) temporaryFiles.push(file.path);
-            var maxSize = configuration.getMaxFileUploadSize(file.type);
+            var maxSize = maxUploadSize(file, existing.assetType);
             if (file.size > maxSize) fail(origin().polyglot.t('app.uploadsizeerror', {
               max: bytes.format(maxSize), size: bytes.format(file.size)
             }), 400);

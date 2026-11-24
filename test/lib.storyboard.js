@@ -108,6 +108,7 @@ function preview(h, options, word) {
 describe('full-course content preview', function() {
   it('includes course content without article/block titles or component extensions and without mutating saved content', async function() {
     var h = fixture();
+    h.records.component[1].properties._items.push({ title: 'Second item title', body: 'Second item body' });
     h.records.component[1].graphicsNotes = 'Review graphics notes';
     h.records.component[1].developerNotes = 'Review developer notes';
     h.schemas.component.properties._extensions = { type: 'object', properties: {
@@ -119,7 +120,8 @@ describe('full-course content preview', function() {
     var source = JSON.stringify([h.course, h.records, h.plugins, h.schemas]);
     var content = await preview(h), values = content.entries.map(function(entry) { return entry.text; });
     assert.strictEqual(content.title, 'Bicycle training');
-    ['Course introduction', 'Page text', 'Article body', 'Block body', 'Left body', 'Right body', 'Item body', 'Help text']
+    ['Course introduction', 'Page text', 'Article body', 'Block body', 'Left body', 'Right body',
+      'Item body', 'Second item title', 'Second item body', 'Help text']
       .forEach(function(value) { assert(values.includes(value), value); });
     var headings = content.entries.filter(function(entry) { return entry.type === 'heading'; });
     assert(headings.findIndex(function(entry) { return entry.text === 'Nested page'; }) <
@@ -134,6 +136,19 @@ describe('full-course content preview', function() {
     });
     var index = content.entries.findIndex(function(entry) { return entry.text === 'Left component'; });
     assert.deepStrictEqual(content.entries[index - 1], { type: 'componentType', text: 'Text' });
+    assert(!content.entries.slice(0, index).some(function(entry, entryIndex) {
+      return entry.type === 'pageBreak' && entryIndex > content.entries.findIndex(function(candidate) {
+        return candidate.type === 'heading' && candidate.text === 'First page';
+      });
+    }));
+    ['Nested page', 'First page', 'Last page'].forEach(function(title) {
+      var pageIndex = content.entries.findIndex(function(entry) { return entry.text === title; });
+      assert.deepStrictEqual(content.entries[pageIndex - 1], { type: 'pageBreak' });
+    });
+    var secondComponentIndex = content.entries.findIndex(function(entry) { return entry.text === 'Right component'; });
+    assert.deepStrictEqual(content.entries[secondComponentIndex - 2], { type: 'pageBreak' });
+    var secondItemIndex = content.entries.findIndex(function(entry) { return entry.text === 'Second item title'; });
+    assert.strictEqual(content.entries[secondItemIndex - 1].type, 'separator');
     ['c-01', 'Review graphics notes', 'Review developer notes', 'Do not export disabled text']
       .forEach(function(value) { assert(!values.includes(value), value); });
     var docx = await preview(h, {}, true), zip = await unzipper.Open.buffer(docx);
@@ -142,6 +157,81 @@ describe('full-course content preview', function() {
       assert(!xml.includes(value), value);
     });
     assert.strictEqual(JSON.stringify([h.course, h.records, h.plugins, h.schemas]), source);
+  });
+
+  it('omits extension fields and uses round bullets in full-course previews and Word exports', async function() {
+    var h = fixture(), getStorage = filestorage.getStorage;
+    var page = h.records.contentobject[1];
+    page.pageBody = '<ul><li>Round bullet</li></ul>';
+    page._extensions = { _menuButton: {
+      ariaLabel: 'Extension aria label', navTooltip: 'Extension tooltip', navLabel: 'Extension navigation label'
+    } };
+    h.records.config[0]._enabledExtensions.menuButton = { targetAttribute: '_menuButton' };
+    h.plugins.extensiontype.push({ extension: 'menuButton', targetAttribute: '_menuButton',
+      properties: { pluginLocations: { properties: {
+        contentobject: { properties: { _menuButton: { type: 'object', properties: {
+          ariaLabel: text, navTooltip: text, navLabel: text
+        } } } }
+      } } } });
+    filestorage.getStorage = function(repository, callback) {
+      callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
+    };
+    try {
+      var content = await preview(h);
+      assert(JSON.stringify(content).includes('\u2022 Round bullet'));
+      ['Extension aria label', 'Extension tooltip', 'Extension navigation label'].forEach(function(value) {
+        assert(!JSON.stringify(content).includes(value), value);
+      });
+      var previewZip = await unzipper.Open.buffer(await preview(h, {}, true));
+      var previewXml = (await previewZip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      assert(previewXml.includes('\u2022 Round bullet'));
+      var wordZip = await unzipper.Open.buffer(await generate(h));
+      var wordXml = (await wordZip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      var numberingXml = (await wordZip.files.find(function(file) { return file.path === 'word/numbering.xml'; }).buffer()).toString();
+      ['Extension aria label', 'Extension tooltip', 'Extension navigation label'].forEach(function(value) {
+        assert(!wordXml.includes(value), value);
+      });
+      assert(wordXml.includes('Round bullet'));
+      assert(numberingXml.includes('w:val="\u2022"'));
+    } finally { filestorage.getStorage = getStorage; }
+  });
+
+  it('shows only the large image for Splash components in preview and Word exports', async function() {
+    var h = fixture(), getStorage = filestorage.getStorage, files = [];
+    var large = '4234567890abcdef12345678', medium = '2234567890abcdef12345678';
+    var small = '3234567890abcdef12345678';
+    var variants = { type: 'object', properties: {
+      large: { type: 'string', inputType: 'Asset:image' },
+      medium: { type: 'string', inputType: 'Asset:image' },
+      smallPortrait: { type: 'string', inputType: 'Asset:image' }
+    } };
+    h.plugins.componenttype.push({ component: 'splash', displayName: 'Splash', properties: { _graphic: variants } });
+    h.records.component[1]._component = 'splash';
+    h.records.component[1]._graphic = {
+      large: large, medium: medium, smallPortrait: small
+    };
+    [[large, 'large.png'], [medium, 'medium.png'], [small, 'small.png']].forEach(function(entry) {
+      h.records.asset.push({ _id: entry[0], filename: entry[1], path: 'stored/' + entry[1],
+        repository: 'test', mimeType: 'image/png' });
+    });
+    filestorage.getStorage = function(repository, callback) {
+      callback(null, { getFileContents: function(file, callback) {
+        files.push(file);
+        callback(null, png);
+      } });
+    };
+    try {
+      var content = await preview(h, { images: true });
+      assert(files.includes('stored/large.png'));
+      assert(!files.includes('stored/medium.png'));
+      assert(!files.includes('stored/small.png'));
+      files.length = 0;
+      var zip = await unzipper.Open.buffer(await generate(h));
+      assert(zip.files.some(function(file) { return file.path === 'word/document.xml'; }));
+      assert(files.includes('stored/large.png'));
+      assert(!files.includes('stored/medium.png'));
+      assert(!files.includes('stored/small.png'));
+    } finally { filestorage.getStorage = getStorage; }
   });
 
   it('includes the original source in unavailable-image notices and preview Word exports', async function() {
@@ -187,7 +277,10 @@ describe('full-course content preview', function() {
     config._enabledExtensions.resources = { targetAttribute: '_resources' };
     config._enabledExtensions.glossary = { targetAttribute: '_glossary' };
     h.course._extensions._resources = { title: 'Useful resources',
-      _resourcesItems: [{ _id: 'resource-01', title: 'Resource title', description: 'Resource description', _link: 'https://example.com' }] };
+      _resourcesItems: [
+        { _id: 'resource-01', title: 'Resource title', description: 'Resource description', _link: 'https://example.com' },
+        { _id: 'resource-02', title: 'Second resource', description: 'Second resource description' }
+      ] };
     h.course._extensions._glossary = { _glossaryItems: [{ term: 'Torque', description: 'Turning force' }] };
     Object.assign(h.plugins.extensiontype[0].properties.pluginLocations.properties.course.properties._help.properties, {
       _popup: { type: 'object', properties: {
@@ -200,14 +293,30 @@ describe('full-course content preview', function() {
     help._popup = { title: 'Help popup', body: 'Help popup body', instruction: 'Help instruction' };
     help._items = [{ title: 'Help item', body: 'Help item body' },
       { _isEnabled: false, title: 'Hidden help item', body: 'Hidden help content' }];
-    var content = JSON.stringify(await preview(h));
-    ['Useful resources', 'Unique ID: resource-01', 'Resource description', 'https://example.com', 'Torque', 'Turning force', 'Help item body']
-      .forEach(function(value) { assert(content.includes(value), value); });
+    var content = await preview(h);
+    var serialized = JSON.stringify(content);
+    ['Unique ID: resource-01', 'Resource description', 'https://example.com', 'Second resource',
+      'Second resource description', 'Torque', 'Turning force', 'Help item body']
+      .forEach(function(value) { assert(serialized.includes(value), value); });
+    assert(!serialized.includes('Useful resources'));
+    var headings = content.entries.filter(function(entry) { return entry.type === 'heading'; });
+    assert(headings.findIndex(function(entry) { return entry.text === 'Resources'; }) <
+      headings.findIndex(function(entry) { return entry.text === 'Resource title'; }));
+    ['Glossary', 'Resources'].forEach(function(title) {
+      var index = content.entries.findIndex(function(entry) {
+        return entry.type === 'heading' && entry.text === title;
+      });
+      assert.deepStrictEqual(content.entries[index - 1], { type: 'pageBreak' });
+    });
+    var firstResourceIndex = content.entries.findIndex(function(entry) { return entry.text === 'Resource title'; });
+    assert.strictEqual(content.entries[firstResourceIndex - 1].type, 'separator');
+    var secondResourceIndex = content.entries.findIndex(function(entry) { return entry.text === 'Second resource'; });
+    assert.strictEqual(content.entries[secondResourceIndex - 1].type, 'separator');
     var zip = await unzipper.Open.buffer(await preview(h, {}, true));
     var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
     assert(xml.includes('Unique ID: resource-01'));
-    assert(!content.includes('Help popup'));
-    assert(!content.includes('Hidden help'));
+    assert(!serialized.includes('Help popup'));
+    assert(!serialized.includes('Hidden help'));
     help._popup._isEnabled = true;
     assert(JSON.stringify(await preview(h)).includes('Help instruction'));
     h.course._extensions._resources._isEnabled = false;
@@ -216,6 +325,99 @@ describe('full-course content preview', function() {
     content = JSON.stringify(await preview(h));
     ['Useful resources', 'Unique ID: resource-01', 'Torque', 'Help item body', 'Help text']
       .forEach(function(value) { assert(!content.includes(value), value); });
+  });
+
+  it('does not add an empty Help heading when a course page is already named Help', async function() {
+    var h = fixture();
+    h.records.contentobject[1].title = 'Help';
+    h.course._extensions._help = { body: '', _popup: { _isEnabled: false, title: '', body: '' }, _items: [] };
+    Object.assign(h.plugins.extensiontype[0].properties.pluginLocations.properties.course.properties._help.properties, {
+      _popup: { type: 'object', properties: {
+        _isEnabled: { type: 'boolean', default: false }, title: text, body: text
+      } },
+      _items: { type: 'array', items: { type: 'object', properties: { title: text, body: text } } }
+    });
+    var content = await preview(h);
+    var helpHeadings = content.entries.filter(function(entry) {
+      return entry.type === 'heading' && entry.text === 'Help';
+    });
+    assert.strictEqual(helpHeadings.length, 1);
+    assert.strictEqual(helpHeadings[0].level, 1);
+  });
+
+  it('keeps only the first Hero asset and omits Hero labels from the content preview', async function() {
+    var h = fixture(), getStorage = filestorage.getStorage;
+    h.records.config[0]._enabledExtensions.hero = { targetAttribute: '_hero' };
+    h.plugins.extensiontype.push({ extension: 'hero', properties: { pluginLocations: { properties: {
+      contentobject: { properties: { _hero: { type: 'object', properties: {
+        _backgroundImage: { type: 'object', properties: {
+          src: { type: 'string', inputType: 'Asset:image' }, alt: text
+        } },
+        buttonLabel: text
+      } } } }
+    } } } });
+    var secondHero = '2234567890abcdef12345678';
+    h.records.contentobject[1]._extensions = { _hero: {
+      _backgroundImage: { src: IMAGE, alt: 'First Hero image' }, buttonLabel: 'View'
+    } };
+    h.records.contentobject[0]._extensions = { _hero: {
+      _backgroundImage: { src: secondHero, alt: 'Second Hero image' }, buttonLabel: 'Continue'
+    } };
+    h.records.asset.push({ _id: secondHero, filename: 'second.png', path: 'stored/second.png',
+      repository: 'test', mimeType: 'image/png' });
+    filestorage.getStorage = function(repository, callback) {
+      callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
+    };
+    try {
+      var content = await preview(h, { images: true });
+      var images = content.entries.filter(function(entry) { return entry.type === 'image'; });
+      assert.strictEqual(images.length, 4, JSON.stringify(images));
+      assert.strictEqual(images.filter(function(entry) { return entry.alt === 'First Hero image'; }).length, 1);
+      assert.strictEqual(images.filter(function(entry) { return entry.alt === 'Second Hero image'; }).length, 0);
+      assert.strictEqual(images[0].alt, 'First Hero image');
+      var serialized = JSON.stringify(content.entries);
+      ['View', 'Continue', 'Second Hero image'].forEach(function(value) {
+        assert(!serialized.includes(value), value);
+      });
+      var wordZip = await unzipper.Open.buffer(await generate(h));
+      var wordXml = (await wordZip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      assert(wordXml.includes('First Hero image'));
+      ['Second Hero image', 'View', 'Continue'].forEach(function(value) {
+        assert(!wordXml.includes(value), value);
+      });
+    } finally { filestorage.getStorage = getStorage; }
+  });
+
+  it('deduplicates matching component variants and places distinct item variants side-by-side', async function() {
+    var h = fixture(), getStorage = filestorage.getStorage;
+    var secondAsset = '2234567890abcdef12345678';
+    var variantGraphic = { type: 'object', properties: {
+      large: { type: 'string', inputType: 'Asset:image' },
+      small: { type: 'string', inputType: 'Asset:image' }
+    } };
+    h.plugins.componenttype[0].properties._graphic = variantGraphic;
+    h.plugins.componenttype[0].properties._items.items.properties._graphic = variantGraphic;
+    h.records.component[1].properties._graphic = { large: IMAGE, small: IMAGE };
+    h.records.component[1].properties._items[0]._graphic = { large: IMAGE, small: secondAsset };
+    h.records.asset.push({ _id: secondAsset, filename: 'second.png', path: 'stored/second.png',
+      repository: 'test', mimeType: 'image/png' });
+    filestorage.getStorage = function(repository, callback) {
+      callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
+    };
+    try {
+      var content = await preview(h, { images: true });
+      assert.strictEqual(content.entries.filter(function(entry) { return entry.type === 'image'; }).length, 2);
+      var groups = content.entries.filter(function(entry) { return entry.type === 'imageGroup'; });
+      assert.strictEqual(groups.length, 1);
+      assert.strictEqual(groups[0].images.length, 2);
+      var zip = await unzipper.Open.buffer(await generate(h));
+      var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
+      assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, 4);
+      var paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+      assert(paragraphs.some(function(paragraph) {
+        return (paragraph.match(/<w:drawing>/g) || []).length === 2;
+      }));
+    } finally { filestorage.getStorage = getStorage; }
   });
 
   it('shares independently selected tenant images and screenshots with the Word export', async function() {
@@ -338,8 +540,9 @@ describe('full-course storyboard generation', function() {
         return paragraph.includes('<w:pStyle w:val="Heading2"/>');
       });
       assert.strictEqual(headings.length, 2);
-      headings.forEach(function(heading) {
+      headings.forEach(function(heading, index) {
         assert(heading.includes('>Text<'));
+        assert.strictEqual(heading.includes('<w:pageBreakBefore'), index === 1);
         assert(!heading.includes('Left component'));
         assert(!heading.includes('Right component'));
       });
@@ -591,19 +794,25 @@ describe('full-course storyboard generation', function() {
       _isEnabled: true, title: 'Useful resources', displayTitle: 'Reference library',
       description: 'Resources description', body: '<p>Resources introduction</p>', instruction: 'Choose a resource',
       _filterButtons: { all: 'Do not export filter labels' }, _drawerOrder: 3,
-      _resourcesItems: [{ _id: 'reference-sheet-01', title: 'Reference sheet', description: '<p>Resource details</p>',
-        filename: 'reference.pdf', _link: 'course/assets/reference.pdf', _forceDownload: true,
-        _isGlobal: true, _type: 'document' }]
+      _resourcesItems: [
+        { _id: 'reference-sheet-01', title: 'Reference sheet', description: '<p>Resource details</p>',
+          filename: 'reference.pdf', _link: 'course/assets/reference.pdf', _forceDownload: true,
+          _isGlobal: true, _type: 'document' },
+        { _id: 'reference-sheet-02', title: 'Second reference', description: 'Second details' }
+      ]
     };
     h.course._extensions._glossary = {
       _isEnabled: true, title: 'Key terms', description: 'Glossary description',
       clearSearch: 'Do not export clear-search text', searchPlaceholder: 'Do not export search text',
-      _glossaryItems: [{ term: 'Torque', description: '<p>Turning force<img src="course/assets/example.png"></p>' }]
+      _glossaryItems: [
+        { term: 'Torque', description: '<p>Turning force<img src="course/assets/example.png"></p>' },
+        { term: 'Power', description: 'Rate of work' }
+      ]
     };
     return h;
   }
 
-  it('exports enabled Resources and Glossary headings, introductory content and items, but no configurable settings', async function() {
+  it('exports only Resources and Glossary headings and items, without extension settings', async function() {
     var h = withCourseExtensions(), getStorage = filestorage.getStorage;
     filestorage.getStorage = function(repository, callback) {
       callback(null, { getFileContents: function(file, callback) { callback(null, png); } });
@@ -611,14 +820,26 @@ describe('full-course storyboard generation', function() {
     try {
       var zip = await unzipper.Open.buffer(await generate(h));
       var xml = (await zip.files.find(function(file) { return file.path === 'word/document.xml'; }).buffer()).toString();
-      ['Resources', 'Useful resources', 'Reference library', 'Resources description', 'Resources introduction',
-        'Choose a resource', 'Reference sheet', 'Unique ID: reference-sheet-01', 'Resource details', 'reference.pdf', 'course/assets/reference.pdf',
-        'Glossary', 'Key terms', 'Glossary description', 'Torque', 'Turning force']
+      ['Resources', 'Reference sheet', 'Unique ID: reference-sheet-01', 'Resource details', 'reference.pdf', 'course/assets/reference.pdf',
+        'Second reference', 'Second details', 'Glossary', 'Torque', 'Turning force', 'Power', 'Rate of work']
         .forEach(function(value) { assert(xml.includes(value), value); });
-      assert(xml.includes('>Total word count: 44<'));
+      ['Useful resources', 'Reference library', 'Resources description', 'Resources introduction', 'Choose a resource',
+        'Key terms', 'Glossary description'].forEach(function(value) { assert(!xml.includes(value), value); });
       ['Do not export', 'Filter buttons', 'Drawer order', 'Clear search', 'Search placeholder', 'Force download', 'Is global',
         'Image unavailable:'].forEach(function(value) { assert(!xml.includes(value), value); });
       assert.strictEqual((xml.match(/<w:drawing>/g) || []).length, 4);
+      var paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+      ['Glossary', 'Resources'].forEach(function(title) {
+        assert(paragraphs.some(function(paragraph) {
+          return paragraph.includes('<w:pStyle w:val="Heading1"/>') &&
+            paragraph.includes('>' + title + '<') && paragraph.includes('<w:pageBreakBefore');
+        }));
+      });
+      var horizontalRules = paragraphs.filter(function(paragraph) {
+        return paragraph.includes('<w:pBdr>') && paragraph.includes('<w:bottom') &&
+          !paragraph.includes('<w:top') && !paragraph.includes('<w:left') && !paragraph.includes('<w:right');
+      });
+      assert(horizontalRules.length >= 2);
       var itemHeadings = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g).filter(function(paragraph) {
         return paragraph.includes('<w:pStyle w:val="Heading2"/>');
       });
@@ -779,12 +1000,12 @@ describe('full-course content preview route', function() {
     assert.strictEqual(result.status, 200);
     assert.strictEqual(result.body.title, 'E-bikes');
     assert.strictEqual(result.headers['Cache-Control'], 'no-store');
-    assert.deepStrictEqual(copy(h.options), { images: true, screenshots: false });
+    assert.deepStrictEqual(copy(h.options), { images: true });
     result = await h.requestPreview({ format: 'docx', images: 'false', screenshots: 'true' });
     assert.strictEqual(result.status, 200);
     assert.strictEqual(result.output.toString(), 'content-only');
     assert(result.headers['Content-Disposition'].includes('Training_E-bikes_content-preview.docx'));
-    assert.deepStrictEqual(copy(h.options), { images: false, screenshots: true });
+    assert.deepStrictEqual(copy(h.options), { images: false });
   });
 
   it('rejects anonymous, cross-tenant and denied access without generating preview content', async function() {

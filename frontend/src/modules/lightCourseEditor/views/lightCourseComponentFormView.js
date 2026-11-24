@@ -6,6 +6,7 @@ define(function(require) {
   var LightCourseAssetContext = require('../lightCourseAssetContext');
   var ComponentLayout = require('../componentLayout');
   var inlineListSchema = require('../inlineListSchema');
+  var ideaLinks = require('../ideaLinks');
 
   /**
    * Renders the generic component field editor described in Phase 3/4's "Generic component-field
@@ -72,6 +73,31 @@ define(function(require) {
         title: Origin.l10n.t('app.lightcoursecomponentlayout'), validators: ['required'] };
       filteredSchema.screenshotAssetId = { type: 'string', inputType: 'LightCourseAsset:image',
         title: Origin.l10n.t('app.lightcoursecomponentscreenshot') };
+      function ideaField() {
+        return { type: 'array', title: Origin.l10n.t('app.lightcourseitemideas'),
+          items: { type: 'object', properties: {
+            src: { type: 'string', inputType: 'LightCourseAsset:image', title: Origin.l10n.t('app.lightcourseideaimage') },
+            notes: { type: 'string', inputType: 'TextArea', title: Origin.l10n.t('app.lightcourseideanotes') },
+            targetId: { type: 'string', inputType: { type: 'Select', options: ideaLinks.targets(
+              self.model.toJSON(), Origin.l10n.t('app.lightcourseideacomponent'), Origin.l10n.t('app.lightcourseideaitem')) },
+              title: Origin.l10n.t('app.lightcourseideatarget'), default: '' }
+          } } };
+      }
+      var self = this;
+      ideaLinks.prepare(this.model, filteredSchema);
+      function addItemIds(properties) {
+        Object.keys(properties).forEach(function(key) {
+          var field = properties[key];
+          if (field.type === 'array' && field.items && field.items.properties) {
+            addItemIds(field.items.properties);
+            field.items.properties._lightCourseIdeaItemId = { type: 'string', inputType: 'Hidden', fieldClass: 'display-none' };
+          } else if (field.properties) {
+            addItemIds(field.properties);
+          }
+        });
+      }
+      addItemIds(filteredSchema);
+      filteredSchema._lightCourseIdeaAssets = ideaField();
 
       // Light-editor-only fields, per the main plan - never part of the real component schema,
       // merged in here at the form-building level only (Phase 3's "Generic component-field
@@ -88,18 +114,41 @@ define(function(require) {
 
       var schema = inlineListSchema(Origin.scaffold.buildSchema(filteredSchema));
       var fields = Object.keys(schema);
-      fields = ['uniqueId', '_layout', 'title', 'screenshotAssetId'].filter(function(key) { return fields.indexOf(key) !== -1; })
-        .concat(_.without(fields, 'uniqueId', '_layout', 'title', 'screenshotAssetId'));
+      fields = ['uniqueId', '_layout', 'title', 'screenshotAssetId', '_lightCourseIdeaAssets'].filter(function(key) { return fields.indexOf(key) !== -1; })
+        .concat(_.without(fields, 'uniqueId', '_layout', 'title', 'screenshotAssetId', '_lightCourseIdeaAssets'));
 
       this.model.schema = schema;
       this.form = new Backbone.Form({ model: this.model, schema: schema, fields: fields }).render();
       this.$('.light-course-component-form-inner').append(this.form.el);
+      this.listenTo(this.form, 'change', this.updateIdeaTargets);
 
       if (isMissingPlugin) {
         this.form.$('input, textarea, select, button').prop('disabled', true);
       }
 
       this.setViewToReady();
+    },
+
+    updateIdeaTargets: function() {
+      if (this.updatingIdeas) return;
+      this.updatingIdeas = true;
+      try {
+        var options = ideaLinks.targets(this.form.getValue(), Origin.l10n.t('app.lightcourseideacomponent'),
+          Origin.l10n.t('app.lightcourseideaitem'));
+        var list = this.form.fields._lightCourseIdeaAssets.editor;
+        list.items.slice().forEach(function(item) {
+          var select = item.editor.nestedForm.fields.targetId.editor;
+          var selected = select.getValue() || '';
+          if (selected && !options.some(function(option) { return option.val === selected; })) {
+            list.removeItem(item);
+            return;
+          }
+          select.value = selected;
+          select.setOptions(options);
+        });
+      } finally {
+        this.updatingIdeas = false;
+      }
     },
 
     /**

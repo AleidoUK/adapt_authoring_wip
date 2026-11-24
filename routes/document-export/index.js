@@ -42,7 +42,7 @@ server.get('/document-export/:tenant/:id/content-preview', function(req, res) {
 
 function validReadOptions(query) {
   return (query.format === undefined || ['json', 'docx'].includes(query.format)) &&
-    ['images', 'screenshots'].every(function(option) {
+    ['images', 'screenshots', 'ideas'].every(function(option) {
       return query[option] === undefined || ['true', 'false'].includes(query[option]);
     });
 }
@@ -56,7 +56,7 @@ function exportFullCourse(req, res, read) {
   }
   if (read && !validReadOptions(query)) {
     return res.status(400).json({ success: false,
-      message: 'Choose json or docx format and true or false for images and screenshots.' });
+      message: 'Choose json or docx format and true or false for images, screenshots and ideas.' });
   }
   var resource = permissions.buildResourceString(tenantId, '/api/content/course/' + id);
   permissions.hasPermission(String(user._id), 'read', resource, function(error, allowed) {
@@ -86,7 +86,7 @@ function exportFullCourse(req, res, read) {
                   .concat(course.title || 'course').join('_').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '-').trim() +
                     (read ? '_content-preview.docx' : '_storyboard.docx');
                 sendWord(res, output, filename);
-              }, { images: query.images === 'true', screenshots: query.screenshots === 'true' });
+              }, { images: query.images === 'true' });
             }, configuration.getConfig('dbName'));
           });
         });
@@ -187,7 +187,7 @@ function exportLightCourse(req, res, read) {
   }
   if (read && !validReadOptions(req.query)) {
     return res.status(400).json({ success: false,
-      message: 'Choose json or docx format and true or false for images and screenshots.' });
+      message: 'Choose json or docx format and true or false for images, screenshots and ideas.' });
   }
 
   database.getDatabase(function (error, db) {
@@ -249,7 +249,8 @@ function exportLightCourse(req, res, read) {
               res.setHeader('Content-Disposition', 'attachment; filename="' + slugify(data.title) + '.md"');
               return res.send(output);
             });
-          }, { images: req.query.images === 'true', screenshots: req.query.screenshots === 'true' });
+          }, { images: req.query.images === 'true', screenshots: req.query.screenshots === 'true',
+            ideas: req.query.ideas === 'true' });
         });
       });
     });

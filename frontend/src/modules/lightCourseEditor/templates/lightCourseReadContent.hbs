@@ -1,6 +1,8 @@
 {{#if title}}<h1>{{title}}</h1>{{/if}}
 {{#each entries}}
   {{#ifValueEquals type "componentType"}}<p class="light-course-read-component-type">{{text}}</p>{{/ifValueEquals}}
+  {{#ifValueEquals type "pageBreak"}}<div class="light-course-read-page-break"></div>{{/ifValueEquals}}
+  {{#ifValueEquals type "separator"}}<hr class="light-course-read-item-separator">{{/ifValueEquals}}
   {{#ifValueEquals type "heading"}}
     {{#ifValueEquals level 1}}<h2>{{text}}</h2>{{/ifValueEquals}}
     {{#ifValueEquals level 2}}<h3>{{text}}</h3>{{/ifValueEquals}}
@@ -9,6 +11,27 @@
     {{#ifValueEquals level 5}}<h6>{{text}}</h6>{{/ifValueEquals}}
   {{/ifValueEquals}}
   {{#ifValueEquals type "text"}}<p>{{text}}</p>{{/ifValueEquals}}
-  {{#ifValueEquals type "notice"}}<p class="light-course-read-notice">{{text}}</p>{{/ifValueEquals}}
-  {{#ifValueEquals type "image"}}<p><img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}"></p>{{/ifValueEquals}}
+  {{#ifValueEquals type "imageGroup"}}
+    <div class="light-course-read-image-group">
+      {{#each images}}
+        {{#ifValueEquals type "image"}}<img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}">{{/ifValueEquals}}
+        {{#ifValueEquals type "notice"}}<p class="light-course-read-notice">{{text}}</p>{{/ifValueEquals}}
+      {{/each}}
+    </div>
+  {{/ifValueEquals}}
+  {{#if idea}}
+    <div class="light-course-read-idea">
+      <div class="light-course-read-idea-image">
+        {{#ifValueEquals type "image"}}<img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}">{{/ifValueEquals}}
+        {{#ifValueEquals type "notice"}}<p class="light-course-read-notice">{{text}}</p>{{/ifValueEquals}}
+      </div>
+      <div class="light-course-read-idea-details">
+        <p>{{t 'app.lightcourseideatarget'}}: {{ideaTarget}}</p>
+        {{#if notes}}<p>{{notes}}</p>{{/if}}
+      </div>
+    </div>
+  {{else}}
+    {{#ifValueEquals type "notice"}}<p class="light-course-read-notice">{{text}}</p>{{/ifValueEquals}}
+    {{#ifValueEquals type "image"}}<p><img src="{{src}}" alt="{{alt}}" width="{{width}}" height="{{height}}"></p>{{/ifValueEquals}}
+  {{/if}}
 {{/each}}

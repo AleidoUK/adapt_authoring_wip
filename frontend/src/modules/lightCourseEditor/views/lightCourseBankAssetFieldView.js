@@ -40,7 +40,14 @@ define(['core/origin', '../lightCourseAssetContext', '../alphabetical', 'backbon
       'click .light-course-bank-asset-upload-trigger': 'onUploadTriggerClicked',
       'change .light-course-bank-asset-file-input': 'onFileChosen',
       'click .light-course-bank-asset-clear': 'onClearClicked',
-      'click .light-course-bank-asset-bank-item': 'onBankItemClicked'
+      'click .light-course-bank-asset-bank-item': 'onBankItemClicked',
+      'focusin': function() {
+        if (!this.hasFocus) this.trigger('focus', this);
+      },
+      'focusout': function(event) {
+        if (event.relatedTarget && this.el.contains(event.relatedTarget)) return;
+        if (this.hasFocus) this.trigger('blur', this);
+      }
     },
 
     initialize: function(options) {
@@ -63,6 +70,15 @@ define(['core/origin', '../lightCourseAssetContext', '../alphabetical', 'backbon
       if (hasValue) {
         this.$('.light-course-bank-asset-preview-filename').text(Origin.l10n.t('app.lightcourseassetselected'));
       }
+      if (this.hasFocus) this.trigger('blur', this);
+    },
+
+    focus: function() {
+      if (!this.hasFocus) this.$('.light-course-bank-asset-browse').focus();
+    },
+
+    blur: function() {
+      if (this.hasFocus) this.$(':focus').blur();
     },
 
     onBrowseClicked: function(event) {
@@ -127,8 +143,9 @@ define(['core/origin', '../lightCourseAssetContext', '../alphabetical', 'backbon
         contentType: false
       }).done(function(asset) {
         self.selectAsset(asset._id);
-      }).fail(function() {
-        Origin.Notify.alert({ type: 'error', text: Origin.l10n.t('app.errorgeneric') });
+      }).fail(function(response) {
+        Origin.Notify.alert({ type: 'error', text: response.responseJSON && response.responseJSON.message ||
+          Origin.l10n.t('app.errorgeneric') });
       });
     },
 
